@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useLayoutStore } from '../layoutStore';
 import { useGameStore } from '../gameStore';
-import { produce } from 'immer';
+
 
 // Mock Data for Loop Test
 const ITEM_A = { id: "item-a", name: "Item A", category: "component", stackSize: 100 };

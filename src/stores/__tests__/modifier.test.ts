@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useLayoutStore } from '../layoutStore';
 import { useGameStore } from '../gameStore';
-import { solveBlock } from '@/lib/solver/rateSolver';
+
 
 // Mock Data
 const RECIPE = {
