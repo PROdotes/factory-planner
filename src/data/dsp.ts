@@ -8,6 +8,9 @@ export const DSP_DATA: GameDefinition = {
     items: [
         { id: "iron-ore", name: "Iron Ore", category: "ore", stackSize: 100 },
         { id: "copper-ore", name: "Copper Ore", category: "ore", stackSize: 100 },
+        { id: "crude-oil", name: "Crude Oil", category: "fluid", stackSize: 20 },
+        { id: "refined-oil", name: "Refined Oil", category: "fluid", stackSize: 20 },
+        { id: "hydrogen", name: "Hydrogen", category: "fluid", stackSize: 20 },
         { id: "iron-ingot", name: "Iron Ingot", category: "ingot", stackSize: 100 },
         { id: "copper-ingot", name: "Copper Ingot", category: "ingot", stackSize: 100 },
         { id: "magnet", name: "Magnet", category: "component", stackSize: 100 },
@@ -66,6 +69,18 @@ export const DSP_DATA: GameDefinition = {
             category: "assembling"
         },
         {
+            id: "plasma-refining",
+            name: "Plasma Refining",
+            machineId: "chemical-plant",
+            inputs: [{ itemId: "crude-oil", amount: 2 }],
+            outputs: [
+                { itemId: "refined-oil", amount: 2 },
+                { itemId: "hydrogen", amount: 1 }
+            ],
+            craftingTime: 4.0,
+            category: "chemical"
+        },
+        {
             id: "mining-iron",
             name: "Mining: Iron Ore",
             machineId: "mining-machine",
@@ -109,6 +124,14 @@ export const DSP_DATA: GameDefinition = {
             speed: 1.0,
             powerUsage: 540000,
             size: { width: 2, height: 2 }
+        },
+        {
+            id: "chemical-plant",
+            name: "Chemical Plant",
+            category: "chemical",
+            speed: 1.0,
+            powerUsage: 720000,
+            size: { width: 3, height: 3 }
         },
         {
             id: "mining-machine",
