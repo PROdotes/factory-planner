@@ -3,10 +3,11 @@ import { solveBlock } from '../rateSolver';
 import { Recipe, Machine } from '@/types/game';
 
 // Mocks
+// Mocks
 const MOCK_RECIPE: Recipe = {
     id: 'iron-ingot',
     name: 'Iron Ingot',
-    category: 'Smelting',
+    category: 'smelting',
     craftingTime: 1, // 1 second
     inputs: [{ itemId: 'iron-ore', amount: 1 }],
     outputs: [{ itemId: 'iron-ingot', amount: 1 }],
@@ -16,9 +17,11 @@ const MOCK_RECIPE: Recipe = {
 const MOCK_MACHINE: Machine = {
     id: 'arc-smelter',
     name: 'Arc Smelter',
+    category: 'smelter',
     speed: 1.0,
-    powerConsumption: 360,
-    allowedCategories: ['Smelting']
+    size: { width: 1, height: 1 },
+    powerUsage: 360,
+    allowedCategories: ['smelting']
 };
 
 const MOCK_MACHINE_MK2: Machine = {
