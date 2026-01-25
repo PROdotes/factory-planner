@@ -187,7 +187,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
                     recipe,
                     machine,
                     block.targetRate,
-                    block.speedModifier
+                    block.speedModifier,
+                    block.primaryOutputId
                 );
 
                 block.machineCount = solved.machineCount;
@@ -205,8 +206,6 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
             }
 
             // 3. ATOMIC AUDIT: Update all connected edges using the fresh node data in this draft
-            // We removed the manual edge update here in favor of a full recalculation below
-            // to ensure Starvation Propagation and CurrentRate invalidation happens correctly.
         }));
 
         get().recalculateFlows();
@@ -225,7 +224,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         const id = crypto.randomUUID();
 
         // Initial Solve
-        const solved = solveBlock(recipe, machine, 60); // Default to 60/min output
+        const solved = solveBlock(recipe, machine, 60, 1.0, recipe.outputs[0].itemId); // Default to 60/min output
 
         // Calculate Ports with visual positioning
         const inputPorts: Port[] = solved.inputRates.map((input, index) => ({
@@ -258,7 +257,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
             size: { width: 250, height: 180 }, // Slightly taller for more ports
             inputPorts,
             outputPorts,
-            speedModifier: 1.0
+            speedModifier: 1.0,
+            primaryOutputId: recipe.outputs[0].itemId
         };
 
         const newNode: BlockNode = {
@@ -512,7 +512,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
                         recipe,
                         machine,
                         block.targetRate,
-                        block.speedModifier
+                        block.speedModifier,
+                        block.primaryOutputId
                     );
 
                     block.machineCount = solved.machineCount;
