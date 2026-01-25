@@ -1,0 +1,30 @@
+import { render, screen, fireEvent } from '@testing-library/react';
+import { Toolbar } from '../Toolbar';
+import { describe, it, expect, vi } from 'vitest';
+
+
+// Mock the AppShell or just test Toolbar in isolation
+describe('Toolbar', () => {
+    it('renders the toolbar', () => {
+        render(<Toolbar />);
+        expect(screen.getByText('DSP')).toBeInTheDocument();
+        expect(screen.getByText('FLOW')).toBeInTheDocument();
+        expect(screen.getByText('New Block')).toBeInTheDocument();
+    });
+
+    it('renders navigation buttons with titles', () => {
+        render(<Toolbar />);
+        expect(screen.getByTitle('Save to Browser Storage')).toBeInTheDocument();
+        expect(screen.getByTitle('Load from Browser Storage')).toBeInTheDocument();
+        expect(screen.getByTitle('Export Layout JSON')).toBeInTheDocument();
+        expect(screen.getByTitle('Import Layout JSON')).toBeInTheDocument();
+        expect(screen.getByTitle('Clear All')).toBeInTheDocument();
+    });
+
+    it('invokes the data editor action', () => {
+        const onOpenEditor = vi.fn();
+        render(<Toolbar onOpenEditor={onOpenEditor} />);
+        fireEvent.click(screen.getByText('Game Data'));
+        expect(onOpenEditor).toHaveBeenCalledTimes(1);
+    });
+});
