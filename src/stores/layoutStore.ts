@@ -183,12 +183,31 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
             const machine = game.machines.find(m => m.id === block.machineId) || game.machines[0];
 
             if (recipe && machine) {
+                // Calculate Modifiers
+                let speedMult = block.speedModifier || 1.0;
+                let prodBonus = 0.0;
+
+                if (block.modifier) {
+                    if (block.modifier.type === 'speed') {
+                        // Level 1=25%, 2=50%, 3=100%
+                        if (block.modifier.level === 1) speedMult *= 1.25;
+                        if (block.modifier.level === 2) speedMult *= 1.50;
+                        if (block.modifier.level === 3) speedMult *= 2.00;
+                    } else if (block.modifier.type === 'productivity') {
+                        // Level 1=12.5%, 2=20%, 3=25%
+                        if (block.modifier.level === 1) prodBonus = 0.125;
+                        if (block.modifier.level === 2) prodBonus = 0.20;
+                        if (block.modifier.level === 3) prodBonus = 0.25;
+                    }
+                }
+
                 const solved = solveBlock(
                     recipe,
                     machine,
                     block.targetRate,
-                    block.speedModifier,
-                    block.primaryOutputId
+                    speedMult,
+                    block.primaryOutputId,
+                    prodBonus
                 );
 
                 block.machineCount = solved.machineCount;
@@ -504,16 +523,40 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
             // 1. Re-Solve all blocks with potentially new game data
             state.nodes.forEach((node) => {
                 const block = node.data;
+                // 2. Re-solve the block math
                 const recipe = game.recipes.find(r => r.id === block.recipeId);
                 const machine = game.machines.find(m => m.id === block.machineId) || game.machines[0];
 
                 if (recipe && machine) {
+                    // Calculate Modifiers
+                    let speedMult = block.speedModifier || 1.0;
+                    let prodBonus = 0.0;
+
+                    if (block.modifier) {
+                        if (block.modifier.type === 'speed') {
+                            // Level 1=25%, 2=50%, 3=100%
+                            if (block.modifier.level === 1) speedMult *= 1.25;
+                            if (block.modifier.level === 2) speedMult *= 1.50;
+                            if (block.modifier.level === 3) speedMult *= 2.00;
+                        } else if (block.modifier.type === 'productivity') {
+                            // Level 1=12.5%, 2=20%, 3=25%
+                            if (block.modifier.level === 1) prodBonus = 0.125;
+                            if (block.modifier.level === 2) prodBonus = 0.20;
+                            if (block.modifier.level === 3) prodBonus = 0.25;
+
+                            // Note: In DSP, Prod Spray increases power but keeps speed same.
+                            // However, some games equate Prod with Speed penalty (Factorio).
+                            // Our default is neutral speed unless specified.
+                        }
+                    }
+
                     const solved = solveBlock(
                         recipe,
                         machine,
                         block.targetRate,
-                        block.speedModifier,
-                        block.primaryOutputId
+                        speedMult,
+                        block.primaryOutputId,
+                        prodBonus
                     );
 
                     block.machineCount = solved.machineCount;

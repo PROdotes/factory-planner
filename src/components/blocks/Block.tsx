@@ -3,7 +3,7 @@ import { Handle, Position, NodeProps } from 'reactflow';
 import { Block as BlockType } from '@/types/block';
 import { DSP_DATA } from '@/data/dsp';
 import { useLayoutStore } from '@/stores/layoutStore';
-import { Zap, Activity, Settings, ArrowRight, Trash2, Edit2, ChevronDown } from 'lucide-react';
+import { Zap, Activity, Settings, ArrowRight, Trash2, Edit2, ChevronDown, FlaskConical } from 'lucide-react';
 
 const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
     const deleteBlock = useLayoutStore((state) => state.deleteBlock);
@@ -127,48 +127,102 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
                 </div>
             </div>
 
-            {/* MACHINE SELECTOR ROW: Full Width */}
-            <div className="px-4 py-2 bg-slate-900/20 border-b border-slate-900/50 flex items-center justify-between">
-                <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Equipment</span>
-                {(() => {
-                    const currentMachine = DSP_DATA.machines.find(m => m.id === data.machineId);
-                    const alternatives = DSP_DATA.machines.filter(m =>
-                        currentMachine &&
-                        m.category === currentMachine.category &&
-                        m.id !== currentMachine.id
-                    );
+            {/* MACHINE & MODIFIER ROW */}
+            <div className="px-4 py-2 bg-slate-900/20 border-b border-slate-900/50 flex items-center justify-between gap-2">
 
-                    const onMachineCycle = (e: React.MouseEvent) => {
-                        e.stopPropagation();
-                        if (alternatives.length === 0) return;
-
-                        const allInCategory = DSP_DATA.machines.filter(m =>
-                            currentMachine && m.category === currentMachine.category
+                {/* Machine Selection (Left) */}
+                <div className="flex-1 flex items-center justify-between pr-2 border-r border-slate-800/50">
+                    <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest hidden sm:inline">Machine</span>
+                    {(() => {
+                        const currentMachine = DSP_DATA.machines.find(m => m.id === data.machineId);
+                        const alternatives = DSP_DATA.machines.filter(m =>
+                            currentMachine &&
+                            m.category === currentMachine.category &&
+                            m.id !== currentMachine.id
                         );
-                        const currentIndex = allInCategory.findIndex(m => m.id === data.machineId);
-                        const nextIndex = (currentIndex + 1) % allInCategory.length;
-                        const nextMachine = allInCategory[nextIndex];
 
-                        useLayoutStore.getState().updateBlock(id, {
-                            machineId: nextMachine.id
-                        });
-                    };
+                        const onMachineCycle = (e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            if (alternatives.length === 0) return;
 
-                    return (
-                        <div
-                            onClick={onMachineCycle}
+                            const allInCategory = DSP_DATA.machines.filter(m =>
+                                currentMachine && m.category === currentMachine.category
+                            );
+                            const currentIndex = allInCategory.findIndex(m => m.id === data.machineId);
+                            const nextIndex = (currentIndex + 1) % allInCategory.length;
+                            const nextMachine = allInCategory[nextIndex];
+
+                            useLayoutStore.getState().updateBlock(id, {
+                                machineId: nextMachine.id
+                            });
+                        };
+
+                        return (
+                            <div
+                                onClick={onMachineCycle}
+                                className={`
+                                    text-[10px] font-bold py-0.5 px-2 rounded border border-transparent transition-all flex items-center gap-1
+                                    ${alternatives.length > 0 ? 'cursor-pointer hover:bg-slate-800 hover:border-cyan-500/30 text-cyan-400 bg-slate-900 shadow-sm' : 'text-slate-400'}
+                                `}
+                            >
+                                <span className="truncate max-w-[80px]">{currentMachine?.name || 'Unknown'}</span>
+                                {alternatives.length > 0 && <ChevronDown size={10} className="text-cyan-500/50" />}
+                            </div>
+                        );
+                    })()}
+                </div>
+
+                {/* Modifier Selection (Right) */}
+                <div className="flex items-center gap-1">
+                    {/* Level Cycle */}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            const currentLevel = data.modifier?.level || 0;
+                            const nextLevel = (currentLevel + 1) % 4;
+
+                            useLayoutStore.getState().updateBlock(id, {
+                                modifier: nextLevel === 0 ? undefined : {
+                                    type: data.modifier?.type || 'speed',
+                                    level: nextLevel,
+                                    includeConsumption: true
+                                }
+                            });
+                        }}
+                        className={`
+                            p-1 rounded flex items-center justify-center transition-all border
+                            ${(data.modifier?.level || 0) > 0
+                                ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20'
+                                : 'bg-slate-900 border-slate-800 text-slate-600 hover:text-slate-400'}
+                        `}
+                        title="Proliferator Level (Mk.I / II / III)"
+                    >
+                        <FlaskConical size={12} fill={(data.modifier?.level || 0) > 0 ? "currentColor" : "none"} />
+                        {(data.modifier?.level || 0) > 0 && <span className="text-[9px] font-black ml-1">Mk.{data.modifier?.level}</span>}
+                    </button>
+
+                    {/* Type Toggle (Only if Level > 0) */}
+                    {(data.modifier?.level || 0) > 0 && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                const newType = data.modifier?.type === 'speed' ? 'productivity' : 'speed';
+                                useLayoutStore.getState().updateBlock(id, {
+                                    modifier: { ...data.modifier!, type: newType }
+                                });
+                            }}
                             className={`
-                                text-[10px] font-bold py-1 px-3 rounded border border-transparent transition-all flex items-center gap-2
-                                ${alternatives.length > 0 ? 'cursor-pointer hover:bg-slate-800 hover:border-cyan-500/30 text-cyan-400 bg-slate-900 shadow-sm' : 'text-slate-400'}
+                                text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border transition-all
+                                ${data.modifier?.type === 'productivity'
+                                    ? 'bg-orange-500/10 border-orange-500/30 text-orange-400 hover:bg-orange-500/20'
+                                    : 'bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20'}
                             `}
+                            title={data.modifier?.type === 'productivity' ? "Extra Products" : "Speedup"}
                         >
-                            <span>{currentMachine?.name || 'Unknown'}</span>
-                            {alternatives.length > 0 && (
-                                <ChevronDown size={12} className="text-cyan-500/50" />
-                            )}
-                        </div>
-                    );
-                })()}
+                            {data.modifier?.type === 'productivity' ? 'Prod' : 'Speed'}
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* BODY: The Flow (Input -> Machine -> Output) */}
