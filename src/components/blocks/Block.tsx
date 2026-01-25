@@ -290,9 +290,40 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
                                         ${!hasConflict ? 'hover:border-cyan-500/50' : ''}
                                     `}
                                 >
-                                    <span className={`text-[9px] truncate leading-tight mb-0.5 ${isOverloaded ? 'text-red-400' : (isStarved ? 'text-amber-400' : 'text-slate-400')}`}>
-                                        {getItemName(port.itemId)}
-                                    </span>
+                                    <div className="flex items-center justify-end gap-1 mb-0.5">
+                                        {data.outputPorts.length > 1 && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    useLayoutStore.getState().updateBlock(id, {
+                                                        primaryOutputId: port.itemId
+                                                    });
+                                                }}
+                                                className={`
+                                                    p-0.5 rounded hover:bg-white/10 transition-colors
+                                                    ${data.primaryOutputId === port.itemId ? 'text-yellow-400' : 'text-slate-600 hover:text-yellow-400/50'}
+                                                `}
+                                                title="Set as Primary Output"
+                                            >
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    width="10"
+                                                    height="10"
+                                                    viewBox="0 0 24 24"
+                                                    fill={data.primaryOutputId === port.itemId ? "currentColor" : "none"}
+                                                    stroke="currentColor"
+                                                    strokeWidth="2"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                >
+                                                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                                </svg>
+                                            </button>
+                                        )}
+                                        <span className={`text-[9px] truncate leading-tight ${isOverloaded ? 'text-red-400' : (isStarved ? 'text-amber-400' : 'text-slate-400')}`}>
+                                            {getItemName(port.itemId)}
+                                        </span>
+                                    </div>
                                     <span className={`text-[11px] font-bold leading-tight ${isOverloaded ? 'text-red-400' : (isStarved ? 'text-amber-400' : 'text-cyan-200/80')}`}>
                                         {port.rate.toFixed(1)}
                                     </span>

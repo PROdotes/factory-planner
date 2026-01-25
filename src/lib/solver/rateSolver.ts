@@ -14,13 +14,16 @@ export function solveBlock(
     recipe: Recipe,
     machine: Machine,
     targetRate: number,
-    speedModifier: number = 1.0
+    speedModifier: number = 1.0,
+    primaryOutputId?: string
 ) {
-    // 1. Calculate base rate of one machine (items/min)
-    // recipe.craftingTime is usually in seconds.
-    // recipe.outputs[0].amount is how many items produced in that time.
+    // 1. Determine which output drives the calculation
+    // Default to the first output if no specific ID is provided or found
+    const primaryOutput = primaryOutputId
+        ? recipe.outputs.find(o => o.itemId === primaryOutputId) || recipe.outputs[0]
+        : recipe.outputs[0];
 
-    const baseOutputAmount = recipe.outputs[0].amount;
+    const baseOutputAmount = primaryOutput.amount;
     const itemsPerSecondBase = baseOutputAmount / recipe.craftingTime;
     const itemsPerMinuteBase = itemsPerSecondBase * 60;
 
@@ -59,7 +62,7 @@ export function solveBlock(
 
     return {
         machineCount,
-        actualRate: outputRates[0].rate, // Rate of primary output
+        actualRate: outputRates.find(r => r.itemId === primaryOutput.itemId)?.rate || outputRates[0].rate,
         inputRates,
         outputRates
     };
