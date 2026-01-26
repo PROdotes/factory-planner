@@ -23,7 +23,7 @@ export const BlockHeader = memo(({
 }: BlockHeaderProps) => {
 
     return (
-        <div className="p-4 flex justify-between items-center border-b border-slate-900 bg-slate-900/40">
+        <div className="p-4 flex justify-between items-center border-b border-slate-900 bg-slate-900/40 rounded-t-lg">
             <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 bg-slate-900/50 border rounded flex items-center justify-center shadow-inner transition-colors ${hasConflict ? 'border-red-500/30 text-red-500' : 'border-cyan-500/30 text-cyan-400'}`}>
                     <Settings size={20} className={selected && !hasConflict ? 'animate-spin-slow' : ''} />

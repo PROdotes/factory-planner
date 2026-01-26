@@ -95,7 +95,7 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
             style={{ width: data.size.width, minHeight: data.size.height }}
             className={`
                 h-auto flex flex-col
-                bg-slate-950 border rounded-lg shadow-2xl font-mono overflow-hidden relative group transition-all duration-300
+                bg-slate-950 border rounded-lg shadow-2xl font-mono relative group transition-all duration-300
                 ${selected ? 'border-cyan-500 ring-1 ring-cyan-500/50 shadow-[0_0_20px_rgba(6,182,212,0.25)]' : 'border-slate-800 hover:border-slate-700'}
                 ${hasConflict && !selected ? 'border-red-500/50 shadow-[0_0_15px_rgba(244,63,94,0.1)]' : ''}
             `}
@@ -111,7 +111,7 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
             </div>
 
             {/* Top Accent Bar */}
-            <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${hasConflict ? 'from-red-600 to-red-400' : (selected ? 'from-cyan-400 to-blue-500' : 'from-slate-700 to-slate-800')}`}></div>
+            <div className={`absolute top-0 left-0 w-full h-1 rounded-t-lg bg-gradient-to-r ${hasConflict ? 'from-red-600 to-red-400' : (selected ? 'from-cyan-400 to-blue-500' : 'from-slate-700 to-slate-800')}`}></div>
 
             <BlockHeader
                 id={id}
@@ -171,7 +171,7 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
             </div>
 
             {/* FOOTER: Meta Data */}
-            <div className="mt-auto bg-slate-950/80 border-t border-slate-900 p-2.5 flex justify-between items-center text-[9px] font-bold text-slate-500 tracking-wider">
+            <div className="mt-auto bg-slate-950/80 border-t border-slate-900 rounded-b-lg p-2.5 flex justify-between items-center text-[9px] font-bold text-slate-500 tracking-wider">
                 <div className="flex gap-4">
                     <span className="flex items-center gap-1.5 hover:text-yellow-500 transition-colors">
                         <Zap size={11} /> {formatPower(totalPowerWatts)}
