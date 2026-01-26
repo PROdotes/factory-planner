@@ -14,6 +14,7 @@ import { Block, Port, BeltEdgeData, EdgeStatus } from '@/types/block';
 import { useGameStore } from './gameStore';
 import { beltItemsPerMinute } from '@/types/game';
 import { solveBlock } from '@/lib/solver/rateSolver';
+import { calculateBlockDimensions } from '@/lib/layout/manifoldSolver';
 
 // We'll use this Type for our React Flow nodes
 // The 'data' field will contain our Block interface
@@ -222,6 +223,10 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
                     const solvedRate = solved.outputRates.find(or => or.itemId === port.itemId);
                     if (solvedRate) port.rate = solvedRate.rate;
                 });
+
+                // RE-CALCULATE DIMENSIONS (Auto Scale)
+                const { size } = calculateBlockDimensions(block.inputPorts.length, block.outputPorts.length, block.machineCount);
+                block.size = size;
             }
 
             // 3. ATOMIC AUDIT: Update all connected edges using the fresh node data in this draft
@@ -264,6 +269,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
             offset: (index + 1) / (recipe.outputs.length + 1)
         }));
 
+        const { size } = calculateBlockDimensions(inputPorts.length, outputPorts.length, solved.machineCount);
+
         const newBlock: Block = {
             id,
             name: recipe.name,
@@ -273,11 +280,12 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
             machineCount: solved.machineCount,
             actualRate: solved.actualRate,
             position,
-            size: { width: 250, height: 180 }, // Slightly taller for more ports
+            size,
             inputPorts,
             outputPorts,
             speedModifier: 1.0,
-            primaryOutputId: recipe.outputs[0].itemId
+            primaryOutputId: recipe.outputs[0].itemId,
+            efficiency: 1.0
         };
 
         const newNode: BlockNode = {
@@ -571,6 +579,10 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
                         const solvedRate = solved.outputRates.find(or => or.itemId === port.itemId);
                         if (solvedRate) port.rate = solvedRate.rate;
                     });
+
+                    // RE-CALCULATE DIMENSIONS
+                    const { size } = calculateBlockDimensions(block.inputPorts.length, block.outputPorts.length, block.machineCount);
+                    block.size = size;
                 }
             });
 

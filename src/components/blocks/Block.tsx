@@ -5,8 +5,13 @@ import { DSP_DATA } from '@/data/dsp';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { Zap, Activity, Settings, ArrowRight, Trash2, Edit2, ChevronDown, FlaskConical } from 'lucide-react';
 
+import { calculateBlockDimensions } from '@/lib/layout/manifoldSolver';
+
 const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
     const deleteBlock = useLayoutStore((state) => state.deleteBlock);
+
+    // Calculate dimensions LIVE to ensure instant feedback on code changes
+    const { size } = calculateBlockDimensions(data.inputPorts.length, data.outputPorts.length, data.machineCount);
 
     // Lookup data for display
     const recipe = DSP_DATA.recipes.find(r => r.id === data.recipeId);
@@ -30,8 +35,10 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
 
     return (
         <div
+            style={{ width: size.width, minHeight: size.height }}
             className={`
-                w-[380px] bg-slate-950 border rounded-lg shadow-2xl font-mono overflow-hidden relative group transition-all duration-300
+                h-auto
+                bg-slate-950 border rounded-lg shadow-2xl font-mono overflow-hidden relative group transition-all duration-300
                 ${selected ? 'border-cyan-500 ring-1 ring-cyan-500/50 shadow-[0_0_20px_rgba(6,182,212,0.25)]' : 'border-slate-800 hover:border-slate-700'}
                 ${hasConflict && !selected ? 'border-red-500/50 shadow-[0_0_15px_rgba(244,63,94,0.1)]' : ''}
             `}
@@ -165,7 +172,7 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
                                     ${alternatives.length > 0 ? 'cursor-pointer hover:bg-slate-800 hover:border-cyan-500/30 text-cyan-400 bg-slate-900 shadow-sm' : 'text-slate-400'}
                                 `}
                             >
-                                <span className="truncate max-w-[80px]">{currentMachine?.name || 'Unknown'}</span>
+                                <span className="truncate max-w-[200px]">{currentMachine?.name || 'Unknown'}</span>
                                 {alternatives.length > 0 && <ChevronDown size={10} className="text-cyan-500/50" />}
                             </div>
                         );
@@ -290,13 +297,11 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
                     </div>
 
                     {/* Required Count (Bottom) */}
-                    <div className="bg-slate-900 border border-slate-800 rounded px-3 py-2 text-center shadow-lg transition-colors group-hover:border-cyan-500/20">
-                        <span className="text-[9px] uppercase font-black tracking-widest text-cyan-500">Required</span>
-                        <div className="text-3xl font-black text-white leading-none my-1 tracking-tighter">
+                    {/* Required Count (Bottom) */}
+                    <div className="bg-slate-900 border border-slate-800 rounded px-3 py-1 text-center shadow-lg transition-colors group-hover:border-cyan-500/20">
+                        <div className="text-[9px] uppercase font-black tracking-widest text-cyan-500/80 mb-0.5">Required</div>
+                        <div className="text-xl font-black text-white leading-none tracking-tighter">
                             {data.machineCount.toFixed(1)}
-                        </div>
-                        <div className="text-[9px] text-slate-500 font-bold">
-                            Units ({Math.ceil(data.machineCount)})
                         </div>
                     </div>
                 </div>

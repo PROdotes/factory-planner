@@ -90,13 +90,54 @@ export const DSP_DATA: GameDefinition = {
             category: "mining"
         },
         {
-            id: "mining-copper",
-            name: "Mining: Copper Ore",
-            machineId: "mining-machine",
-            inputs: [],
-            outputs: [{ itemId: "copper-ore", amount: 1 }],
+            id: "circuit-board",
+            name: "Circuit Board",
+            machineId: "assembler-mk1",
+            inputs: [
+                { itemId: "iron-ingot", amount: 2 },
+                { itemId: "copper-ingot", amount: 1 }
+            ],
+            outputs: [{ itemId: "circuit-board", amount: 2 }],
             craftingTime: 1.0,
-            category: "mining"
+            category: "assembling"
+        },
+        {
+            id: "processor",
+            name: "Processor",
+            machineId: "assembler-mk1",
+            inputs: [
+                { itemId: "circuit-board", amount: 2 },
+                { itemId: "magnetic-coil", amount: 2 }
+            ],
+            outputs: [{ itemId: "processor", amount: 1 }],
+            craftingTime: 3.0,
+            category: "assembling"
+        },
+        {
+            id: "casimir-crystal",
+            name: "Casimir Crystal",
+            machineId: "assembler-mk2",
+            inputs: [
+                { itemId: "titanium-crystal", amount: 1 },
+                { itemId: "graphene", amount: 2 },
+                { itemId: "hydrogen", amount: 12 }
+            ],
+            outputs: [{ itemId: "casimir-crystal", amount: 1 }],
+            craftingTime: 4.0,
+            category: "assembling"
+        },
+        {
+            id: "particle-container",
+            name: "Particle Container",
+            machineId: "assembler-mk1",
+            inputs: [
+                { itemId: "electromagnetic-turbine", amount: 2 },
+                { itemId: "copper-ingot", amount: 2 },
+                { itemId: "graphene", amount: 2 }
+            ],
+            outputs: [{ itemId: "particle-container", amount: 1 }],
+            craftingTime: 4.0,
+            category: "assembling"
         }
     ],
 
