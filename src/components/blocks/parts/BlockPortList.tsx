@@ -10,7 +10,6 @@ export interface PortState {
 interface BlockPortListProps {
     ports: Port[];
     side: 'input' | 'output';
-    nodeId: string;
     portStates: Record<string, PortState>; // Map portId -> state
     getItemName: (id: string) => string;
     onPortClick: (portId: string) => void;
@@ -21,7 +20,6 @@ interface BlockPortListProps {
 export const BlockPortList = memo(({
     ports,
     side,
-    nodeId,
     portStates,
     getItemName,
     onPortClick,

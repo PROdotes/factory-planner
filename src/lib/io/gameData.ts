@@ -8,6 +8,7 @@ const ItemSchema = z.object({
     category: z.enum(['ore', 'ingot', 'component', 'product', 'science', 'fluid', 'other']),
     stackSize: z.number(),
     icon: z.string().optional(),
+    iconIndex: z.number().optional(),
     isCustom: z.boolean().optional(),
     color: z.string().optional(),
 });

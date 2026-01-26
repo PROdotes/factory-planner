@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPortPosition, Block, Port, BLOCK_LAYOUT } from '../block';
+import { getPortPosition, Block, Port } from '../block';
 
 const buildBlock = (port: Port): Block => ({
     id: 'block-1',

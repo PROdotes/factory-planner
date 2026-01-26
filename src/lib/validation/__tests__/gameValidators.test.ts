@@ -3,7 +3,7 @@ import { checkGameDataConsistency } from '../gameValidators';
 import { GameDefinition } from '@/types/game';
 
 const MINIMAL_VALID_GAME: GameDefinition = {
-    id: 'test',
+    id: 'dsp',
     name: 'Test',
     version: '1',
     settings: {
@@ -13,8 +13,8 @@ const MINIMAL_VALID_GAME: GameDefinition = {
         gridSize: 1
     },
     items: [
-        { id: 'item1', name: 'Item 1', category: 'raw', stackSize: 100 },
-        { id: 'item2', name: 'Item 2', category: 'raw', stackSize: 100 }
+        { id: 'item1', name: 'Item 1', category: 'ore', stackSize: 100 },
+        { id: 'item2', name: 'Item 2', category: 'ore', stackSize: 100 }
     ],
     machines: [
         { id: 'machine1', name: 'Machine 1', category: 'smelter', speed: 1.0, size: { width: 1, height: 1 } }

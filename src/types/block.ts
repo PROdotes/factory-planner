@@ -1,4 +1,4 @@
-import { Node } from 'reactflow';
+import { Node, XYPosition } from 'reactflow';
 export type PortSide = 'top' | 'bottom' | 'left' | 'right';
 
 /**
@@ -39,7 +39,7 @@ export interface BeltEdgeData {
     capacity: number; // Max items/min for this belt tier
     status: EdgeStatus;
     itemId: string;
-    isBridge?: boolean;
+    pathOffset?: number; // 0.0 to 1.0, default 0.5
     collisionRects?: any[];
 }
 
@@ -144,6 +144,10 @@ export interface BlockNode extends Node<Block | SplitterNodeData> {
     origin?: [number, number];
 }
 
+export function isBlock(data: Block | SplitterNodeData): data is Block {
+    return 'recipeId' in data;
+}
+
 export const BLOCK_LAYOUT = {
     HEADER: 98,
     WIDTH: 350,
@@ -158,7 +162,6 @@ export const BLOCK_LAYOUT = {
     CENTER_BODY_MIN_HEIGHT: 46 // Height of the "Required" box area
 };
 
-import { XYPosition } from 'reactflow';
 
 /**
  * Calculate absolute position of a port on canvas.

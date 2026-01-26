@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useLayoutStore } from '../layoutStore';
 import { useGameStore } from '../gameStore';
+import { isBlock, Block } from '../../types/block';
 
 
 // Mock Data
@@ -40,7 +41,8 @@ describe('Modifiers (Speed & Productivity)', () => {
 
         // Target 60/min. Base speed 1.0 -> 60/min per machine -> 1 machine.
         let [node] = useLayoutStore.getState().nodes;
-        expect(node.data.machineCount).toBeCloseTo(1.0);
+        expect(isBlock(node.data)).toBe(true);
+        expect((node.data as Block).machineCount).toBeCloseTo(1.0);
 
         // 2. Turn on Speed Mk.2 (+50% Speed)
         // Level 2 Speed
@@ -49,10 +51,11 @@ describe('Modifiers (Speed & Productivity)', () => {
         });
 
         [node] = useLayoutStore.getState().nodes;
+        expect(isBlock(node.data)).toBe(true);
         // Speed = 1.0 * 1.5 = 1.5
         // Output per machine = 90/min
         // Needed for 60/min = 60/90 = 0.666...
-        expect(node.data.machineCount).toBeCloseTo(0.6666, 3);
+        expect((node.data as Block).machineCount).toBeCloseTo(0.6666, 3);
 
         // Input rate should match Output rate (1:1 recipe)
         // 0.666 machines * 1 input/s * 1.5 speed = 1.0 input/s = 60/min
@@ -70,12 +73,13 @@ describe('Modifiers (Speed & Productivity)', () => {
         });
 
         const [node] = useLayoutStore.getState().nodes;
+        expect(isBlock(node.data)).toBe(true);
 
         // Speed = 1.0 (Prod doesn't slow down in DSP by default here)
         // Output per craft = 1.0 * 1.2 = 1.2
         // Output per machine = (1.2 / 1s) * 60 = 72/min
         // Needed for 60/min = 60 / 72 = 0.8333...
-        expect(node.data.machineCount).toBeCloseTo(0.8333, 3);
+        expect((node.data as Block).machineCount).toBeCloseTo(0.8333, 3);
 
         // Input Rate (check for free items)
         // 0.833 machines * 1 input/s * 1.0 speed = 0.833 input/s = 50/min

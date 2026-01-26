@@ -177,7 +177,6 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
                 <BlockPortList
                     ports={data.inputPorts}
                     side="input"
-                    nodeId={id}
                     portStates={portStates}
                     getItemName={getItemName}
                     onPortClick={handlePortClick}
@@ -225,7 +224,6 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
                 <BlockPortList
                     ports={data.outputPorts}
                     side="output"
-                    nodeId={id}
                     portStates={portStates}
                     getItemName={getItemName}
                     onPortClick={handlePortClick}

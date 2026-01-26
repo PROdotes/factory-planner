@@ -29,7 +29,6 @@ describe('SplitterNode Component', () => {
     const mockData: SplitterNodeData = {
         id: 'split-1',
         type: 'splitter',
-        position: { x: 0, y: 0 },
         inputPorts: [{ id: 'in', type: 'input', itemId: 'any', rate: 60, side: 'left', offset: 0.5 }],
         outputPorts: [
             { id: 'out1', type: 'output', itemId: 'any', rate: 30, side: 'right', offset: 0.3 },
@@ -77,11 +76,11 @@ describe('SplitterNode Component', () => {
         const dataWithFilter: SplitterNodeData = {
             ...mockData,
             filterItemId: 'iron-ore',
-            priority: 'left' // usually filter implies priority
+            priority: 'out-left' // usually filter implies priority
         };
         render(<SplitterNode {...defaultProps} data={dataWithFilter} selected={true} />);
 
         expect(screen.getByText('iron-ore')).toBeInTheDocument();
-        expect(screen.getByText('LEFT')).toBeInTheDocument();
+        expect(screen.getByText('OUT LEFT')).toBeInTheDocument();
     });
 });

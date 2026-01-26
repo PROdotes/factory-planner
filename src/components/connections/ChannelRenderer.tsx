@@ -185,7 +185,6 @@ export const ChannelRenderer: React.FC<ChannelRendererProps> = ({
     showFlow = true,
     bundleLanes = false,
     pattern,
-    isBridge = false,
     status = 'ok'
 }) => {
     // 1. Calculate number of lanes
@@ -240,11 +239,10 @@ export const ChannelRenderer: React.FC<ChannelRendererProps> = ({
                 strokeWidth={foundationWidth}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className={`transition-all duration-300 ${isBridge ? 'bridge-shadow' : 'drop-shadow-lg'}`}
+                className="transition-all duration-300 drop-shadow-lg"
                 style={{
                     opacity: 0.9,
-                    filter: isSelected ? `drop-shadow(0 0 8px ${color})` : undefined,
-                    transform: isBridge ? 'translateY(-2px) scale(1.02)' : 'none'
+                    filter: isSelected ? `drop-shadow(0 0 8px ${color})` : undefined
                 }}
             />
 

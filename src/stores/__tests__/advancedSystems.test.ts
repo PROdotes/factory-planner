@@ -46,7 +46,7 @@ describe('Advanced Systems Integration', () => {
             const idSourceOre = useLayoutStore.getState().addSplitter('merger', { x: 0, y: -50 }); // Act as source
             const idSourceCoal = useLayoutStore.getState().addSplitter('merger', { x: 0, y: 50 }); // Act as source
 
-            const [nodeSteel, nodeOre, nodeCoal] = useLayoutStore.getState().nodes;
+            const [,] = useLayoutStore.getState().nodes;
 
             // Connect Ore (Supply 180 needed for 60 Steel)
             useLayoutStore.getState().onConnect({

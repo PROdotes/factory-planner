@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useLayoutStore } from '../layoutStore';
 import { useGameStore } from '../gameStore';
 import { GameDefinition, Recipe } from '@/types/game';
+import { isBlock, Block } from '../../types/block';
 
 // ----------------------------------------------------------------------------
 // TEST DATA
@@ -79,15 +80,16 @@ describe('Persistence & Integirty', () => {
         const restoredNodes = useLayoutStore.getState().nodes;
         expect(restoredNodes).toHaveLength(1);
         expect(restoredNodes[0].id).toBe(id);
-        expect(restoredNodes[0].data.recipeId).toBe('test-recipe');
+        expect(isBlock(restoredNodes[0].data)).toBe(true);
+        expect((restoredNodes[0].data as Block).recipeId).toBe('test-recipe');
     });
 
     it('reacts to Game Data changes (Recipe Edit)', () => {
         // 1. Add Block with default recipe (1s craft time -> 60/min)
         useLayoutStore.getState().addBlock('test-recipe', { x: 0, y: 0 });
         const node = useLayoutStore.getState().nodes[0];
-
-        expect(node.data.actualRate).toBeCloseTo(60);
+        expect(isBlock(node.data)).toBe(true);
+        expect((node.data as Block).actualRate).toBeCloseTo(60);
 
         // 2. Update Recipe in Game Store (0.5s craft time -> 120/min)
         useGameStore.getState().updateRecipe('test-recipe', { craftingTime: 0.5 });
@@ -95,8 +97,9 @@ describe('Persistence & Integirty', () => {
         // 3. Verify Layout Store updated the block automatically
         // Note: We need to re-fetch the node from the store
         const updatedNode = useLayoutStore.getState().nodes[0];
+        expect(isBlock(updatedNode.data)).toBe(true);
 
         // This expectation asserts that the dependency injection / reaction is working
-        expect(updatedNode.data.machineCount).toBeCloseTo(0.5);
+        expect((updatedNode.data as Block).machineCount).toBeCloseTo(0.5);
     });
 });

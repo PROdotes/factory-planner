@@ -8,10 +8,12 @@ describe('BlockHeader Component', () => {
         label: 'Iron Ingot',
         subLabel: 'Smelting',
         targetRate: 60,
+        calculationMode: 'output' as const,
         hasConflict: false,
         selected: false,
         onDelete: vi.fn(),
-        onUpdateRate: vi.fn()
+        onUpdateRate: vi.fn(),
+        height: 100
     };
 
     it('renders label and sublabel', () => {

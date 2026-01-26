@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useLayoutStore } from '../layoutStore';
 import { DSP_DATA } from '@/data/dsp';
+import { isBlock, Block } from '../../types/block';
 
 const findConnectableRecipes = () => {
     for (const outputRecipe of DSP_DATA.recipes) {
@@ -58,7 +59,8 @@ describe('useLayoutStore', () => {
         useLayoutStore.getState().addBlock(recipe.id, { x: 10, y: 20 });
 
         const [node] = useLayoutStore.getState().nodes;
-        expect(node.data.recipeId).toBe(recipe.id);
+        expect(isBlock(node.data)).toBe(true);
+        expect((node.data as Block).recipeId).toBe(recipe.id);
         expect(node.position).toEqual({ x: 10, y: 20 });
         expect(node.data.inputPorts).toHaveLength(recipe.inputs.length);
         expect(node.data.outputPorts).toHaveLength(recipe.outputs.length);

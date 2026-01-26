@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useLayoutStore } from '../layoutStore';
 import { useGameStore } from '../gameStore';
+import { isBlock, Block } from '../../types/block';
 
 // Mock Plasma Refining Recipe
 const PLASMA_RECIPE = {
@@ -56,7 +57,8 @@ describe('Multi-Output (Byproduct) Logic', () => {
         useLayoutStore.getState().addBlock(PLASMA_RECIPE.id, { x: 0, y: 0 });
         const [node] = useLayoutStore.getState().nodes;
 
-        expect(node.data.recipeId).toBe(PLASMA_RECIPE.id);
+        expect(isBlock(node.data)).toBe(true);
+        expect((node.data as Block).recipeId).toBe(PLASMA_RECIPE.id);
         expect(node.data.outputPorts).toHaveLength(2);
 
         const refinedOil = node.data.outputPorts.find(p => p.itemId === 'refined-oil');
@@ -74,8 +76,9 @@ describe('Multi-Output (Byproduct) Logic', () => {
         useLayoutStore.getState().addBlock(PLASMA_RECIPE.id, { x: 0, y: 0 });
         const [node] = useLayoutStore.getState().nodes;
 
-        expect(node.data.targetRate).toBe(60);
-        expect(node.data.machineCount).toBeCloseTo(2);
+        expect(isBlock(node.data)).toBe(true);
+        expect((node.data as Block).targetRate).toBe(60);
+        expect((node.data as Block).machineCount).toBeCloseTo(2);
 
         // Verify Output Rates
         // Refined Oil: 2 machines * 30/min = 60/min
@@ -95,7 +98,8 @@ describe('Multi-Output (Byproduct) Logic', () => {
         useLayoutStore.getState().updateBlock(id, { targetRate: 120 });
 
         const [node] = useLayoutStore.getState().nodes;
-        expect(node.data.machineCount).toBeCloseTo(4);
+        expect(isBlock(node.data)).toBe(true);
+        expect((node.data as Block).machineCount).toBeCloseTo(4);
 
         const hydrogen = node.data.outputPorts.find(p => p.itemId === 'hydrogen')!;
         // 4 machines * 15/min = 60/min
@@ -120,8 +124,9 @@ describe('Multi-Output (Byproduct) Logic', () => {
 
         const [node] = useLayoutStore.getState().nodes;
 
-        expect(node.data.primaryOutputId).toBe('hydrogen');
-        expect(node.data.machineCount).toBeCloseTo(4);
+        expect(isBlock(node.data)).toBe(true);
+        expect((node.data as Block).primaryOutputId).toBe('hydrogen');
+        expect((node.data as Block).machineCount).toBeCloseTo(4);
 
         const refinedOil = node.data.outputPorts.find(p => p.itemId === 'refined-oil')!;
         const hydrogen = node.data.outputPorts.find(p => p.itemId === 'hydrogen')!;

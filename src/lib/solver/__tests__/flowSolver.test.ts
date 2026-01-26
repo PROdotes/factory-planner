@@ -11,13 +11,13 @@ describe('flowSolver', () => {
                 name: 'Producer',
                 recipeId: 'r1',
                 machineId: 'm1',
+                calculationMode: 'output',
                 machineCount: 1,
                 targetRate: 60,
                 actualRate: 60,
                 inputPorts: [],
                 outputPorts: [{ id: 'out-1', type: 'output', itemId: 'item-1', rate: 60, side: 'right', offset: 0.5 }],
                 efficiency: 1,
-                position: { x: 0, y: 0 },
                 size: { width: 400, height: 150 }
             },
             {
@@ -25,13 +25,13 @@ describe('flowSolver', () => {
                 name: 'Consumer',
                 recipeId: 'r2',
                 machineId: 'm2',
+                calculationMode: 'output',
                 machineCount: 1,
                 targetRate: 60,
                 actualRate: 60,
                 inputPorts: [{ id: 'in-1', type: 'input', itemId: 'item-1', rate: 60, side: 'left', offset: 0.5 }],
                 outputPorts: [],
                 efficiency: 1,
-                position: { x: 500, y: 0 },
                 size: { width: 400, height: 150 }
             }
         ];
@@ -60,13 +60,13 @@ describe('flowSolver', () => {
                 name: 'Half Producer',
                 recipeId: 'r1',
                 machineId: 'm1',
+                calculationMode: 'output',
                 machineCount: 1,
                 targetRate: 30,
                 actualRate: 30,
                 inputPorts: [],
                 outputPorts: [{ id: 'out-1', type: 'output', itemId: 'item-1', rate: 30, side: 'right', offset: 0.5 }],
                 efficiency: 1,
-                position: { x: 0, y: 0 },
                 size: { width: 400, height: 150 }
             },
             {
@@ -74,13 +74,13 @@ describe('flowSolver', () => {
                 name: 'Full Consumer',
                 recipeId: 'r2',
                 machineId: 'm2',
+                calculationMode: 'output',
                 machineCount: 1,
                 targetRate: 60,
                 actualRate: 60,
                 inputPorts: [{ id: 'in-1', type: 'input', itemId: 'item-1', rate: 60, side: 'left', offset: 0.5 }],
                 outputPorts: [{ id: 'out-2', type: 'output', itemId: 'item-2', rate: 60, side: 'right', offset: 0.5 }],
                 efficiency: 1,
-                position: { x: 500, y: 0 },
                 size: { width: 400, height: 150 }
             }
         ];

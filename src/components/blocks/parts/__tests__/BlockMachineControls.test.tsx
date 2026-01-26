@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { BlockMachineControls } from '../BlockMachineControls';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 describe('BlockMachineControls Component', () => {
     const defaultProps = {
@@ -8,7 +8,8 @@ describe('BlockMachineControls Component', () => {
         hasAlternatives: false,
         onCycleMachine: vi.fn(),
         modifier: undefined,
-        onUpdateModifier: vi.fn()
+        onUpdateModifier: vi.fn(),
+        height: 50
     };
 
     beforeEach(() => {

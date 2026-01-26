@@ -155,56 +155,6 @@ const getDownstreamDemand = (nodeId: string, portId: string, nodes: BlockNode[],
     }, 0);
 };
 
-const getEdgeSegments = (edge: Edge, nodes: BlockNode[]) => {
-    const sourceNode = nodes.find(n => n.id === edge.source);
-    const targetNode = nodes.find(n => n.id === edge.target);
-    if (!sourceNode || !targetNode || sourceNode.type !== 'block' && sourceNode.type !== 'splitter') return null;
-
-    const sourcePort = getPort(sourceNode, edge.sourceHandle ?? null, 'output');
-    const targetPort = getPort(targetNode, edge.targetHandle ?? null, 'input');
-    if (!sourcePort || !targetPort) return null;
-
-    const p1 = getPortPosition(sourceNode.data as any, sourceNode.position, sourcePort);
-    const p2 = getPortPosition(targetNode.data as any, targetNode.position, targetPort);
-    const midX = p1.x + (p2.x - p1.x) * 0.5;
-
-    return [
-        { p1: { x: p1.x, y: p1.y }, p2: { x: midX, y: p1.y }, vertical: false },
-        { p1: { x: midX, y: p1.y }, p2: { x: midX, y: p2.y }, vertical: true },
-        { p1: { x: midX, y: p2.y }, p2: { x: p2.x, y: p2.y }, vertical: false }
-    ];
-};
-
-const segmentsIntersect = (s1: any, s2: any, tolerance = 12) => {
-    if (s1.vertical === s2.vertical) {
-        // Parallel: if they are on the same line and overlapping, it's a conflict/overlap
-        if (s1.vertical) {
-            if (Math.abs(s1.p1.x - s2.p1.x) > tolerance) return false;
-            const y1min = Math.min(s1.p1.y, s1.p2.y);
-            const y1max = Math.max(s1.p1.y, s1.p2.y);
-            const y2min = Math.min(s2.p1.y, s2.p2.y);
-            const y2max = Math.max(s2.p1.y, s2.p2.y);
-            return y1max > y2min + 2 && y2max > y1min + 2;
-        } else {
-            if (Math.abs(s1.p1.y - s2.p1.y) > tolerance) return false;
-            const x1min = Math.min(s1.p1.x, s1.p2.x);
-            const x1max = Math.max(s1.p1.x, s1.p2.x);
-            const x2min = Math.min(s2.p1.x, s2.p2.x);
-            const x2max = Math.max(s2.p1.x, s2.p2.x);
-            return x1max > x2min + 2 && x2max > x1min + 2;
-        }
-    }
-
-    const horiz = s1.vertical ? s2 : s1;
-    const vert = s1.vertical ? s1 : s2;
-    const hX1 = Math.min(horiz.p1.x, horiz.p2.x);
-    const hX2 = Math.max(horiz.p1.x, horiz.p2.x);
-    const vY1 = Math.min(vert.p1.y, vert.p2.y);
-    const vY2 = Math.max(vert.p1.y, vert.p2.y);
-
-    // Cross check with tolerance
-    return vert.p1.x > hX1 - 2 && vert.p1.x < hX2 + 2 && horiz.p1.y > vY1 - 2 && horiz.p1.y < vY2 + 2;
-};
 
 const updateEdgeStatus = (edge: Edge, nodes: BlockNode[], game: any, overrideFlow?: number, overrideDemand?: number): Edge => {
     const sourceNode = nodes.find(n => n.id === edge.source);
@@ -803,40 +753,6 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
                 const flow = edgeFlows.get(edge.id);
                 const demand = edgeDemands.get(edge.id);
                 return updateEdgeStatus(edge, state.nodes, game, flow, demand);
-            });
-
-            // Detect Bridges (Intersections)
-            const edgeSegments = state.edges.map(e => ({ id: e.id, segs: getEdgeSegments(e, state.nodes) }));
-            const bridges = new Set<string>();
-
-            for (let i = 0; i < edgeSegments.length; i++) {
-                const a = edgeSegments[i];
-                if (!a.segs) continue;
-                for (let j = i + 1; j < edgeSegments.length; j++) {
-                    const b = edgeSegments[j];
-                    if (!b.segs) continue;
-
-                    let cross = false;
-                    for (const s1 of a.segs) {
-                        for (const s2 of b.segs) {
-                            if (segmentsIntersect(s1, s2)) {
-                                cross = true;
-                                break;
-                            }
-                        }
-                        if (cross) break;
-                    }
-
-                    if (cross) {
-                        // Higher index or ID wins 'top' position
-                        const bridgeId = a.id > b.id ? a.id : b.id;
-                        bridges.add(bridgeId);
-                    }
-                }
-            }
-
-            state.edges.forEach(e => {
-                if (e.data) e.data.isBridge = bridges.has(e.id);
             });
         }));
     },

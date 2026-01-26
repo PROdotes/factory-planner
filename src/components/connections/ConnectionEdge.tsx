@@ -106,7 +106,6 @@ const ConnectionEdge = ({
                     isSelected={selected}
                     showFlow={viewSettings.showFlow}
                     bundleLanes={viewSettings.bundleLanes}
-                    isBridge={edgeData?.isBridge}
                     status={status}
                     pattern={status === 'conflict' ? 'conflict' : undefined}
                 />
