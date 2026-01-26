@@ -1,0 +1,120 @@
+import { Handle, Position } from 'reactflow';
+import { Port, EdgeStatus } from '@/types/block';
+import { memo } from 'react';
+
+export interface PortState {
+    status: EdgeStatus;
+    connected: boolean;
+}
+
+interface BlockPortListProps {
+    ports: Port[];
+    side: 'input' | 'output';
+    nodeId: string;
+    portStates: Record<string, PortState>; // Map portId -> state
+    getItemName: (id: string) => string;
+    onPortClick: (portId: string) => void;
+    primaryOutputId?: string;
+    onSetPrimary?: (itemId: string) => void;
+}
+
+export const BlockPortList = memo(({
+    ports,
+    side,
+    nodeId,
+    portStates,
+    getItemName,
+    onPortClick,
+    primaryOutputId,
+    onSetPrimary
+}: BlockPortListProps) => {
+
+    return (
+        <div className="flex flex-col gap-2.5">
+            <span className={`text-[9px] text-slate-500 font-black uppercase tracking-tighter border-b border-slate-900 pb-1 ${side === 'output' ? 'text-right' : ''}`}>
+                {side === 'input' ? 'Inputs' : 'Outputs'}
+            </span>
+            {ports.map((port) => {
+                const state = portStates[port.id] || { status: 'ok', connected: false };
+                const isOverloaded = state.status === 'bottleneck' || state.status === 'overload';
+                const isStarved = state.status === 'underload';
+                const hasConflict = isOverloaded || isStarved;
+
+                const conflictColor = isOverloaded ? 'rgba(239,68,68,1)' : (isStarved ? 'rgba(251,191,36,1)' : 'rgba(6,182,212,0.5)');
+                const conflictBg = isOverloaded ? 'rgba(239,68,68,0.1)' : (isStarved ? 'rgba(251,191,36,0.1)' : 'rgba(255,255,255,0.02)');
+
+                const handlePosition = side === 'input' ? Position.Left : Position.Right;
+
+                return (
+                    <div key={port.id} className="relative group/port">
+                        <Handle
+                            type={side === 'input' ? 'target' : 'source'}
+                            position={handlePosition}
+                            id={port.id}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onPortClick(port.id);
+                            }}
+                            style={{
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                borderColor: conflictColor,
+                                boxShadow: hasConflict ? `0 0 8px ${conflictColor}66` : 'none'
+                            }}
+                            className={`
+                                !${side === 'input' ? 'left' : 'right'}-[-4px] !w-3 !h-3 !bg-slate-900 transition-all !cursor-pointer z-50 !border-2
+                                ${!hasConflict ? 'hover:!border-cyan-400' : ''}
+                            `}
+                        />
+                        <div
+                            style={{
+                                [side === 'input' ? 'borderLeftColor' : 'borderRightColor']: hasConflict ? conflictColor : 'rgba(51,65,85,1)', // slate-700
+                                backgroundColor: conflictBg
+                            }}
+                            className={`
+                                flex flex-col px-2 py-1.5 rounded ${side === 'input' ? 'border-l-2' : 'border-r-2 items-end'} transition-colors
+                                ${!hasConflict ? 'hover:border-cyan-500/50' : ''}
+                            `}
+                        >
+                            <div className={`flex items-center gap-1 mb-0.5 ${side === 'output' ? 'justify-end' : ''}`}>
+                                {side === 'output' && ports.length > 1 && onSetPrimary && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onSetPrimary(port.itemId);
+                                        }}
+                                        className={`
+                                            p-0.5 rounded hover:bg-white/10 transition-colors
+                                            ${primaryOutputId === port.itemId ? 'text-yellow-400' : 'text-slate-600 hover:text-yellow-400/50'}
+                                        `}
+                                        title="Set as Primary Output"
+                                    >
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            width="10"
+                                            height="10"
+                                            viewBox="0 0 24 24"
+                                            fill={primaryOutputId === port.itemId ? "currentColor" : "none"}
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
+                                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                        </svg>
+                                    </button>
+                                )}
+                                <span className={`text-[9px] truncate leading-tight ${isOverloaded ? 'text-red-400' : (isStarved ? 'text-amber-400' : 'text-slate-400')}`}>
+                                    {getItemName(port.itemId)}
+                                </span>
+                            </div>
+                            <span className={`text-[11px] font-bold leading-tight ${isOverloaded ? 'text-red-400' : (isStarved ? 'text-amber-400' : 'text-cyan-200/80')}`}>
+                                {port.rate.toFixed(1)}
+                            </span>
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+});
