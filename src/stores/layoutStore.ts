@@ -33,7 +33,7 @@ interface LayoutState {
 
     // Actions
     addBlock: (recipeId: string, position: { x: number; y: number }) => string;
-    addSplitter: (type: 'splitter' | 'merger', position: { x: number; y: number }) => string;
+    addSplitter: (type: 'splitter' | 'merger' | 'balancer', position: { x: number; y: number }) => string;
     updateBlock: (id: string, updates: Partial<Block | SplitterNodeData>) => void;
     deleteBlock: (id: string) => void;
     deleteEdge: (id: string) => void;
@@ -46,7 +46,7 @@ interface LayoutState {
     onConnect: (connection: Connection) => void;
     createAndConnect: (recipeId: string, position: { x: number; y: number }, sourcePort: ActivePort) => void;
 
-    recalculateFlows: () => void;
+    recalculateFlows: (options?: { skipRateSolver?: boolean }) => void;
     cycleEdgeBelt: (edgeId: string) => void;
     exportLayout: () => void;
     importLayout: (json: string) => void;
@@ -274,14 +274,34 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
     addSplitter: (type, position) => {
         const id = crypto.randomUUID();
-        const inputPorts: Port[] = [
-            { id: 'in-1', type: 'input', side: 'left', offset: 0.33, itemId: 'any', rate: 0 },
-            { id: 'in-2', type: 'input', side: 'left', offset: 0.66, itemId: 'any', rate: 0 }
-        ];
-        const outputPorts: Port[] = [
-            { id: 'out-1', type: 'output', side: 'right', offset: 0.33, itemId: 'any', rate: 0 },
-            { id: 'out-2', type: 'output', side: 'right', offset: 0.66, itemId: 'any', rate: 0 }
-        ];
+        let inputPorts: Port[] = [];
+        let outputPorts: Port[] = [];
+
+        if (type === 'splitter') {
+            inputPorts = [{ id: 'in-main', type: 'input', side: 'left', offset: 0.5, itemId: 'any', rate: 0 }];
+            outputPorts = [
+                { id: 'out-1', type: 'output', side: 'right', offset: 0.25, itemId: 'any', rate: 0 },
+                { id: 'out-2', type: 'output', side: 'right', offset: 0.50, itemId: 'any', rate: 0 },
+                { id: 'out-3', type: 'output', side: 'right', offset: 0.75, itemId: 'any', rate: 0 }
+            ];
+        } else if (type === 'balancer') {
+            inputPorts = [
+                { id: 'in-1', type: 'input', side: 'left', offset: 0.33, itemId: 'any', rate: 0 },
+                { id: 'in-2', type: 'input', side: 'left', offset: 0.66, itemId: 'any', rate: 0 }
+            ];
+            outputPorts = [
+                { id: 'out-1', type: 'output', side: 'right', offset: 0.33, itemId: 'any', rate: 0 },
+                { id: 'out-2', type: 'output', side: 'right', offset: 0.66, itemId: 'any', rate: 0 }
+            ];
+        } else {
+            // Merger
+            inputPorts = [
+                { id: 'in-1', type: 'input', side: 'left', offset: 0.25, itemId: 'any', rate: 0 },
+                { id: 'in-2', type: 'input', side: 'left', offset: 0.50, itemId: 'any', rate: 0 },
+                { id: 'in-3', type: 'input', side: 'left', offset: 0.75, itemId: 'any', rate: 0 }
+            ];
+            outputPorts = [{ id: 'out-main', type: 'output', side: 'right', offset: 0.5, itemId: 'any', rate: 0 }];
+        }
 
         const newData: SplitterNodeData = {
             id, type,
@@ -332,7 +352,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     onNodesChange: (changes: NodeChange[]) => {
         set({ nodes: applyNodeChanges(changes, get().nodes) as BlockNode[] });
         // Live collision detection during drag
-        get().recalculateFlows();
+        get().recalculateFlows({ skipRateSolver: true });
     },
 
     onEdgesChange: (changes: EdgeChange[]) => {
@@ -340,8 +360,12 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     },
 
     onConnect: (connection: Connection) => {
-        const { source, target, sourceHandle, targetHandle } = connection;
+        let { source, target, sourceHandle, targetHandle } = connection;
         if (source === target || !source || !target || !sourceHandle || !targetHandle) return;
+
+        // Strip '-drag' suffix to link to the main anchor handles
+        sourceHandle = sourceHandle.replace('-drag', '');
+        targetHandle = targetHandle.replace('-drag', '');
 
         const nodes = get().nodes;
         const sourceNode = nodes.find(n => n.id === source);
@@ -372,130 +396,145 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         get().recalculateFlows();
     },
 
-    recalculateFlows: () => {
+    recalculateFlows: (options?: { skipRateSolver?: boolean }) => {
         set(produce((state: LayoutState) => {
             const game = useGameStore.getState().game;
 
             // 0. Check for Node-to-Node collisions (Diagnostics)
             state.nodeConflicts = findNodeConflicts(state.nodes);
 
-            // 1. Reset all ports
-            state.nodes.forEach(node => {
-                const d = node.data as any;
-                d.outputPorts.forEach((p: Port) => {
-                    p.currentRate = (node.type === 'splitter' ? 0 : p.rate);
-                });
-                d.inputPorts.forEach((p: Port) => p.currentRate = undefined);
-            });
-
-            // 2. Iterative Propagation
-            const ITERATIONS = 15;
-            const connectedInputs = new Set(state.edges.map(e => `${e.target}-${e.targetHandle}`));
-
-            for (let i = 0; i < ITERATIONS; i++) {
-                let changed = false;
-                const inputFlows = new Map<string, number>();
-
-                // Transfer flow across edges
-                state.edges.forEach(edge => {
-                    const sourceNode = state.nodes.find(n => n.id === edge.source);
-                    const sourcePort = getPort(sourceNode!, edge.sourceHandle ?? null, 'output');
-                    if (!sourcePort) return;
-
-                    const supply = sourcePort.currentRate ?? 0;
-                    const targetKey = `${edge.target}-${edge.targetHandle}`;
-                    inputFlows.set(targetKey, (inputFlows.get(targetKey) || 0) + supply);
-                });
-
-                // Process Nodes
+            if (!options?.skipRateSolver) {
+                // 1. Reset all ports
                 state.nodes.forEach(node => {
-                    const data = node.data as any;
+                    const d = node.data as any;
+                    d.outputPorts.forEach((p: Port) => {
+                        p.currentRate = (node.type === 'splitter' ? 0 : p.rate);
+                    });
+                    d.inputPorts.forEach((p: Port) => p.currentRate = undefined);
+                });
 
-                    if (node.type === 'block') {
-                        let satisfaction = 1.0;
-                        if (data.inputPorts.length > 0) {
-                            const satisfactions = data.inputPorts.map((p: Port) => {
-                                if (p.rate <= 0) return 1.0;
-                                const key = `${node.id}-${p.id}`;
-                                if (!connectedInputs.has(key)) return 1.0;
+                // 2. Iterative Propagation
+                const ITERATIONS = 15;
+                const connectedInputs = new Set(state.edges.map(e => `${e.target}-${e.targetHandle}`));
 
-                                const incoming = inputFlows.get(key) || 0;
-                                return Math.min(1.0, incoming / p.rate);
-                            });
-                            satisfaction = Math.min(...satisfactions);
-                        }
-                        data.outputPorts.forEach((p: Port) => {
-                            const newRate = p.rate * satisfaction;
-                            if (Math.abs((p.currentRate ?? 0) - newRate) > 0.001) {
-                                p.currentRate = newRate;
-                                changed = true;
+                for (let i = 0; i < ITERATIONS; i++) {
+                    let changed = false;
+                    const inputFlows = new Map<string, number>();
+
+                    // Transfer flow across edges
+                    state.edges.forEach(edge => {
+                        const sourceNode = state.nodes.find(n => n.id === edge.source);
+                        const sourcePort = getPort(sourceNode!, edge.sourceHandle ?? null, 'output');
+                        if (!sourcePort) return;
+
+                        const supply = sourcePort.currentRate ?? 0;
+                        const targetKey = `${edge.target}-${edge.targetHandle}`;
+                        inputFlows.set(targetKey, (inputFlows.get(targetKey) || 0) + supply);
+                    });
+
+                    // Process Nodes
+                    state.nodes.forEach(node => {
+                        const data = node.data as any;
+
+                        if (node.type === 'block') {
+                            let satisfaction = 1.0;
+                            if (data.inputPorts.length > 0) {
+                                const satisfactions = data.inputPorts.map((p: Port) => {
+                                    if (p.rate <= 0) return 1.0;
+                                    const key = `${node.id}-${p.id}`;
+                                    if (!connectedInputs.has(key)) return 1.0;
+
+                                    const incoming = inputFlows.get(key) || 0;
+                                    return Math.min(1.0, incoming / p.rate);
+                                });
+                                satisfaction = Math.min(...satisfactions);
                             }
-                        });
-                    } else if (node.type === 'splitter') {
-                        // Splitter logic: sum inputs, distribute to outputs based on demand
-                        const totalIn = data.inputPorts.reduce((sum: number, p: Port) => sum + (inputFlows.get(`${node.id}-${p.id}`) || 0), 0);
+                            data.outputPorts.forEach((p: Port) => {
+                                const newRate = p.rate * satisfaction;
+                                if (Math.abs((p.currentRate ?? 0) - newRate) > 0.001) {
+                                    p.currentRate = newRate;
+                                    changed = true;
+                                }
+                            });
+                        } else if (node.type === 'splitter') {
+                            // Splitter logic: sum inputs, distribute to outputs based on demand
+                            const totalIn = data.inputPorts.reduce((sum: number, p: Port) => sum + (inputFlows.get(`${node.id}-${p.id}`) || 0), 0);
 
-                        const outputs = data.outputPorts as Port[];
-                        if (outputs.length === 0) return;
+                            const outputs = data.outputPorts as Port[];
+                            if (outputs.length === 0) return;
 
-                        const demands = outputs.map(p => getDownstreamDemand(node.id, p.id, state.nodes, state.edges));
-                        const totalDemand = demands.reduce((a, b) => a + b, 0);
+                            const demands = outputs.map(p => getDownstreamDemand(node.id, p.id, state.nodes, state.edges));
+                            const totalDemand = demands.reduce((a, b) => a + b, 0);
 
-                        // PROPAGATE DEMAND UPSTREAM:
-                        // Update input port rates so incoming edges show the correct demand/pull
-                        data.inputPorts.forEach((p: Port) => {
-                            p.rate = totalDemand;
-                        });
+                            // ITEM TYPE & DEMAND PROPAGATION:
+                            const incomingEdges = state.edges.filter(e => e.target === node.id);
+                            const incomingItem = incomingEdges.map(e => {
+                                const sNode = state.nodes.find(n => n.id === e.source);
+                                if (!sNode) return null;
+                                return getPort(sNode, e.sourceHandle ?? null, 'output');
+                            }).find(p => p && p.itemId !== 'any')?.itemId || 'any';
 
-                        let newRates: number[] = [];
+                            if (data.inputPorts[0]?.itemId !== incomingItem) {
+                                changed = true;
+                                data.inputPorts.forEach((p: Port) => p.itemId = incomingItem);
+                                data.outputPorts.forEach((p: Port) => p.itemId = incomingItem);
+                            }
 
-                        if (data.priority === 'balanced' || !data.priority) {
-                            if (totalDemand > 0) {
-                                // Split based on demand ratio
-                                newRates = demands.map(d => (d / totalDemand) * totalIn);
+                            data.inputPorts.forEach((p: Port) => {
+                                p.rate = totalDemand;
+                            });
+
+                            let newRates: number[] = [];
+
+                            if (data.priority === 'balanced' || !data.priority) {
+                                if (totalDemand > 0) {
+                                    // Split based on demand ratio
+                                    newRates = demands.map(d => (d / totalDemand) * totalIn);
+                                } else {
+                                    // fallback to physical split if no demand known
+                                    const share = totalIn / outputs.length;
+                                    newRates = outputs.map(() => share);
+                                }
+                            } else if (data.priority === 'out-left' || data.priority === 'out-right') {
+                                const prioIdx = data.priority === 'out-left' ? 0 : 1;
+                                const otherIdx = prioIdx === 0 ? 1 : 0;
+
+                                // 1. Fill priority demand first
+                                const prioTake = Math.min(totalIn, demands[prioIdx]);
+                                newRates = [];
+                                newRates[prioIdx] = prioTake;
+
+                                // 2. Overflow to other
+                                const remaining = totalIn - prioTake;
+                                newRates[otherIdx] = remaining;
+
+                                // 3. Fallback: if prioTake was 0 because demand was 0, but we have items,
+                                // in priority mode we usually still send items to prio if we don't know demand
+                                if (totalIn > 0 && totalDemand === 0) {
+                                    newRates[prioIdx] = totalIn;
+                                    newRates[otherIdx] = 0;
+                                }
                             } else {
-                                // fallback to physical split if no demand known
+                                // Default to balanced
                                 const share = totalIn / outputs.length;
                                 newRates = outputs.map(() => share);
                             }
-                        } else if (data.priority === 'out-left' || data.priority === 'out-right') {
-                            const prioIdx = data.priority === 'out-left' ? 0 : 1;
-                            const otherIdx = prioIdx === 0 ? 1 : 0;
 
-                            // 1. Fill priority demand first
-                            const prioTake = Math.min(totalIn, demands[prioIdx]);
-                            newRates = [];
-                            newRates[prioIdx] = prioTake;
-
-                            // 2. Overflow to other
-                            const remaining = totalIn - prioTake;
-                            newRates[otherIdx] = remaining;
-
-                            // 3. Fallback: if prioTake was 0 because demand was 0, but we have items,
-                            // in priority mode we usually still send items to prio if we don't know demand
-                            if (totalIn > 0 && totalDemand === 0) {
-                                newRates[prioIdx] = totalIn;
-                                newRates[otherIdx] = 0;
-                            }
-                        } else {
-                            // Default to balanced
-                            const share = totalIn / outputs.length;
-                            newRates = outputs.map(() => share);
+                            outputs.forEach((p, idx) => {
+                                const newRate = newRates[idx] || 0;
+                                if (Math.abs((p.currentRate ?? 0) - newRate) > 0.001) {
+                                    p.currentRate = newRate;
+                                    changed = true;
+                                }
+                            });
                         }
+                    });
 
-                        outputs.forEach((p, idx) => {
-                            const newRate = newRates[idx] || 0;
-                            if (Math.abs((p.currentRate ?? 0) - newRate) > 0.001) {
-                                p.currentRate = newRate;
-                                changed = true;
-                            }
-                        });
-                    }
-                });
-
-                if (!changed) break;
+                    if (!changed) break;
+                }
             }
 
+            // Always update edge status (Geometry Check)
             state.edges = state.edges.map(edge => updateEdgeStatus(edge, state.nodes, game));
         }));
     },

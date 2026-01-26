@@ -1,12 +1,11 @@
 import { memo } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
 import { SplitterNodeData, BLOCK_LAYOUT } from '@/types/block';
-import { GitMerge, Filter, ArrowLeftRight } from 'lucide-react';
+import { GitMerge, Filter, ArrowLeftRight, Shuffle } from 'lucide-react';
 import { useLayoutStore } from '@/stores/layoutStore';
 
 const SplitterNode = ({ id, data, selected }: NodeProps<SplitterNodeData>) => {
     const updateBlock = useLayoutStore(state => state.updateBlock);
-    const isNodeColliding = useLayoutStore(state => state.nodeConflicts.has(id));
 
     // Fixed size for splitters for now
     const width = 80;
@@ -14,7 +13,40 @@ const SplitterNode = ({ id, data, selected }: NodeProps<SplitterNodeData>) => {
 
     const cycleType = (e: React.MouseEvent) => {
         e.stopPropagation();
-        updateBlock(id, { type: data.type === 'splitter' ? 'merger' : 'splitter' });
+
+        // Cycle: Splitter -> Balancer -> Merger -> Splitter
+        const nextType = data.type === 'splitter' ? 'balancer' : (data.type === 'balancer' ? 'merger' : 'splitter');
+
+        let inputPorts: any[] = [];
+        let outputPorts: any[] = [];
+
+        if (nextType === 'splitter') {
+            inputPorts = [{ id: 'in-main', type: 'input', side: 'left', offset: 0.5, itemId: 'any', rate: 0 }];
+            outputPorts = [
+                { id: 'out-1', type: 'output', side: 'right', offset: 0.25, itemId: 'any', rate: 0 },
+                { id: 'out-2', type: 'output', side: 'right', offset: 0.50, itemId: 'any', rate: 0 },
+                { id: 'out-3', type: 'output', side: 'right', offset: 0.75, itemId: 'any', rate: 0 }
+            ];
+        } else if (nextType === 'balancer') {
+            inputPorts = [
+                { id: 'in-1', type: 'input', side: 'left', offset: 0.33, itemId: 'any', rate: 0 },
+                { id: 'in-2', type: 'input', side: 'left', offset: 0.66, itemId: 'any', rate: 0 }
+            ];
+            outputPorts = [
+                { id: 'out-1', type: 'output', side: 'right', offset: 0.33, itemId: 'any', rate: 0 },
+                { id: 'out-2', type: 'output', side: 'right', offset: 0.66, itemId: 'any', rate: 0 }
+            ];
+        } else {
+            // Merger
+            inputPorts = [
+                { id: 'in-1', type: 'input', side: 'left', offset: 0.25, itemId: 'any', rate: 0 },
+                { id: 'in-2', type: 'input', side: 'left', offset: 0.50, itemId: 'any', rate: 0 },
+                { id: 'in-3', type: 'input', side: 'left', offset: 0.75, itemId: 'any', rate: 0 }
+            ];
+            outputPorts = [{ id: 'out-main', type: 'output', side: 'right', offset: 0.5, itemId: 'any', rate: 0 }];
+        }
+
+        updateBlock(id, { type: nextType, inputPorts, outputPorts });
     };
 
     const cyclePriority = (e: React.MouseEvent) => {
@@ -47,7 +79,7 @@ const SplitterNode = ({ id, data, selected }: NodeProps<SplitterNodeData>) => {
                 onClick={cycleType}
                 className={`p-2 rounded-full cursor-pointer hover:bg-slate-700 transition-colors bg-slate-800 ${selected ? 'text-amber-500' : 'text-slate-400'}`}
             >
-                {data.type === 'splitter' ? <GitMerge className="rotate-90" size={24} /> : <GitMerge className="-rotate-90" size={24} />}
+                {data.type === 'balancer' ? <Shuffle size={24} /> : (data.type === 'splitter' ? <GitMerge className="rotate-90" size={24} /> : <GitMerge className="-rotate-90" size={24} />)}
             </div>
 
             {/* Config Overlay */}

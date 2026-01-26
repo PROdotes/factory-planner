@@ -243,7 +243,7 @@ export const ChannelRenderer: React.FC<ChannelRendererProps> = ({
                 strokeWidth={foundationWidth}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="transition-all duration-300 drop-shadow-lg"
+                className="drop-shadow-lg"
                 style={{
                     opacity: 0.9,
                     filter: isSelected ? `drop-shadow(0 0 8px ${color})` : 'none'

@@ -100,7 +100,7 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
                 ${hasConflict && !selected ? 'border-red-500/50 shadow-[0_0_15px_rgba(244,63,94,0.1)]' : ''}
             `}
         >
-            {/* DEBUG COLLISION BOUNDARY (PINK/RED) */}
+            {/* DEBUG COLLISION BOUNDARY (PINK/RED)
             <div
                 className={`absolute top-0 left-0 border-2 pointer-events-none z-[500] ${isNodeColliding ? 'border-red-500 animate-pulse' : 'border-pink-500/40'}`}
                 style={{ width: data.size.width, height: data.size.height }}
@@ -109,6 +109,7 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
                     {isNodeColliding ? 'COLLISION' : `BOX: ${data.size.width}x${data.size.height}`}
                 </div>
             </div>
+            */}
 
             {/* Top Accent Bar */}
             <div className={`absolute top-0 left-0 w-full h-1 rounded-t-lg bg-gradient-to-r ${hasConflict ? 'from-red-600 to-red-400' : (selected ? 'from-cyan-400 to-blue-500' : 'from-slate-700 to-slate-800')}`}></div>

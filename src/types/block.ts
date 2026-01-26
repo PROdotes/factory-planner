@@ -122,7 +122,7 @@ export interface Block {
 export interface SplitterNodeData {
     id: string;
     size?: Size;
-    type: 'splitter' | 'merger';
+    type: 'splitter' | 'merger' | 'balancer';
 
     // Splitters are simpler than blocks - strict 1:2 or 2:1 mapping usually
     // But we keep the generic port structure for consistency

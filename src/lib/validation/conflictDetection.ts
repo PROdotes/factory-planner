@@ -50,24 +50,54 @@ function getNodeRect(node: BlockNode): Rect | null {
  */
 export function getChannelSegments(points: Point[], width: number): Rect[] {
     const segments: Rect[] = [];
+    const halfWidth = width / 2;
+
     for (let i = 0; i < points.length - 1; i++) {
         const p1 = points[i];
         const p2 = points[i + 1];
         const isHorizontal = Math.abs(p1.y - p2.y) < 0.1;
 
+        // Determine if endpoints are internal corners (connected to other segments)
+        const isP1Corner = i > 0;
+        const isP2Corner = i < points.length - 2;
+
         if (isHorizontal) {
+            let minX = Math.min(p1.x, p2.x);
+            let maxX = Math.max(p1.x, p2.x);
+
+            // Extend if corner
+            if (p1.x < p2.x) { // p1 is left (min), p2 is right (max)
+                if (isP1Corner) minX -= halfWidth;
+                if (isP2Corner) maxX += halfWidth;
+            } else { // p2 is left (min), p1 is right (max)
+                if (isP2Corner) minX -= halfWidth;
+                if (isP1Corner) maxX += halfWidth;
+            }
+
             segments.push({
-                x: Math.min(p1.x, p2.x),
-                y: p1.y - width / 2,
-                width: Math.abs(p2.x - p1.x),
+                x: minX,
+                y: p1.y - halfWidth,
+                width: maxX - minX,
                 height: width
             });
         } else {
+            let minY = Math.min(p1.y, p2.y);
+            let maxY = Math.max(p1.y, p2.y);
+
+            // Extend if corner
+            if (p1.y < p2.y) { // p1 is top (min), p2 is bottom (max)
+                if (isP1Corner) minY -= halfWidth;
+                if (isP2Corner) maxY += halfWidth;
+            } else { // p2 is top (min), p1 is bottom (max)
+                if (isP2Corner) minY -= halfWidth;
+                if (isP1Corner) maxY += halfWidth;
+            }
+
             segments.push({
-                x: p1.x - width / 2,
-                y: Math.min(p1.y, p2.y),
+                x: p1.x - halfWidth,
+                y: minY,
                 width: width,
-                height: Math.abs(p2.y - p1.y)
+                height: maxY - minY
             });
         }
     }
