@@ -98,7 +98,35 @@
 <a name='L33'></a><a href='#L33'>33</a>
 <a name='L34'></a><a href='#L34'>34</a>
 <a name='L35'></a><a href='#L35'>35</a>
-<a name='L36'></a><a href='#L36'>36</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -109,6 +137,30 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -136,34 +188,60 @@
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import React from 'react';
 import { Sidebar } from './Sidebar';
 import { Toolbar } from './Toolbar';
+import { NeedsPanel } from './NeedsPanel';
 &nbsp;
 interface AppShellProps {
     children?: React.ReactNode;
     onOpenEditor?: () =&gt; void;
+    onAddBlock?: () =&gt; void;
 }
 &nbsp;
-export const AppShell: React.FC&lt;AppShellProps&gt; = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >({</span> children, onOpenEditor }) =&gt; {</span>
+export const AppShell: React.FC&lt;AppShellProps&gt; = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >({</span> children, onOpenEditor, onAddBlock }) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    return (</span>
-        &lt;div className="h-screen w-screen flex flex-col bg-background text-text overflow-hidden"&gt;
-            &lt;Toolbar className="flex-none" onOpenEditor={onOpenEditor} /&gt;
+        &lt;div className="h-screen w-screen flex flex-col bg-[#0b0f1a] text-text overflow-hidden font-sans"&gt;
+            {/* Top Navigation */}
+            &lt;Toolbar
+                className="flex-none z-30"
+                onOpenEditor={onOpenEditor}
+                onAddBlock={onAddBlock}
+            /&gt;
 &nbsp;
             &lt;div className="flex-1 flex overflow-hidden"&gt;
-                &lt;Sidebar className="flex-none" /&gt;
+                {/* Left Discovery Panel */}
+                &lt;Sidebar className="flex-none z-20" /&gt;
 &nbsp;
-                &lt;main className="flex-1 relative bg-background overflow-hidden relative"&gt;
-                    {children}
+                &lt;main className="flex-1 relative overflow-hidden bg-[radial-gradient(circle_at_50%_50%,#1a2333_0%,#0b0f1a_100%)]"&gt;
+                    &lt;div className="absolute inset-0 z-0 pointer-events-none opacity-20 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"&gt;&lt;/div&gt;
 &nbsp;
-                    {/* Status Bar */}
-                    &lt;div className="absolute bottom-0 left-0 right-0 h-6 bg-surface border-t border-border flex items-center px-4 text-xs text-textSecondary justify-between z-10 select-none"&gt;
-                        &lt;div className="flex space-x-4"&gt;
-                            &lt;span&gt;Zoom: 100%&lt;/span&gt;
-                            &lt;span&gt;Grid: On&lt;/span&gt;
+                    &lt;div className="absolute inset-0 z-10 flex flex-col"&gt;
+                        &lt;div className="flex-1 relative"&gt;
+                            {children}
                         &lt;/div&gt;
-                        &lt;div&gt;
-                            DSP Planner v0.1.0
+&nbsp;
+                        {/* Polished Status Bar */}
+                        &lt;div className="h-8 bg-black/40 backdrop-blur-md border-t border-white/5 flex items-center px-6 text-[10px] font-bold text-textSecondary justify-between z-30 select-none uppercase tracking-widest"&gt;
+                            &lt;div className="flex space-x-6 items-center"&gt;
+                                &lt;div className="flex items-center gap-2"&gt;
+                                    &lt;div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_var(--color-primary)]"&gt;&lt;/div&gt;
+                                    &lt;span&gt;Signal: Nominal&lt;/span&gt;
+                                &lt;/div&gt;
+                                &lt;div className="flex items-center gap-2"&gt;
+                                    &lt;span className="opacity-40"&gt;Grid:&lt;/span&gt;
+                                    &lt;span className="text-primary"&gt;Magnetite-V4&lt;/span&gt;
+                                &lt;/div&gt;
+                                &lt;div className="flex items-center gap-2"&gt;
+                                    &lt;span className="opacity-40"&gt;Engine:&lt;/span&gt;
+                                    &lt;span className="text-primary truncate max-w-[100px]"&gt;Node-Flow-2D&lt;/span&gt;
+                                &lt;/div&gt;
+                            &lt;/div&gt;
+                            &lt;div className="flex items-center gap-4"&gt;
+                                &lt;span className="text-white/20 font-black italic"&gt;Antigravity Console v0.1.0&lt;/span&gt;
+                            &lt;/div&gt;
                         &lt;/div&gt;
                     &lt;/div&gt;
                 &lt;/main&gt;
+&nbsp;
+                &lt;NeedsPanel className="flex-none z-20" /&gt;
             &lt;/div&gt;
         &lt;/div&gt;
     );
@@ -175,7 +253,7 @@ export const AppShell: React.FC&lt;AppShellProps&gt; = <span class="cstat-no" ti
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-01-25T18:06:27.967Z
+                at 2026-01-26T19:25:47.533Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

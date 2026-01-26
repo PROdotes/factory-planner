@@ -39,6 +39,7 @@ export interface BeltEdgeData {
     capacity: number; // Max items/min for this belt tier
     status: EdgeStatus;
     itemId: string;
+    isBridge?: boolean;
     collisionRects?: any[];
 }
 

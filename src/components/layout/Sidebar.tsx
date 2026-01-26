@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useGameStore } from '@/stores/gameStore';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { AlertTriangle, CheckCircle2, Search } from 'lucide-react';
+import { DSPIcon, ITEM_ICON_MAP } from '@/components/ui/DSPIcon';
 
 interface SidebarProps {
     className?: string;
@@ -134,13 +135,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
                                     }}
                                     className="px-4 py-3 bg-white/[0.02] hover:bg-white/[0.08] cursor-grab active:cursor-grabbing flex items-center justify-between rounded-xl border border-transparent hover:border-white/10 transition-all group"
                                 >
-                                    <div className="flex flex-col">
-                                        <span className="text-sm font-semibold text-text group-hover:text-primary transition-colors">
-                                            {recipe.name}
-                                        </span>
-                                        <span className="text-[10px] text-textSecondary uppercase tracking-wider">
-                                            {recipe.machineId.replace(/-/g, ' ')}
-                                        </span>
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-lg bg-black/40 border border-white/5 flex items-center justify-center p-1 group-hover:border-primary/30 transition-all">
+                                            <DSPIcon
+                                                index={ITEM_ICON_MAP[recipe.id] || 0}
+                                                size={32}
+                                            />
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-semibold text-text group-hover:text-primary transition-colors">
+                                                {recipe.name}
+                                            </span>
+                                            <span className="text-[10px] text-textSecondary uppercase tracking-wider">
+                                                {recipe.machineId.replace(/-/g, ' ')}
+                                            </span>
+                                        </div>
                                     </div>
                                     <div className="h-8 w-8 rounded-lg bg-black/20 flex items-center justify-center text-[10px] font-bold text-textSecondary border border-white/5">
                                         {recipe.craftingTime}s

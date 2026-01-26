@@ -6,18 +6,18 @@ export const DSP_DATA: GameDefinition = {
     name: 'Dyson Sphere Program',
     version: '0.10',
     items: [
-        { id: "iron-ore", name: "Iron Ore", category: "ore", stackSize: 100 },
-        { id: "copper-ore", name: "Copper Ore", category: "ore", stackSize: 100 },
-        { id: "crude-oil", name: "Crude Oil", category: "fluid", stackSize: 20 },
-        { id: "refined-oil", name: "Refined Oil", category: "fluid", stackSize: 20 },
-        { id: "hydrogen", name: "Hydrogen", category: "fluid", stackSize: 20 },
-        { id: "iron-ingot", name: "Iron Ingot", category: "ingot", stackSize: 100 },
-        { id: "copper-ingot", name: "Copper Ingot", category: "ingot", stackSize: 100 },
-        { id: "magnet", name: "Magnet", category: "component", stackSize: 100 },
-        { id: "magnetic-coil", name: "Magnetic Coil", category: "component", stackSize: 100 },
-        { id: "gear", name: "Gear", category: "component", stackSize: 100 },
-        { id: "circuit-board", name: "Circuit Board", category: "component", stackSize: 100 },
-        { id: "electromagnetic-matrix", name: "Electromagnetic Matrix", category: "science", stackSize: 100 }
+        { id: "iron-ore", name: "Iron Ore", category: "ore", stackSize: 100, color: "#94a3b8", iconIndex: 2 },
+        { id: "copper-ore", name: "Copper Ore", category: "ore", stackSize: 100, color: "#f97316", iconIndex: 3 },
+        { id: "crude-oil", name: "Crude Oil", category: "fluid", stackSize: 20, color: "#1e293b", iconIndex: 9 },
+        { id: "refined-oil", name: "Refined Oil", category: "fluid", stackSize: 20, color: "#475569", iconIndex: 25 },
+        { id: "hydrogen", name: "Hydrogen", category: "fluid", stackSize: 20, color: "#38bdf8", iconIndex: 10 },
+        { id: "iron-ingot", name: "Iron Ingot", category: "ingot", stackSize: 100, color: "#cbd5e1", iconIndex: 13 },
+        { id: "copper-ingot", name: "Copper Ingot", category: "ingot", stackSize: 100, color: "#fdba74", iconIndex: 14 },
+        { id: "magnet", name: "Magnet", category: "component", stackSize: 100, color: "#6366f1", iconIndex: 18 },
+        { id: "magnetic-coil", name: "Magnetic Coil", category: "component", stackSize: 100, color: "#818cf8", iconIndex: 19 },
+        { id: "gear", name: "Gear", category: "component", stackSize: 100, color: "#94a3b8", iconIndex: 50 },
+        { id: "circuit-board", name: "Circuit Board", category: "component", stackSize: 100, color: "#10b981", iconIndex: 36 },
+        { id: "electromagnetic-matrix", name: "Electromagnetic Matrix", category: "science", stackSize: 100, color: "#22d3ee", iconIndex: 80 }
     ],
     recipes: [
         {
@@ -138,6 +138,18 @@ export const DSP_DATA: GameDefinition = {
             outputs: [{ itemId: "particle-container", amount: 1 }],
             craftingTime: 4.0,
             category: "assembling"
+        },
+        {
+            id: "electromagnetic-matrix",
+            name: "Electromagnetic Matrix",
+            machineId: "matrix-lab",
+            inputs: [
+                { itemId: "magnetic-coil", amount: 1 },
+                { itemId: "circuit-board", amount: 1 }
+            ],
+            outputs: [{ itemId: "electromagnetic-matrix", amount: 1 }],
+            craftingTime: 3.0,
+            category: "research"
         }
     ],
 
@@ -148,7 +160,8 @@ export const DSP_DATA: GameDefinition = {
             category: "smelter",
             speed: 1.0,
             powerUsage: 360000,
-            size: { width: 2, height: 2 }
+            size: { width: 2, height: 2 },
+            allowedCategories: ["smelting"]
         },
         {
             id: "assembler-mk1",
@@ -156,7 +169,8 @@ export const DSP_DATA: GameDefinition = {
             category: "assembler",
             speed: 0.75,
             powerUsage: 270000,
-            size: { width: 2, height: 2 }
+            size: { width: 2, height: 2 },
+            allowedCategories: ["assembling"]
         },
         {
             id: "assembler-mk2",
@@ -164,7 +178,8 @@ export const DSP_DATA: GameDefinition = {
             category: "assembler",
             speed: 1.0,
             powerUsage: 540000,
-            size: { width: 2, height: 2 }
+            size: { width: 2, height: 2 },
+            allowedCategories: ["assembling"]
         },
         {
             id: "chemical-plant",
@@ -172,7 +187,8 @@ export const DSP_DATA: GameDefinition = {
             category: "chemical",
             speed: 1.0,
             powerUsage: 720000,
-            size: { width: 3, height: 3 }
+            size: { width: 3, height: 3 },
+            allowedCategories: ["refining", "chemical"]
         },
         {
             id: "mining-machine",
@@ -180,7 +196,17 @@ export const DSP_DATA: GameDefinition = {
             category: "miner",
             speed: 1.0,
             powerUsage: 420000,
-            size: { width: 3, height: 3 }
+            size: { width: 3, height: 3 },
+            allowedCategories: ["mining"]
+        },
+        {
+            id: "matrix-lab",
+            name: "Matrix Lab",
+            category: "lab",
+            speed: 1.0,
+            powerUsage: 480000,
+            size: { width: 3, height: 3 },
+            allowedCategories: ["research"]
         }
     ],
 
@@ -193,6 +219,14 @@ export const DSP_DATA: GameDefinition = {
         lanesPerBelt: 1,
         hasSpeedModifiers: true,
         rateUnit: 'minute',
-        gridSize: 1
+        gridSize: 1,
+        defaultMachineIds: {
+            smelting: 'arc-smelter',
+            assembling: 'assembler-mk1',
+            refining: 'chemical-plant',
+            chemical: 'chemical-plant',
+            research: 'matrix-lab',
+            mining: 'mining-machine'
+        }
     }
 };

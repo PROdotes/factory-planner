@@ -1,11 +1,10 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import {
     EdgeProps,
     EdgeLabelRenderer,
     BaseEdge,
 } from 'reactflow';
 import { X } from 'lucide-react';
-import { getChannelSegments } from '@/lib/validation/conflictDetection';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { useGameStore } from '@/stores/gameStore';
 import { ChannelRenderer } from '@/components/connections/ChannelRenderer';
@@ -17,32 +16,44 @@ const ConnectionEdge = ({
     sourceY,
     targetX,
     targetY,
-    sourceHandleId,
-    targetHandleId,
     selected,
     data: edgeData,
 }: EdgeProps) => {
-    const deleteEdge = useLayoutStore(state => state.deleteEdge);
+    const [isHovered, setIsHovered] = useState(false);
+    const { deleteEdge, viewSettings } = useLayoutStore();
     const getItem = useGameStore(state => state.getItem);
-    const itemName = edgeData?.itemId && edgeData.itemId !== 'any' ? (getItem(edgeData.itemId)?.name || edgeData.itemId) : 'Any';
-    const status = edgeData?.status || 'ok';
-    const throughput = edgeData?.flowRate || 60;
-    const capacity = edgeData?.capacity || 300; // Match default
 
-    // Line colors based on status
-    const getColors = () => {
-        switch (status) {
-            case 'conflict': return { main: '#f43f5e', glow: 'rgba(244, 63, 94, 0.4)' };
-            case 'bottleneck':
-            case 'overload': return { main: '#ef4444', glow: 'rgba(239, 68, 68, 0.4)' };
-            case 'underload': return { main: '#fbbf24', glow: 'rgba(251, 191, 36, 0.4)' };
-            case 'mismatch': return { main: '#a855f7', glow: 'rgba(168, 85, 247, 0.4)' };
-            default: return { main: '#22d3ee', glow: 'rgba(34, 211, 238, 0.4)' };
+    const item = edgeData?.itemId ? getItem(edgeData.itemId) : null;
+    const itemName = item?.name || 'Any';
+    const itemCategory = item?.category || 'other';
+    const status = edgeData?.status || 'ok';
+    const throughput = edgeData?.flowRate || 0;
+    const capacity = edgeData?.capacity || 60; // Default MK1 if not set
+
+    // Item-Specific or Categorical Colors (Tracing logic)
+    const getCategoryColor = () => {
+        if (status === 'conflict') return '#f43f5e'; // Red for ERROR overrides everything
+        if (status === 'mismatch') return '#a855f7'; // Purple for logic error
+        if (status === 'overload') return '#ef4444'; // Solid Red for overload
+        if (status === 'underload') return '#fbbf24'; // Amber for starvation
+
+        // 1. High-priority Item color (from dsp.ts)
+        if (item?.color) return item.color;
+
+        // 2. Fallback to broad categories
+        switch (itemCategory) {
+            case 'ore': return '#64748b';    // Raw Slate
+            case 'ingot': return '#b45309';  // Amber/Copper
+            case 'component': return '#2563eb'; // Deep Blue
+            case 'product': return '#059669'; // Emerald
+            case 'science': return '#0891b2'; // Science Cyan
+            case 'fluid': return '#9333ea';  // Purple
+            default: return '#334155';
         }
     };
 
-    const colors = getColors();
-    const mainColor = colors.main;
+    const mainColor = getCategoryColor();
+    const showLabels = viewSettings.showLabels || selected;
 
     // Fixed Manhattan Path (Z-shape)
     const midX = sourceX + (targetX - sourceX) * 0.5;
@@ -53,21 +64,37 @@ const ConnectionEdge = ({
         { x: targetX, y: targetY }
     ];
 
-    const lanes = Math.ceil(throughput / capacity);
+    // Calculate Longest Segment for Label Positioning
+    const segments = [
+        { x: (sourceX + midX) / 2, y: sourceY, len: Math.abs(midX - sourceX), vertical: false },
+        { x: midX, y: (sourceY + targetY) / 2, len: Math.abs(targetY - sourceY), vertical: true },
+        { x: (midX + targetX) / 2, y: targetY, len: Math.abs(targetX - midX), vertical: false }
+    ];
+    const longest = segments.reduce((prev, current) => (prev.len > current.len) ? prev : current);
+
+    // Show labels if global toggle is ON, OR if interacting (hover/select)
+    const isVisible = showLabels || isHovered || selected;
+
+    const lanes = viewSettings.bundleLanes ? 1 : Math.ceil(throughput / capacity);
     const bWidth = (lanes - 1) * 6 + 12;
 
     return (
         <>
             {/* The actual clickable path (invisible but captures events) */}
-            <BaseEdge
-                id={id}
-                path={`M ${sourceX} ${sourceY} L ${midX} ${sourceY} L ${midX} ${targetY} L ${targetX} ${targetY}`}
-                style={{
-                    strokeWidth: Math.max(20, bWidth),
-                    stroke: 'transparent',
-                    cursor: 'pointer'
-                }}
-            />
+            <g
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+            >
+                <BaseEdge
+                    id={id}
+                    path={`M ${sourceX} ${sourceY} L ${midX} ${sourceY} L ${midX} ${targetY} L ${targetX} ${targetY}`}
+                    style={{
+                        strokeWidth: Math.max(20, bWidth),
+                        stroke: 'transparent',
+                        cursor: 'pointer'
+                    }}
+                />
+            </g>
 
             {/* The Visual Ribbon */}
             <g style={{ pointerEvents: 'none' }}>
@@ -77,57 +104,59 @@ const ConnectionEdge = ({
                     beltCapacity={capacity}
                     color={mainColor}
                     isSelected={selected}
+                    showFlow={viewSettings.showFlow}
+                    bundleLanes={viewSettings.bundleLanes}
+                    isBridge={edgeData?.isBridge}
+                    status={status}
                     pattern={status === 'conflict' ? 'conflict' : undefined}
                 />
-
-                {/* DEBUG COLLISION SEGMENTS (LIME)
-                {getChannelSegments(points, bWidth).map((rect, i) => (
-                    <rect
-                        key={`segment-${i}`}
-                        x={rect.x}
-                        y={rect.y}
-                        width={rect.width}
-                        height={rect.height}
-                        fill="rgba(132, 204, 22, 0.2)"
-                        stroke="#84cc16"
-                        strokeWidth="1"
-                        strokeDasharray="2 2"
-                        className="z-[500]"
-                    />
-                ))}
-                */}
             </g>
 
-            {/* Status Tooltip / Info */}
-            {selected && (
+            {/* Status Tooltip / Info - Hover Only */}
+            {isVisible && (
                 <EdgeLabelRenderer>
                     <div
                         style={{
                             position: 'absolute',
-                            transform: `translate(-50%, -50%) translate(${midX}px, ${(sourceY + targetY) / 2}px)`,
-                            pointerEvents: 'all',
+                            transform: `translate(-50%, -50%) translate(${longest.x}px, ${longest.y}px)`,
+                            pointerEvents: selected ? 'all' : 'none',
                         }}
-                        className="bg-slate-900/90 backdrop-blur border border-slate-700 rounded-lg p-2 flex flex-col gap-1 min-w-[120px] shadow-2xl z-50 relative"
+                        className={`
+                            backdrop-blur border rounded-lg p-1.5 flex flex-col gap-0.5 min-w-[80px] shadow-2xl z-50 transition-all
+                            ${selected ? 'bg-slate-900/90 border-slate-500 scale-110' : 'bg-slate-950/60 border-white/10 scale-90 opacity-80'}
+                        `}
                     >
-                        <button
-                            className="absolute -top-3 -right-3 text-slate-400 hover:text-red-400 bg-slate-900 border border-slate-700 rounded-full p-1 transition-colors shadow-lg cursor-pointer pointer-events-auto"
-                            onMouseDown={(e) => {
-                                e.stopPropagation();
-                                deleteEdge(id);
-                            }}
-                        >
-                            <X size={12} strokeWidth={3} />
-                        </button>
-                        <div className="flex items-center justify-between gap-4">
-                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Flow</span>
-                            <span className="text-xs font-black text-cyan-400">{throughput.toFixed(1)}/min</span>
+                        {selected && (
+                            <button
+                                className="absolute -top-3 -right-3 text-slate-400 hover:text-red-400 bg-slate-900 border border-slate-700 rounded-full p-1 transition-colors shadow-lg cursor-pointer pointer-events-auto"
+                                onMouseDown={(e) => {
+                                    e.stopPropagation();
+                                    deleteEdge(id);
+                                }}
+                            >
+                                <X size={10} strokeWidth={3} />
+                            </button>
+                        )}
+                        <div className="flex items-center justify-between gap-2">
+                            <span className={`text-[10px] font-black tracking-widest ${selected ? 'text-slate-300' : 'text-slate-500'}`}>
+                                {itemName}
+                            </span>
+                            <div className="flex items-baseline gap-0.5">
+                                <span className={`text-[11px] font-black ${status === 'underload' ? 'text-amber-400' : (selected ? 'text-cyan-400' : 'text-white/60')}`}>
+                                    {throughput.toFixed(1)}
+                                </span>
+                                {edgeData?.demandRate && Math.abs(edgeData.demandRate - throughput) > 0.05 && (
+                                    <>
+                                        <span className="text-[10px] text-white/20">/</span>
+                                        <span className="text-[10px] font-bold text-white/40">
+                                            {edgeData.demandRate.toFixed(1)}
+                                        </span>
+                                    </>
+                                )}
+                            </div>
                         </div>
-                        <div className="flex items-center justify-between gap-4">
-                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Type</span>
-                            <span className="text-xs font-black text-slate-300">{itemName}</span>
-                        </div>
-                        {status !== 'ok' && (
-                            <div className={`mt-1 pt-1 border-t border-white/5 text-[9px] font-black uppercase tracking-tighter text-center ${status === 'underload' ? 'text-amber-400' : 'text-rose-400'}`}>
+                        {selected && status !== 'ok' && (
+                            <div className={`mt-0.5 pt-0.5 border-t border-white/5 text-[8px] font-black uppercase tracking-tighter text-center ${status === 'underload' ? 'text-amber-400' : 'text-rose-400'}`}>
                                 STATUS: {status}
                             </div>
                         )}

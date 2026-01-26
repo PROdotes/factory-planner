@@ -24,21 +24,13 @@ describe('GameDataEditor', () => {
 
     it('shows items list by default', () => {
         render(<GameDataEditor />);
-        // "Iron Ore" is a standard Item in DSP
         expect(screen.getByText('Iron Ore')).toBeInTheDocument();
-        // Should NOT show a recipe name that isn't an item (if distinct)
-        // but "Iron Ore" might be both item and recipe name.
-        // Let's pick something unique if possible, or just rely on structure.
-        // For now, simple presence is good.
     });
 
     it('switches to recipes tab', () => {
         render(<GameDataEditor />);
         const recipeTab = screen.getByText('Recipes');
         fireEvent.click(recipeTab);
-
-        // "Iron Ingot" recipe (usually same name as item, but let's check for a known recipe)
-        // DSP_DATA likely has "Iron Ingot".
         expect(screen.getByText('Iron Ingot')).toBeInTheDocument();
     });
 
@@ -46,20 +38,14 @@ describe('GameDataEditor', () => {
         render(<GameDataEditor />);
         const machineTab = screen.getByText('Machines');
         fireEvent.click(machineTab);
-
-        // "Arc Smelter"
         expect(screen.getByText('Arc Smelter')).toBeInTheDocument();
     });
 
     it('selects an item to edit', () => {
         render(<GameDataEditor />);
-        // Click "Iron Ore"
         fireEvent.click(screen.getByText('Iron Ore'));
-
-        // Expect form fields to be populated
-        // We assume we'll use standard inputs with labels
         expect(screen.getByLabelText('Name')).toHaveValue('Iron Ore');
-        expect(screen.getByLabelText('Stack Size')).toHaveValue(100); // Standard value
+        expect(screen.getByLabelText('Stack Size')).toHaveValue(100);
     });
 
     it('updates an item', () => {
@@ -72,32 +58,33 @@ describe('GameDataEditor', () => {
         const saveButton = screen.getByText('Save');
         fireEvent.click(saveButton);
 
-        // Verify update in list
         expect(screen.getByText('Iron Ore Updated')).toBeInTheDocument();
 
-        // Verify in store
         const { game } = useGameStore.getState();
         const item = game.items.find(i => i.id === 'iron-ore');
         expect(item?.name).toBe('Iron Ore Updated');
     });
 
-    it('creates a new item', () => {
+    it('creates a new item with auto-generated ID', () => {
         render(<GameDataEditor />);
 
-        // Click "Add Item" button (we need to add this button)
         fireEvent.click(screen.getByText('+ Add Item'));
 
-        // Fill form
-        fireEvent.change(screen.getByLabelText('ID'), { target: { value: 'new-item' } });
-        fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'New Item' } });
-        // Select category? For simplicity just text for now or default
+        // ID field should be disabled
+        expect(screen.getByLabelText('ID')).toBeDisabled();
+
+        // Fill Name
+        fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'New Test Item' } });
+
+        // Verify ID was auto-filled (snake_case)
+        expect(screen.getByLabelText('ID')).toHaveValue('new_test_item');
 
         fireEvent.click(screen.getByText('Save'));
 
-        expect(screen.getByText('New Item')).toBeInTheDocument();
+        expect(screen.getByText('New Test Item')).toBeInTheDocument();
 
         const { game } = useGameStore.getState();
-        expect(game.items.find(i => i.id === 'new-item')).toBeDefined();
+        expect(game.items.find(i => i.id === 'new_test_item')).toBeDefined();
     });
 
     it('selects and edits a recipe', () => {
@@ -105,19 +92,37 @@ describe('GameDataEditor', () => {
         fireEvent.click(screen.getByText('Recipes'));
         fireEvent.click(screen.getByText('Iron Ingot'));
 
-        // Check fields
         expect(screen.getByLabelText('Name')).toHaveValue('Iron Ingot');
 
-        // Edit crafting time
         const timeInput = screen.getByLabelText('Crafting Time (s)');
         fireEvent.change(timeInput, { target: { value: 2.5 } });
 
         fireEvent.click(screen.getByText('Save'));
 
-        // Verify store
         const { game } = useGameStore.getState();
         const recipe = game.recipes.find(r => r.id === 'iron-ingot');
         expect(recipe?.craftingTime).toBe(2.5);
+    });
+
+    it('edits recipe category and machine', () => {
+        render(<GameDataEditor />);
+        fireEvent.click(screen.getByText('Recipes'));
+        fireEvent.click(screen.getByText('Iron Ingot'));
+
+        // Change category to assembling
+        const categorySelect = screen.getByLabelText('Category');
+        fireEvent.change(categorySelect, { target: { value: 'assembling' } });
+
+        // Change machine
+        const machineSelect = screen.getByLabelText('Machine');
+        fireEvent.change(machineSelect, { target: { value: 'assembler-mk1' } });
+
+        fireEvent.click(screen.getByText('Save'));
+
+        const { game } = useGameStore.getState();
+        const recipe = game.recipes.find(r => r.id === 'iron-ingot');
+        expect(recipe?.category).toBe('assembling');
+        expect(recipe?.machineId).toBe('assembler-mk1');
     });
 
     it('shows import/export buttons', () => {
@@ -131,13 +136,11 @@ describe('GameDataEditor', () => {
         fireEvent.click(screen.getByText('Machines'));
         fireEvent.click(screen.getByText('Arc Smelter'));
 
-        // Edit speed
         const speedInput = screen.getByLabelText('Speed');
         fireEvent.change(speedInput, { target: { value: 2.0 } });
 
         fireEvent.click(screen.getByText('Save'));
 
-        // Verify store
         const { game } = useGameStore.getState();
         const machine = game.machines.find(m => m.id === 'arc-smelter');
         expect(machine?.speed).toBe(2.0);
@@ -147,36 +150,35 @@ describe('GameDataEditor', () => {
         render(<GameDataEditor />);
         fireEvent.click(screen.getByText('Iron Ore'));
 
-        // Find delete button
         const deleteButton = screen.getByText('Delete');
         fireEvent.click(deleteButton);
 
-        // Verify it's gone from the list/store
         const { game } = useGameStore.getState();
         expect(game.items.find(i => i.id === 'iron-ore')).toBeUndefined();
     });
 
-    it('manages belts', () => {
+    it('manages belts with auto-generated ID', () => {
         render(<GameDataEditor />);
         fireEvent.click(screen.getByText('Belts'));
 
-        // Check if standard belt exists
         expect(screen.getByText('Conveyor Belt Mk.I')).toBeInTheDocument();
 
-        // Create new belt
         fireEvent.click(screen.getByText('+ Add Belt'));
         fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Super Belt' } });
+
+        expect(screen.getByLabelText('ID')).toHaveValue('super_belt');
+
         fireEvent.change(screen.getByLabelText('Speed (items/s)'), { target: { value: 60 } });
         fireEvent.click(screen.getByText('Save'));
 
         expect(screen.getByText('Super Belt')).toBeInTheDocument();
         const { game } = useGameStore.getState();
-        expect(game.belts.find(b => b.name === 'Super Belt')).toBeDefined();
+        expect(game.belts.find(b => b.id === 'super_belt')).toBeDefined();
     });
 
     it('imports and loads data', () => {
         render(<GameDataEditor />);
-        const exportSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+        const exportSpy = vi.spyOn(window, 'alert').mockImplementation(() => { });
         const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue(JSON.stringify(useGameStore.getState().game));
 
         fireEvent.click(screen.getByText('Import'));
@@ -190,7 +192,7 @@ describe('GameDataEditor', () => {
 
     it('handles invalid import data', () => {
         render(<GameDataEditor />);
-        const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+        const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => { });
         const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('{"bad": "data"}');
 
         fireEvent.click(screen.getByText('Import'));

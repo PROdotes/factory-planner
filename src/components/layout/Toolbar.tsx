@@ -6,7 +6,11 @@ import {
     Download,
     Upload,
     RotateCcw,
-    Package
+    Package,
+    Eye,
+    Activity,
+    Layers,
+    TrendingUp
 } from 'lucide-react';
 import { useLayoutStore } from '@/stores/layoutStore';
 
@@ -17,7 +21,14 @@ interface ToolbarProps {
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({ className = '', onOpenEditor, onAddBlock }) => {
-    const { saveToStorage, loadFromStorage, exportLayout, importLayout } = useLayoutStore();
+    const {
+        saveToStorage,
+        loadFromStorage,
+        exportLayout,
+        importLayout,
+        viewSettings,
+        toggleViewSetting
+    } = useLayoutStore();
 
     const handleImport = () => {
         const input = document.createElement('input');
@@ -79,6 +90,39 @@ export const Toolbar: React.FC<ToolbarProps> = ({ className = '', onOpenEditor, 
                     </button>
                     <button onClick={handleReset} className="glass-button !p-2 hover:!text-red-400" title="Clear All">
                         <RotateCcw size={16} className="rotate-45" />
+                    </button>
+                </div>
+
+                <div className="h-8 w-px bg-white/10 mx-4" />
+
+                <div className="flex items-center gap-1.5">
+                    <button
+                        onClick={() => toggleViewSetting('showLabels')}
+                        className={`glass-button !p-2 ${viewSettings.showLabels ? 'text-cyan-400 bg-cyan-400/10 border-cyan-400/30' : 'text-white/40'}`}
+                        title="Toggle Labels"
+                    >
+                        <Eye size={16} />
+                    </button>
+                    <button
+                        onClick={() => toggleViewSetting('showFlow')}
+                        className={`glass-button !p-2 ${viewSettings.showFlow ? 'text-cyan-400 bg-cyan-400/10 border-cyan-400/30' : 'text-white/40'}`}
+                        title="Toggle Flow Animation"
+                    >
+                        <Activity size={16} />
+                    </button>
+                    <button
+                        onClick={() => toggleViewSetting('bundleLanes')}
+                        className={`glass-button !p-2 ${viewSettings.bundleLanes ? 'text-cyan-400 bg-cyan-400/10 border-cyan-400/30' : 'text-white/40'}`}
+                        title="Bundle Lanes (Ribbon Mode)"
+                    >
+                        <Layers size={16} />
+                    </button>
+                    <button
+                        onClick={() => toggleViewSetting('autoIncrementSource')}
+                        className={`glass-button !p-2 ${viewSettings.autoIncrementSource ? 'text-amber-400 bg-amber-400/10 border-amber-400/30' : 'text-white/40'}`}
+                        title="Auto-increment Source Rate on Connection"
+                    >
+                        <TrendingUp size={16} />
                     </button>
                 </div>
             </div>

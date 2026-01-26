@@ -11,7 +11,7 @@ vi.mock('reactflow', async () => {
     const actual = await vi.importActual('reactflow');
     return {
         ...actual,
-        Handle: (props: any) => <div data-testid={`handle-${props.type}-${props.id}`} onClick={props.onClick} />,
+        Handle: (props: any) => <div data-testid={`handle-${props.type}-${props.id}`} onClick={props.onClick}>{props.children}</div>,
         Position: { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bottom' }
     };
 });
@@ -26,10 +26,11 @@ const mockBlockData: BlockType = {
     name: 'Iron Ingot',
     recipeId: 'iron-ingot',
     machineId: 'arc-smelter',
+    calculationMode: 'output',
     targetRate: 60,
     machineCount: 1,
     actualRate: 60,
-    position: { x: 0, y: 0 },
+
     size: { width: 100, height: 100 },
     inputPorts: [
         { id: 'in-1', type: 'input', itemId: 'iron-ore', rate: 60, side: 'left', offset: 0.5 }
@@ -95,7 +96,7 @@ describe('Block Component', () => {
         // The component uses an h2 tag
         expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(/Iron Ingot/i);
         expect(screen.getByText(/Arc Smelter/i)).toBeInTheDocument();
-        expect(screen.getByText('1.0')).toBeInTheDocument();
+        expect(screen.getByDisplayValue('1.0')).toBeInTheDocument();
     });
 
     it('renders input and output ports', () => {

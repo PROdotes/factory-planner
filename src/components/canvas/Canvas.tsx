@@ -72,6 +72,37 @@ const CanvasContent: React.FC<CanvasProps> = ({ className = '' }) => {
         [project, addBlock]
     );
 
+    const connectingRef = useRef<{ nodeId: string; handleId: string; handleType: string } | null>(null);
+
+    const onConnectStart = useCallback((_: any, { nodeId, handleId, handleType }: any) => {
+        connectingRef.current = { nodeId, handleId: handleId?.replace('-drag', '') || '', handleType: handleType || '' };
+    }, []);
+
+    const onConnectEnd = useCallback((event: MouseEvent | TouchEvent) => {
+        if (!connectingRef.current) return;
+
+        const targetIsPane = (event.target as Element).classList.contains('react-flow__pane');
+
+        if (targetIsPane && reactFlowWrapper.current) {
+            const { top, left } = reactFlowWrapper.current.getBoundingClientRect();
+            const clientX = 'clientX' in event ? event.clientX : event.touches[0].clientX;
+            const clientY = 'clientY' in event ? event.clientY : event.touches[0].clientY;
+
+            const position = project({
+                x: clientX - left,
+                y: clientY - top,
+            });
+
+            useLayoutStore.getState().setActivePort({
+                nodeId: connectingRef.current.nodeId,
+                portId: connectingRef.current.handleId,
+                type: connectingRef.current.handleType === 'source' ? 'output' : 'input'
+            }, position);
+        }
+
+        connectingRef.current = null;
+    }, [project]);
+
     return (
         <div className={`w-full h-full ${className}`} ref={reactFlowWrapper}>
             <ReactFlow
@@ -79,7 +110,12 @@ const CanvasContent: React.FC<CanvasProps> = ({ className = '' }) => {
                 edges={edges}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
+                onConnect={(connection) => {
+                    onConnect(connection);
+                    connectingRef.current = null; // Mark as handled
+                }}
+                onConnectStart={onConnectStart}
+                onConnectEnd={onConnectEnd}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
                 onDragOver={onDragOver}

@@ -7,7 +7,11 @@ export interface ChannelRendererProps {
     beltCapacity?: number;
     color?: string;
     isSelected?: boolean;
+    showFlow?: boolean;
+    bundleLanes?: boolean;
     pattern?: string;
+    isBridge?: boolean;
+    status?: string;
 }
 
 const LANE_WIDTH = 4; // Visual width of the belt line
@@ -131,11 +135,6 @@ function getOffsetPath(points: Point[], offset: number): string {
         // The miter vector is just (n1 + n2).
         // We assume strictly 90 degree turns.
 
-        const miterX = n1.x + n2.x;
-        const miterY = n1.y + n2.y;
-
-        // However, we must account for the fact that the length of the diagonal is different.
-        // For 90 deg, the miter length is offset * sqrt(2).
         // Since (n1 + n2) has length sqrt(2), we literally just add both normals!
         // P_corner = P + offset * n1 + offset * n2 ?
         // Let's verify:
@@ -183,7 +182,11 @@ export const ChannelRenderer: React.FC<ChannelRendererProps> = ({
     beltCapacity = 360,
     color = '#3b82f6', // Default blue-500
     isSelected = false,
-    pattern
+    showFlow = true,
+    bundleLanes = false,
+    pattern,
+    isBridge = false,
+    status = 'ok'
 }) => {
     // 1. Calculate number of lanes
     const laneCount = getLaneCount(throughput, beltCapacity);
@@ -220,14 +223,8 @@ export const ChannelRenderer: React.FC<ChannelRendererProps> = ({
     return (
         <g className="channel-renderer pointer-events-none">
             {/* Inline styles for animation keyframes */}
-            <style>
-                {`
-                @keyframes beltFlow {
-                    0% { stroke-dashoffset: 0; }
-                    100% { stroke-dashoffset: -20; }
-                }
-                `}
-            </style>
+            {/* Inline styles for animation keyframes - REMOVED, using SMIL */}
+            {/* ... */}
 
             <defs>
                 <pattern id="conflict-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -243,10 +240,11 @@ export const ChannelRenderer: React.FC<ChannelRendererProps> = ({
                 strokeWidth={foundationWidth}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="drop-shadow-lg"
+                className={`transition-all duration-300 ${isBridge ? 'bridge-shadow' : 'drop-shadow-lg'}`}
                 style={{
                     opacity: 0.9,
-                    filter: isSelected ? `drop-shadow(0 0 8px ${color})` : 'none'
+                    filter: isSelected ? `drop-shadow(0 0 8px ${color})` : undefined,
+                    transform: isBridge ? 'translateY(-2px) scale(1.02)' : 'none'
                 }}
             />
 
@@ -274,34 +272,98 @@ export const ChannelRenderer: React.FC<ChannelRendererProps> = ({
                 className="opacity-10"
             />
 
-            {/* Individual Lanes */}
-            {lanePaths.map((d, i) => (
-                <g key={`lane-group-${i}`}>
-                    {/* Lane Track (Dark underlay) */}
+            {/* Individual Lanes or Bundled Ribbon */}
+            {bundleLanes ? (
+                <g>
                     <path
-                        d={d}
-                        stroke="#1e293b" // slate-800
-                        strokeWidth={LANE_WIDTH + 2}
+                        d={foundationPath}
+                        stroke="#1e293b"
+                        strokeWidth={foundationWidth - 4}
                         fill="none"
                         strokeLinecap="round"
                         strokeLinejoin="round"
                     />
-                    {/* Moving Items */}
-                    <path
-                        d={d}
-                        stroke={color}
-                        strokeWidth={LANE_WIDTH - 1}
-                        fill="none"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeDasharray="6 4"
-                        style={{
-                            animation: 'beltFlow 1s linear infinite',
-                            opacity: 1 // High visibility
-                        }}
-                    />
+                    {showFlow && (
+                        <path
+                            d={foundationPath}
+                            stroke={color}
+                            strokeWidth={foundationWidth - 8}
+                            fill="none"
+                            strokeLinecap="butt"
+                            strokeLinejoin="round"
+                            strokeDasharray="8 22"
+                            style={{ opacity: 0.8 }}
+                        >
+                            <animate
+                                attributeName="stroke-dashoffset"
+                                from="0"
+                                to="-30"
+                                dur="1.2s"
+                                repeatCount="indefinite"
+                            />
+                        </path>
+                    )}
                 </g>
-            ))}
+            ) : (
+                lanePaths.map((d, i) => (
+                    <g key={`lane-group-${i}`}>
+                        {/* Lane Track (Dark underlay) */}
+                        <path
+                            d={d}
+                            stroke="#1e293b" // slate-800
+                            strokeWidth={LANE_WIDTH + 2}
+                            fill="none"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeDasharray={status === 'underload' ? '2 4' : 'none'}
+                        />
+                        {/* Moving Item Slugs */}
+                        <path
+                            d={d}
+                            stroke={color}
+                            strokeWidth={LANE_WIDTH - 0.5}
+                            fill="none"
+                            strokeLinecap={bundleLanes ? "butt" : "round"}
+                            strokeLinejoin="round"
+                            strokeDasharray={showFlow ? "8 22" : "none"}
+                            style={{
+                                opacity: 1,
+                                filter: 'brightness(1.2) drop-shadow(0 0 2px rgba(255,255,255,0.5))'
+                            }}
+                        >
+                            {showFlow && (
+                                <animate
+                                    attributeName="stroke-dashoffset"
+                                    from="0"
+                                    to="-30"
+                                    dur="1.2s"
+                                    repeatCount="indefinite"
+                                />
+                            )}
+                        </path>
+                        {/* Highlights on items */}
+                        {showFlow && (
+                            <path
+                                d={d}
+                                stroke="rgba(255,255,255,0.7)"
+                                strokeWidth={LANE_WIDTH / 3}
+                                fill="none"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeDasharray="2 28"
+                            >
+                                <animate
+                                    attributeName="stroke-dashoffset"
+                                    from="-1"
+                                    to="-31"
+                                    dur="1.2s"
+                                    repeatCount="indefinite"
+                                />
+                            </path>
+                        )}
+                    </g>
+                ))
+            )}
         </g>
     );
 };

@@ -59,7 +59,7 @@ describe('useLayoutStore', () => {
 
         const [node] = useLayoutStore.getState().nodes;
         expect(node.data.recipeId).toBe(recipe.id);
-        expect(node.data.position).toEqual({ x: 10, y: 20 });
+        expect(node.position).toEqual({ x: 10, y: 20 });
         expect(node.data.inputPorts).toHaveLength(recipe.inputs.length);
         expect(node.data.outputPorts).toHaveLength(recipe.outputs.length);
     });

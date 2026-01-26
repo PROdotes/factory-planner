@@ -1,11 +1,20 @@
 
 import React, { useState, useEffect } from 'react';
-import { v4 as uuidv4 } from 'uuid';
+import { DSPIcon } from '@/components/ui/DSPIcon';
 import { useGameStore } from '@/stores/gameStore';
-import { Item, Recipe, Machine, BeltTier } from '@/types/game';
+import { Item, Recipe, Machine, BeltTier, RecipeCategory, GameSettings } from '@/types/game';
 import { importGameData, exportGameData } from '@/lib/io/gameData';
 
 type Tab = 'items' | 'recipes' | 'machines' | 'belts';
+
+const toSnakeCase = (str: string) => {
+    return str
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '_')
+        .replace(/[^a-z0-9_]/g, '')
+        .replace(/_+/g, '_');
+};
 
 export const GameDataEditor: React.FC = () => {
     const [activeTab, setActiveTab] = useState<Tab>('items');
@@ -161,6 +170,8 @@ export const GameDataEditor: React.FC = () => {
                         initialData={selectedRecipe}
                         isCreating={isCreating}
                         availableItems={game.items}
+                        availableMachines={game.machines}
+                        settings={game.settings}
                         onSave={handleSaveRecipe}
                         onDelete={handleDeleteRecipe}
                         onCancel={() => { setSelectedId(null); setIsCreating(false); }}
@@ -326,6 +337,8 @@ const ItemForm: React.FC<{
         name: '',
         category: 'other',
         stackSize: 100,
+        color: '#3b82f6',
+        iconIndex: 0,
         isCustom: true
     });
 
@@ -334,11 +347,14 @@ const ItemForm: React.FC<{
         if (initialData) {
             setFormData(initialData);
         } else if (isCreating) {
+            const initialName = 'New Item';
             setFormData({
-                id: uuidv4(),
-                name: 'New Item',
+                id: toSnakeCase(initialName),
+                name: initialName,
                 category: 'other',
                 stackSize: 100,
+                color: '#3b82f6',
+                iconIndex: 0,
                 isCustom: true
             });
         }
@@ -362,8 +378,7 @@ const ItemForm: React.FC<{
                     aria-label="ID" // For testing
                     type="text"
                     value={formData.id}
-                    disabled={!isCreating}
-                    onChange={e => setFormData({ ...formData, id: e.target.value })}
+                    disabled={true}
                     className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded focus:outline-none focus:border-blue-500 disabled:opacity-50"
                 />
             </div>
@@ -375,7 +390,14 @@ const ItemForm: React.FC<{
                     aria-label="Name"
                     type="text"
                     value={formData.name}
-                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    onChange={e => {
+                        const newName = e.target.value;
+                        const updates: Partial<Item> = { name: newName };
+                        if (isCreating) {
+                            updates.id = toSnakeCase(newName);
+                        }
+                        setFormData({ ...formData, ...updates });
+                    }}
                     className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded focus:outline-none focus:border-blue-500"
                 />
             </div>
@@ -404,6 +426,44 @@ const ItemForm: React.FC<{
                     onChange={e => setFormData({ ...formData, stackSize: parseInt(e.target.value) })}
                     className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded focus:outline-none focus:border-blue-500"
                 />
+            </div>
+
+            <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-300" htmlFor="item-color">Identity Color</label>
+                <div className="flex items-center gap-3">
+                    <input
+                        id="item-color"
+                        type="color"
+                        value={formData.color || '#3b82f6'}
+                        onChange={e => setFormData({ ...formData, color: e.target.value })}
+                        className="h-10 w-20 bg-gray-800 border border-gray-700 rounded cursor-pointer"
+                    />
+                    <div
+                        className="flex-1 h-10 rounded border border-white/10"
+                        style={{ backgroundColor: formData.color || '#3b82f6' }}
+                    />
+                </div>
+                <p className="text-[10px] text-gray-500 uppercase tracking-widest">This color will be used for all belts carrying this item.</p>
+            </div>
+
+            <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-300" htmlFor="item-icon">Icon Index</label>
+                <div className="flex items-center gap-3">
+                    <input
+                        id="item-icon"
+                        type="number"
+                        value={formData.iconIndex || 0}
+                        onChange={e => setFormData({ ...formData, iconIndex: parseInt(e.target.value) || 0 })}
+                        className="w-32 px-3 py-2 bg-gray-800 border border-gray-700 rounded focus:outline-none focus:border-blue-500"
+                    />
+                    <div className="flex items-center gap-2 p-2 bg-gray-900 rounded border border-white/5">
+                        <span className="text-[10px] text-gray-500 uppercase tracking-widest">Preview:</span>
+                        <div className="w-8 h-8 flex items-center justify-center">
+                            <DSPIcon index={formData.iconIndex || 0} size={32} />
+                        </div>
+                    </div>
+                </div>
+                <p className="text-[10px] text-gray-500 uppercase tracking-widest">Index in the 18-column icons.png sprite sheet.</p>
             </div>
 
             <div className="pt-4 flex space-x-2">
@@ -438,16 +498,18 @@ const RecipeForm: React.FC<{
     initialData?: Recipe | null;
     isCreating: boolean;
     availableItems: Item[];
+    availableMachines: Machine[];
+    settings: GameSettings;
     onSave: (recipe: Recipe) => void;
     onDelete: (id: string) => void;
     onCancel: () => void;
-}> = ({ initialData, isCreating, availableItems, onSave, onDelete, onCancel }) => {
+}> = ({ initialData, isCreating, availableItems, availableMachines, settings, onSave, onDelete, onCancel }) => {
     const [formData, setFormData] = useState<Partial<Recipe>>(initialData || {
         id: '',
         name: '',
         category: 'smelting',
         craftingTime: 1,
-        machineId: '',
+        machineId: settings.defaultMachineIds?.['smelting'] || '',
         inputs: [],
         outputs: [],
         isCustom: true
@@ -457,18 +519,20 @@ const RecipeForm: React.FC<{
         if (initialData) {
             setFormData(initialData);
         } else if (isCreating) {
+            const initialName = 'New Recipe';
+            const defaultCat = 'assembling'; // Standard default
             setFormData({
-                id: uuidv4(),
-                name: 'New Recipe',
-                category: 'smelting',
+                id: toSnakeCase(initialName),
+                name: initialName,
+                category: defaultCat,
                 craftingTime: 1,
-                machineId: '',
+                machineId: settings.defaultMachineIds?.[defaultCat] || '',
                 inputs: [],
                 outputs: [],
                 isCustom: true
             });
         }
-    }, [initialData, isCreating]);
+    }, [initialData, isCreating, settings]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -488,8 +552,7 @@ const RecipeForm: React.FC<{
                     aria-label="ID"
                     type="text"
                     value={formData.id}
-                    disabled={!isCreating}
-                    onChange={e => setFormData({ ...formData, id: e.target.value })}
+                    disabled={true}
                     className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded focus:outline-none focus:border-blue-500 disabled:opacity-50"
                 />
             </div>
@@ -501,9 +564,53 @@ const RecipeForm: React.FC<{
                     aria-label="Name"
                     type="text"
                     value={formData.name}
-                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    onChange={e => {
+                        const newName = e.target.value;
+                        const updates: Partial<Recipe> = { name: newName };
+                        if (isCreating) {
+                            updates.id = toSnakeCase(newName);
+                        }
+                        setFormData({ ...formData, ...updates });
+                    }}
                     className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded focus:outline-none focus:border-blue-500"
                 />
+            </div>
+
+            <div className="flex space-x-4">
+                <div className="flex-1 space-y-2">
+                    <label className="block text-sm font-medium text-gray-300" htmlFor="recipe-category">Category</label>
+                    <select
+                        id="recipe-category"
+                        value={formData.category}
+                        onChange={e => {
+                            const newCat = e.target.value as RecipeCategory;
+                            const defaultMachineId = settings.defaultMachineIds?.[newCat] || '';
+                            setFormData({ ...formData, category: newCat, machineId: defaultMachineId });
+                        }}
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded focus:outline-none focus:border-blue-500"
+                    >
+                        {['smelting', 'assembling', 'refining', 'chemical', 'research', 'mining', 'other'].map(cat => (
+                            <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="flex-1 space-y-2">
+                    <label className="block text-sm font-medium text-gray-300" htmlFor="recipe-machine">Machine</label>
+                    <select
+                        id="recipe-machine"
+                        value={formData.machineId}
+                        onChange={e => setFormData({ ...formData, machineId: e.target.value })}
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded focus:outline-none focus:border-blue-500"
+                    >
+                        <option value="">Select Machine</option>
+                        {availableMachines
+                            .filter(m => !m.allowedCategories || !formData.category || m.allowedCategories.includes(formData.category as RecipeCategory))
+                            .map(m => (
+                                <option key={m.id} value={m.id}>{m.name}</option>
+                            ))}
+                    </select>
+                </div>
             </div>
 
             <div className="space-y-2">
@@ -682,9 +789,10 @@ const MachineForm: React.FC<{
             else if (p >= 1_000) setUnit('kW');
             else setUnit('W');
         } else if (isCreating) {
+            const initialName = 'New Machine';
             setFormData({
-                id: uuidv4(),
-                name: 'New Machine',
+                id: toSnakeCase(initialName),
+                name: initialName,
                 category: 'smelter',
                 speed: 1.0,
                 size: { width: 3, height: 3 },
@@ -717,8 +825,7 @@ const MachineForm: React.FC<{
                     aria-label="ID"
                     type="text"
                     value={formData.id}
-                    disabled={!isCreating}
-                    onChange={e => setFormData({ ...formData, id: e.target.value })}
+                    disabled={true}
                     className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded focus:outline-none focus:border-blue-500 disabled:opacity-50"
                 />
             </div>
@@ -730,7 +837,14 @@ const MachineForm: React.FC<{
                     aria-label="Name"
                     type="text"
                     value={formData.name}
-                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    onChange={e => {
+                        const newName = e.target.value;
+                        const updates: Partial<Machine> = { name: newName };
+                        if (isCreating) {
+                            updates.id = toSnakeCase(newName);
+                        }
+                        setFormData({ ...formData, ...updates });
+                    }}
                     className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded focus:outline-none focus:border-blue-500"
                 />
             </div>
@@ -837,9 +951,10 @@ const BeltForm: React.FC<{
         if (initialData) {
             setFormData(initialData);
         } else if (isCreating) {
+            const initialName = 'New Belt';
             setFormData({
-                id: uuidv4(),
-                name: 'New Belt',
+                id: toSnakeCase(initialName),
+                name: initialName,
                 tier: 1,
                 itemsPerSecond: 6,
                 color: '#666'
@@ -865,8 +980,7 @@ const BeltForm: React.FC<{
                     aria-label="ID"
                     type="text"
                     value={formData.id}
-                    disabled={!isCreating}
-                    onChange={e => setFormData({ ...formData, id: e.target.value })}
+                    disabled={true}
                     className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded focus:outline-none focus:border-blue-500 disabled:opacity-50"
                 />
             </div>
@@ -878,7 +992,14 @@ const BeltForm: React.FC<{
                     aria-label="Name"
                     type="text"
                     value={formData.name}
-                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    onChange={e => {
+                        const newName = e.target.value;
+                        const updates: Partial<BeltTier> = { name: newName };
+                        if (isCreating) {
+                            updates.id = toSnakeCase(newName);
+                        }
+                        setFormData({ ...formData, ...updates });
+                    }}
                     className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded focus:outline-none focus:border-blue-500"
                 />
             </div>

@@ -12,7 +12,9 @@ vi.mock('reactflow', async () => {
                 className={props.className}
                 onClick={props.onClick}
                 style={props.style}
-            />
+            >
+                {props.children}
+            </div>
         ),
         Position: { Left: 'left', Right: 'right' }
     };
@@ -74,8 +76,8 @@ describe('BlockPortList Component', () => {
             ...defaultProps,
             side: 'output' as const,
             ports: [
-                { id: 'out1', itemId: 'item1', rate: 10, type: 'output', side: 'right', offset: 0.5 },
-                { id: 'out2', itemId: 'item2', rate: 10, type: 'output', side: 'right', offset: 0.5 }
+                { id: 'out1', itemId: 'item1', rate: 10, type: 'output' as const, side: 'right' as const, offset: 0.5 },
+                { id: 'out2', itemId: 'item2', rate: 10, type: 'output' as const, side: 'right' as const, offset: 0.5 }
             ],
             portStates: {},
             onSetPrimary: vi.fn()

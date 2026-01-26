@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useCallback, useRef, useEffect } from 'react';
 import { NodeProps } from 'reactflow';
 import { Block as BlockType, BLOCK_LAYOUT } from '@/types/block';
 import { DSP_DATA } from '@/data/dsp';
@@ -14,6 +14,7 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
     const updateBlock = useLayoutStore((state) => state.updateBlock);
     const edges = useLayoutStore((state) => state.edges);
     const onPortClick = useLayoutStore((state) => state.onPortClick);
+    const machineInputRef = useRef<HTMLInputElement>(null);
 
     // Lookup data for display
     const recipe = DSP_DATA.recipes.find(r => r.id === data.recipeId);
@@ -50,17 +51,40 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
     }, [edges, id]);
 
     // Handlers
-    const handleUpdateRate = (newRate: number) => updateBlock(id, {
+    const handleUpdateRate = useCallback((newRate: number) => updateBlock(id, {
         targetRate: newRate,
         calculationMode: 'output'
-    });
+    }), [id, updateBlock]);
 
-    const handleUpdateMachineCount = (count: number) => updateBlock(id, {
+    const handleUpdateMachineCount = useCallback((count: number) => updateBlock(id, {
         targetMachineCount: count,
         calculationMode: 'machines'
-    });
+    }), [id, updateBlock]);
 
-    const handleDelete = () => deleteBlock(id);
+    useEffect(() => {
+        const target = machineInputRef.current;
+        if (!target) return;
+
+        const handleWheel = (event: WheelEvent) => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const step = event.shiftKey ? 10 : 1;
+            const direction = event.deltaY < 0 ? 1 : -1;
+            const currentVal = parseFloat(target.value) || 0;
+
+            const newVal = direction > 0
+                ? Math.floor(currentVal + step)
+                : Math.ceil(currentVal - step);
+
+            handleUpdateMachineCount(Math.max(0, newVal));
+        };
+
+        target.addEventListener('wheel', handleWheel, { passive: false });
+        return () => target.removeEventListener('wheel', handleWheel);
+    }, [handleUpdateMachineCount]);
+
+    const handleDelete = useCallback(() => deleteBlock(id), [id, deleteBlock]);
 
     // Machine Logic
     const alternatives = useMemo(() => {
@@ -71,7 +95,7 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
         );
     }, [currentMachine]);
 
-    const handleCycleMachine = () => {
+    const handleCycleMachine = useCallback(() => {
         if (alternatives.length === 0) return;
         const allInCategory = DSP_DATA.machines.filter(m =>
             currentMachine && m.category === currentMachine.category
@@ -81,11 +105,11 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
         const nextMachine = allInCategory[nextIndex];
 
         updateBlock(id, { machineId: nextMachine.id });
-    };
+    }, [alternatives, currentMachine, data.machineId, id, updateBlock]);
 
-    const handleUpdateModifier = (mod?: any) => updateBlock(id, { modifier: mod });
+    const handleUpdateModifier = useCallback((mod?: any) => updateBlock(id, { modifier: mod }), [id, updateBlock]);
 
-    const handlePortClick = (pid: string) => {
+    const handlePortClick = useCallback((pid: string) => {
         if (data.inputPorts.some(p => p.id === pid)) {
             onPortClick(id, pid, 'input');
             return;
@@ -94,9 +118,9 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
             onPortClick(id, pid, 'output');
             return;
         }
-    };
+    }, [data.inputPorts, data.outputPorts, id, onPortClick]);
 
-    const handleSetPrimary = (itemId: string) => updateBlock(id, { primaryOutputId: itemId });
+    const handleSetPrimary = useCallback((itemId: string) => updateBlock(id, { primaryOutputId: itemId }), [id, updateBlock]);
 
     return (
         <div
@@ -126,6 +150,7 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
             <div style={{ height: BLOCK_LAYOUT.HEADER }} className="flex flex-col flex-none relative z-10">
                 <BlockHeader
                     id={id}
+                    recipeId={data.recipeId}
                     label={data.name}
                     subLabel={recipe?.category || 'Production'}
                     targetRate={data.calculationMode === 'output' ? data.targetRate : data.actualRate}
@@ -169,7 +194,7 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
 
                     {/* Required Count */}
                     <div className={`
-                        absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mt-[12px] pointer-events-auto 
+                        absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mt-[12px] pointer-events-auto
                         bg-slate-900 border rounded px-3 py-1 text-center shadow-lg transition-all group-hover:border-cyan-500/20
                         ${data.calculationMode === 'machines' ? 'border-cyan-500/50' : 'border-slate-800'}
                     `}>
@@ -178,41 +203,16 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
                         </div>
                         <div className="flex items-baseline justify-center">
                             <input
+                                ref={machineInputRef}
                                 type="number"
                                 step="0.1"
                                 value={data.calculationMode === 'machines' ? (data.targetMachineCount ?? data.machineCount) : data.machineCount.toFixed(1)}
                                 onChange={(e) => {
                                     handleUpdateMachineCount(parseFloat(e.target.value) || 0);
                                 }}
-                                onFocus={(e) => {
-                                    const target = e.target as HTMLInputElement;
-                                    const handleWheel = (event: WheelEvent) => {
-                                        if (document.activeElement === target) {
-                                            event.preventDefault();
-                                            event.stopPropagation();
-                                            const step = event.shiftKey ? 10 : 1;
-                                            const direction = event.deltaY < 0 ? 1 : -1;
-                                            const currentVal = parseFloat(target.value) || 0;
-
-                                            const newVal = direction > 0
-                                                ? Math.floor(currentVal + step)
-                                                : Math.ceil(currentVal - step);
-
-                                            handleUpdateMachineCount(Math.max(0, newVal));
-                                        }
-                                    };
-                                    target.addEventListener('wheel', handleWheel, { passive: false });
-                                    (target as any)._wheelFixed = handleWheel;
-                                }}
-                                onBlur={(e) => {
-                                    const target = e.target as HTMLInputElement;
-                                    if ((target as any)._wheelFixed) {
-                                        target.removeEventListener('wheel', (target as any)._wheelFixed);
-                                    }
-                                }}
                                 className={`
                                     bg-transparent text-xl font-black focus:outline-none w-16 text-center
-                                    [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none 
+                                    [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
                                     nodrag nopan pointer-events-auto transition-all rounded
                                     hover:bg-white/5 focus:bg-white/10 cursor-text
                                     ${data.calculationMode === 'machines' ? 'text-white' : 'text-white/60'}

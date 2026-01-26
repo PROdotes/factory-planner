@@ -59,6 +59,9 @@ export interface Item {
 
     /** Optional color override for port icons */
     color?: string;
+
+    /** Index in the sprite sheet */
+    iconIndex?: number;
 }
 
 export type RecipeCategory =

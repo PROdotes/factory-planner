@@ -92,4 +92,25 @@ describe('rateSolver', () => {
         const result = solveBlock(EXPENSIVE_RECIPE, MOCK_MACHINE, 60);
         expect(result.inputRates[0].rate).toBeCloseTo(120);
     });
+    describe('Bidirectional Logic', () => {
+        it('calculates consistent values when switching modes', () => {
+            // mode: Output Driven
+            // Target 120. Base 60. => 2 machines.
+            const outputDriven = solveBlock(MOCK_RECIPE, MOCK_MACHINE, 120);
+            expect(outputDriven.machineCount).toBeCloseTo(2.0);
+            expect(outputDriven.actualRate).toBeCloseTo(120);
+
+            // mode: Machine Driven
+            // Machines 2. Base 60. => 120 output.
+            const machineDriven = solveBlock(MOCK_RECIPE, MOCK_MACHINE, 0, 1.0, undefined, 0.0, 2);
+            expect(machineDriven.machineCount).toBe(2);
+            expect(machineDriven.actualRate).toBeCloseTo(120);
+
+            // Fractional Machines
+            // Machines 2.5 -> 150
+            const fractionalPos = solveBlock(MOCK_RECIPE, MOCK_MACHINE, 0, 1.0, undefined, 0.0, 2.5);
+            expect(fractionalPos.machineCount).toBe(2.5);
+            expect(fractionalPos.actualRate).toBeCloseTo(150);
+        });
+    });
 });

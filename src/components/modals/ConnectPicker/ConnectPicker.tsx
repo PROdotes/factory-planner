@@ -8,6 +8,7 @@ interface ConnectPickerProps {
 }
 
 export const ConnectPicker: React.FC<ConnectPickerProps> = ({ onCancel }) => {
+    const [search, setSearch] = React.useState('');
     const activePort = useLayoutStore((state) => state.activePort);
     const nodes = useLayoutStore((state) => state.nodes);
     const edges = useLayoutStore((state) => state.edges);
@@ -51,7 +52,7 @@ export const ConnectPicker: React.FC<ConnectPickerProps> = ({ onCancel }) => {
                         results.push({
                             nodeId: node.id,
                             portId: port.id,
-                            nodeName: node.data.name
+                            nodeName: 'name' in node.data ? node.data.name : node.data.type
                         });
                     }
                 }
@@ -63,14 +64,20 @@ export const ConnectPicker: React.FC<ConnectPickerProps> = ({ onCancel }) => {
 
     // 2. Find compatible recipes for creation
     const compatibleRecipes = useMemo(() => {
-        return game.recipes.filter(recipe => {
-            if (activePort.type === 'input') {
-                return recipe.outputs.some(o => o.itemId === itemId);
-            } else {
-                return recipe.inputs.some(i => i.itemId === itemId);
-            }
-        });
-    }, [game.recipes, activePort.type, itemId]);
+        let base = game.recipes;
+        if (itemId !== 'any') {
+            base = game.recipes.filter(recipe => {
+                if (activePort.type === 'input') {
+                    return recipe.outputs.some(o => o.itemId === itemId);
+                } else {
+                    return recipe.inputs.some(i => i.itemId === itemId);
+                }
+            });
+        }
+
+        if (!search) return base;
+        return base.filter(r => r.name.toLowerCase().includes(search.toLowerCase()));
+    }, [game.recipes, activePort.type, itemId, search]);
 
     const handleConnectExisting = (targetNodeId: string, targetPortId: string) => {
         if (activePort.type === 'output') {
@@ -91,9 +98,23 @@ export const ConnectPicker: React.FC<ConnectPickerProps> = ({ onCancel }) => {
         onCancel();
     };
 
+    const dropPosition = useLayoutStore((state) => state.dropPosition);
+
     const handleCreateNew = (recipe: Recipe) => {
-        const offsetX = activePort.type === 'output' ? 350 : -350;
-        const pos = { x: sourceNode.position.x + offsetX, y: sourceNode.position.y };
+        let pos;
+        if (dropPosition) {
+            // Adjust position so the block is somewhat centered or aligned nicely
+            // Blocks are 350px wide. If output, we probably want the left side at drop.
+            // If input, we probably want the right side at drop.
+            pos = {
+                x: activePort.type === 'output' ? dropPosition.x : dropPosition.x - 350,
+                y: dropPosition.y - 50 // Center vertically roughly
+            };
+        } else {
+            const offsetX = activePort.type === 'output' ? 350 : -350;
+            pos = { x: sourceNode.position.x + offsetX, y: sourceNode.position.y };
+        }
+
         useLayoutStore.getState().createAndConnect(recipe.id, pos, activePort);
         onCancel();
     };
@@ -139,7 +160,16 @@ export const ConnectPicker: React.FC<ConnectPickerProps> = ({ onCancel }) => {
 
                 {/* New Block Creation */}
                 <section>
-                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 px-1">Create New Producer/Consumer</h3>
+                    <div className="flex items-center justify-between mb-3 px-1">
+                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Create New Producer/Consumer</h3>
+                        <input
+                            type="text"
+                            placeholder="Filter recipes..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="text-[10px] bg-slate-800 border border-slate-700 rounded px-2 py-1 focus:outline-none focus:border-blue-500 w-32"
+                        />
+                    </div>
                     <div className="grid grid-cols-1 gap-2">
                         {compatibleRecipes.map(recipe => (
                             <button

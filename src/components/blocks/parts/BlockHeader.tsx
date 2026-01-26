@@ -1,8 +1,10 @@
 import { Settings, Edit2, Trash2 } from 'lucide-react';
-import { memo } from 'react';
+import { memo, useRef, useEffect } from 'react';
+import { DSPIcon, ITEM_ICON_MAP } from '@/components/ui/DSPIcon';
 
 interface BlockHeaderProps {
     id: string;
+    recipeId?: string; // Add recipeId to props
     label: string;
     subLabel: string;
     targetRate: number;
@@ -15,6 +17,7 @@ interface BlockHeaderProps {
 }
 
 export const BlockHeader = memo(({
+    recipeId,
     label,
     subLabel,
     targetRate,
@@ -25,12 +28,40 @@ export const BlockHeader = memo(({
     onUpdateRate,
     height
 }: BlockHeaderProps) => {
+    const rateInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        const target = rateInputRef.current;
+        if (!target) return;
+
+        const handleWheel = (event: WheelEvent) => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const step = event.shiftKey ? 10 : 1;
+            const direction = event.deltaY < 0 ? 1 : -1;
+            const currentVal = parseFloat(target.value) || 0;
+
+            const newVal = direction > 0
+                ? Math.floor(currentVal + step)
+                : Math.ceil(currentVal - step);
+
+            onUpdateRate(Math.max(0, newVal));
+        };
+
+        target.addEventListener('wheel', handleWheel, { passive: false });
+        return () => target.removeEventListener('wheel', handleWheel);
+    }, [onUpdateRate]);
 
     return (
         <div style={{ height }} className="pt-4 pb-3 px-4 flex justify-between items-center border-b border-slate-900 bg-slate-900/40 rounded-t-lg box-border">
             <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 bg-slate-900/50 border rounded flex items-center justify-center shadow-inner transition-colors ${hasConflict ? 'border-red-500/30 text-red-500' : 'border-cyan-500/30 text-cyan-400'}`}>
-                    <Settings size={20} className={selected && !hasConflict ? 'animate-spin-slow' : ''} />
+                <div className={`w-10 h-10 bg-slate-900/50 border rounded flex items-center justify-center shadow-inner transition-colors overflow-hidden ${hasConflict ? 'border-red-500/30 text-red-500' : 'border-cyan-500/30 text-cyan-400'}`}>
+                    {recipeId ? (
+                        <DSPIcon index={ITEM_ICON_MAP[recipeId] || 0} size={32} />
+                    ) : (
+                        <Settings size={20} className={selected && !hasConflict ? 'animate-spin-slow' : ''} />
+                    )}
                 </div>
                 <div>
                     <h2 className="text-slate-50 font-bold text-base leading-none uppercase tracking-wider truncate max-w-[150px]">
@@ -46,39 +77,11 @@ export const BlockHeader = memo(({
                 <div className="text-right group/input relative">
                     <div className="flex items-baseline gap-1 justify-end relative">
                         <input
+                            ref={rateInputRef}
                             type="number"
                             value={targetRate}
                             onChange={(e) => {
                                 onUpdateRate(parseFloat(e.target.value) || 0);
-                            }}
-                            onFocus={(e) => {
-                                // Add minor event listener fix for chrome/edge scroll behavior
-                                const target = e.target as HTMLInputElement;
-                                const handleWheel = (event: WheelEvent) => {
-                                    if (document.activeElement === target) {
-                                        event.preventDefault();
-                                        event.stopPropagation(); // Trap the event completely
-
-                                        const step = event.shiftKey ? 10 : 1;
-                                        const direction = event.deltaY < 0 ? 1 : -1;
-
-                                        // We get the current value from the target value string
-                                        // because closures might capture an old 'data.targetRate'
-                                        const currentVal = parseFloat(target.value) || 0;
-                                        const newVal = Math.max(0, currentVal + (direction * step));
-
-                                        onUpdateRate(newVal);
-                                    }
-                                };
-                                // Registering with { passive: false } is required to allow preventDefault() in Chrome
-                                target.addEventListener('wheel', handleWheel, { passive: false });
-                                (target as any)._wheelFixed = handleWheel;
-                            }}
-                            onBlur={(e) => {
-                                const target = e.target as HTMLInputElement;
-                                if ((target as any)._wheelFixed) {
-                                    target.removeEventListener('wheel', (target as any)._wheelFixed);
-                                }
                             }}
                             className={`
                                 bg-transparent text-xl font-black focus:outline-none w-20 text-right 

@@ -25,20 +25,30 @@ export interface ActivePort {
     type: 'input' | 'output';
 }
 
+export interface ViewSettings {
+    showLabels: boolean;
+    showFlow: boolean;
+    bundleLanes: boolean;
+    autoIncrementSource: boolean;
+}
+
 interface LayoutState {
     nodes: BlockNode[];
     edges: Edge[];
     activePort: ActivePort | null;
+    dropPosition: { x: number; y: number } | null;
+    viewSettings: ViewSettings;
     nodeConflicts: Set<string>;
 
     // Actions
-    addBlock: (recipeId: string, position: { x: number; y: number }) => string;
+    addBlock: (recipeId: string, position: { x: number; y: number }, options?: { targetRate?: number; primaryOutputId?: string; calculationMode?: 'output' | 'machines'; targetMachineCount?: number }) => string;
     addSplitter: (type: 'splitter' | 'merger' | 'balancer', position: { x: number; y: number }) => string;
     updateBlock: (id: string, updates: Partial<Block | SplitterNodeData>) => void;
     deleteBlock: (id: string) => void;
     deleteEdge: (id: string) => void;
     onPortClick: (nodeId: string, portId: string, type: 'input' | 'output') => void;
-    setActivePort: (port: ActivePort | null) => void;
+    setActivePort: (port: ActivePort | null, position?: { x: number; y: number } | null) => void;
+    toggleViewSetting: (key: keyof ViewSettings) => void;
 
     // React Flow handlers
     onNodesChange: (changes: NodeChange[]) => void;
@@ -108,29 +118,95 @@ const applyBlockSolver = (block: Block, game: any) => {
     }
 };
 
-const getDownstreamDemand = (nodeId: string, portId: string, nodes: BlockNode[], edges: Edge[], visited: Set<string> = new Set()): number => {
-    const key = `${nodeId}-${portId}`;
+const getTargetDemand = (targetNodeId: string, targetHandleId: string, nodes: BlockNode[], edges: Edge[], visited: Set<string> = new Set()): number => {
+    const key = `${targetNodeId}-${targetHandleId}-input`;
     if (visited.has(key)) return 0;
     visited.add(key);
 
-    const edge = edges.find(e => e.source === nodeId && e.sourceHandle === portId);
-    if (!edge) return 0;
-    const targetNode = nodes.find(n => n.id === edge.target);
-    if (!targetNode) return 0;
+    const node = nodes.find(n => n.id === targetNodeId);
+    if (!node) return 0;
 
-    if (targetNode.type === 'block') {
-        const data = targetNode.data as Block;
-        const port = data.inputPorts.find(p => p.id === edge.targetHandle);
+    if (node.type === 'block') {
+        const data = node.data as Block;
+        const port = data.inputPorts.find(p => p.id === targetHandleId);
         return port?.rate ?? 0;
-    } else if (targetNode.type === 'splitter') {
-        const data = targetNode.data as SplitterNodeData;
-        // A splitter's demand is the sum of its output demands
-        return data.outputPorts.reduce((sum, p) => sum + getDownstreamDemand(targetNode.id, p.id, nodes, edges, visited), 0);
+    } else if (node.type === 'splitter') {
+        const data = node.data as SplitterNodeData;
+        // A splitter's input demand is the total demand of its outputs divided by the number of inputs
+        const totalOutDemand = data.outputPorts.reduce((sum, p) =>
+            sum + getDownstreamDemand(node.id, p.id, nodes, edges, visited), 0
+        );
+        const incoming = edges.filter(e => e.target === node.id);
+        return totalOutDemand / Math.max(1, incoming.length);
     }
     return 0;
 };
 
-const updateEdgeStatus = (edge: Edge, nodes: BlockNode[], game: any): Edge => {
+const getDownstreamDemand = (nodeId: string, portId: string, nodes: BlockNode[], edges: Edge[], visited: Set<string> = new Set()): number => {
+    const key = `${nodeId}-${portId}-output`;
+    if (visited.has(key)) return 0;
+    visited.add(key);
+
+    const outgoingEdges = edges.filter(e => e.source === nodeId && e.sourceHandle === portId);
+    if (outgoingEdges.length === 0) return 0;
+
+    return outgoingEdges.reduce((sum, edge) => {
+        return sum + getTargetDemand(edge.target, edge.targetHandle!, nodes, edges, visited);
+    }, 0);
+};
+
+const getEdgeSegments = (edge: Edge, nodes: BlockNode[]) => {
+    const sourceNode = nodes.find(n => n.id === edge.source);
+    const targetNode = nodes.find(n => n.id === edge.target);
+    if (!sourceNode || !targetNode || sourceNode.type !== 'block' && sourceNode.type !== 'splitter') return null;
+
+    const sourcePort = getPort(sourceNode, edge.sourceHandle ?? null, 'output');
+    const targetPort = getPort(targetNode, edge.targetHandle ?? null, 'input');
+    if (!sourcePort || !targetPort) return null;
+
+    const p1 = getPortPosition(sourceNode.data as any, sourceNode.position, sourcePort);
+    const p2 = getPortPosition(targetNode.data as any, targetNode.position, targetPort);
+    const midX = p1.x + (p2.x - p1.x) * 0.5;
+
+    return [
+        { p1: { x: p1.x, y: p1.y }, p2: { x: midX, y: p1.y }, vertical: false },
+        { p1: { x: midX, y: p1.y }, p2: { x: midX, y: p2.y }, vertical: true },
+        { p1: { x: midX, y: p2.y }, p2: { x: p2.x, y: p2.y }, vertical: false }
+    ];
+};
+
+const segmentsIntersect = (s1: any, s2: any, tolerance = 12) => {
+    if (s1.vertical === s2.vertical) {
+        // Parallel: if they are on the same line and overlapping, it's a conflict/overlap
+        if (s1.vertical) {
+            if (Math.abs(s1.p1.x - s2.p1.x) > tolerance) return false;
+            const y1min = Math.min(s1.p1.y, s1.p2.y);
+            const y1max = Math.max(s1.p1.y, s1.p2.y);
+            const y2min = Math.min(s2.p1.y, s2.p2.y);
+            const y2max = Math.max(s2.p1.y, s2.p2.y);
+            return y1max > y2min + 2 && y2max > y1min + 2;
+        } else {
+            if (Math.abs(s1.p1.y - s2.p1.y) > tolerance) return false;
+            const x1min = Math.min(s1.p1.x, s1.p2.x);
+            const x1max = Math.max(s1.p1.x, s1.p2.x);
+            const x2min = Math.min(s2.p1.x, s2.p2.x);
+            const x2max = Math.max(s2.p1.x, s2.p2.x);
+            return x1max > x2min + 2 && x2max > x1min + 2;
+        }
+    }
+
+    const horiz = s1.vertical ? s2 : s1;
+    const vert = s1.vertical ? s1 : s2;
+    const hX1 = Math.min(horiz.p1.x, horiz.p2.x);
+    const hX2 = Math.max(horiz.p1.x, horiz.p2.x);
+    const vY1 = Math.min(vert.p1.y, vert.p2.y);
+    const vY2 = Math.max(vert.p1.y, vert.p2.y);
+
+    // Cross check with tolerance
+    return vert.p1.x > hX1 - 2 && vert.p1.x < hX2 + 2 && horiz.p1.y > vY1 - 2 && horiz.p1.y < vY2 + 2;
+};
+
+const updateEdgeStatus = (edge: Edge, nodes: BlockNode[], game: any, overrideFlow?: number, overrideDemand?: number): Edge => {
     const sourceNode = nodes.find(n => n.id === edge.source);
     const targetNode = nodes.find(n => n.id === edge.target);
     if (!sourceNode || !targetNode) return edge;
@@ -152,8 +228,9 @@ const updateEdgeStatus = (edge: Edge, nodes: BlockNode[], game: any): Edge => {
     const belt = game.belts.find((b: any) => b.id === edgeData.beltId) || game.belts[0];
     const capacity = beltItemsPerMinute(belt);
 
-    const supplyRate = sourcePort.currentRate !== undefined ? sourcePort.currentRate : sourcePort.rate;
-    const demandRate = targetPort.rate;
+    // Use specific edge flow derived from splits, falling back to port rates only if overrides missing
+    const supplyRate = overrideFlow !== undefined ? overrideFlow : (sourcePort.currentRate !== undefined ? sourcePort.currentRate : sourcePort.rate);
+    const demandRate = overrideDemand !== undefined ? overrideDemand : targetPort.rate;
 
     let status: EdgeStatus = 'ok';
 
@@ -163,7 +240,7 @@ const updateEdgeStatus = (edge: Edge, nodes: BlockNode[], game: any): Edge => {
     }
 
     // 2. Check for Starvation (Underload)
-    if (status === 'ok' && demandRate > supplyRate + 0.1) {
+    if (status === 'ok' && demandRate > supplyRate + 0.001) {
         status = 'underload';
     }
 
@@ -215,24 +292,64 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     nodes: [],
     edges: [],
     activePort: null,
+    dropPosition: null,
+    viewSettings: {
+        showLabels: true,
+        showFlow: true,
+        bundleLanes: false,
+        autoIncrementSource: false,
+    },
     nodeConflicts: new Set(),
 
     onPortClick: (nodeId, portId, type) => {
-        set({ activePort: { nodeId, portId, type } });
+        set({ activePort: { nodeId, portId, type }, dropPosition: null });
     },
 
-    setActivePort: (port) => set({ activePort: port }),
+    setActivePort: (port, position = null) => set({ activePort: port, dropPosition: position }),
+
+    toggleViewSetting: (key) => set(produce((state: LayoutState) => {
+        state.viewSettings[key] = !state.viewSettings[key];
+    })),
 
     createAndConnect: (recipeId, position, sourcePort) => {
-        const newBlockId = get().addBlock(recipeId, position);
+        const game = useGameStore.getState().game;
+        const recipe = game.recipes.find(r => r.id === recipeId);
+        if (!recipe) return;
+
         const nodes = get().nodes;
         const sourceNode = nodes.find(n => n.id === sourcePort.nodeId);
-        const targetNode = nodes.find(n => n.id === newBlockId);
-
-        if (!sourceNode || !targetNode) return;
+        if (!sourceNode) return;
 
         const sourcePortObj = getPort(sourceNode, sourcePort.portId ?? null, sourcePort.type);
         if (!sourcePortObj) return;
+
+        const rateToMatch = sourcePortObj.rate;
+        let targetRate = 60;
+        let primaryOutputId = recipe.outputs[0].itemId;
+
+        if (sourcePort.type === 'output') {
+            // Dragging from an OUTPUT to a new block's INPUT
+            // We want the new block's input rate for this item to match the source's output rate
+            const inputDef = recipe.inputs.find(i => i.itemId === sourcePortObj.itemId);
+            if (inputDef) {
+                const primaryOutputAmount = recipe.outputs[0].amount;
+                targetRate = (rateToMatch / inputDef.amount) * primaryOutputAmount;
+            }
+        } else {
+            // Dragging from an INPUT to a new block's OUTPUT
+            // We want the new block's output rate for this item to match the source's input rate
+            const outputDef = recipe.outputs.find(o => o.itemId === sourcePortObj.itemId);
+            if (outputDef) {
+                primaryOutputId = outputDef.itemId;
+                targetRate = rateToMatch; // Since we set this output as primary, targetRate IS the rate
+            }
+        }
+
+        const newBlockId = get().addBlock(recipeId, position, { targetRate, primaryOutputId });
+        const updatedNodes = get().nodes;
+        const targetNode = updatedNodes.find(n => n.id === newBlockId);
+
+        if (!targetNode) return;
 
         const targetData = targetNode.data as Block;
         const targetPorts = sourcePort.type === 'output' ? targetData.inputPorts : targetData.outputPorts;
@@ -325,14 +442,27 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         return id;
     },
 
-    addBlock: (recipeId, position) => {
+    addBlock: (recipeId, position, options = {}) => {
         const game = useGameStore.getState().game;
         const recipe = game.recipes.find(r => r.id === recipeId);
         if (!recipe) return '';
 
         const machine = game.machines.find(m => m.id === recipe.machineId) || game.machines[0];
         const id = crypto.randomUUID();
-        const solved = solveBlock(recipe, machine, 60, 1.0, recipe.outputs[0].itemId);
+
+        const targetRate = options.targetRate ?? 60;
+        const primaryOutputId = options.primaryOutputId ?? recipe.outputs[0].itemId;
+        const calculationMode = options.calculationMode ?? 'output';
+
+        const solved = solveBlock(
+            recipe,
+            machine,
+            targetRate,
+            1.0,
+            primaryOutputId,
+            0,
+            options.targetMachineCount
+        );
 
         const inputPorts: Port[] = solved.inputRates.map((input, index) => ({
             id: `input-${index}`, type: 'input', itemId: input.itemId, rate: input.rate, side: 'left', offset: (index + 1) / (recipe.inputs.length + 1)
@@ -344,12 +474,12 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         const { size } = calculateBlockDimensions(inputPorts.length, outputPorts.length);
         const newBlock: Block = {
             id, name: recipe.name, recipeId, machineId: machine.id,
-            calculationMode: 'output',
-            targetRate: 60,
-            targetMachineCount: solved.machineCount,
+            calculationMode,
+            targetRate,
+            targetMachineCount: options.targetMachineCount ?? solved.machineCount,
             machineCount: solved.machineCount, actualRate: solved.actualRate,
             size, inputPorts, outputPorts, speedModifier: 1.0,
-            primaryOutputId: recipe.outputs[0].itemId, efficiency: 1.0
+            primaryOutputId, efficiency: 1.0
         };
 
         const newNode: BlockNode = {
@@ -414,8 +544,47 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
             }
         };
 
-        set({ edges: addEdge(newEdge, get().edges) });
-        get().recalculateFlows();
+        const nextEdges = addEdge(newEdge, get().edges);
+        set({ edges: nextEdges });
+
+        // Auto-increment source rate if enabled
+        if (get().viewSettings.autoIncrementSource) {
+            let demandToAdd = targetPort.rate;
+
+            // If target is a splitter/merger, its demand is the sum of its downstream outputs
+            if (targetNode.type === 'splitter') {
+                const splitterData = targetNode.data as SplitterNodeData;
+                demandToAdd = splitterData.outputPorts.reduce((sum, p) =>
+                    sum + getDownstreamDemand(target, p.id, get().nodes, nextEdges), 0
+                );
+            }
+
+            if (demandToAdd > 0) {
+                const incrementNode = (nodeId: string, amount: number) => {
+                    const node = get().nodes.find(n => n.id === nodeId);
+                    if (!node) return;
+
+                    if (node.type === 'block') {
+                        const block = node.data as Block;
+                        // Directly add the demand share to track user expansion
+                        get().updateBlock(nodeId, { targetRate: block.targetRate + amount });
+                    } else if (node.type === 'splitter') {
+                        const incoming = nextEdges.filter(e => e.target === nodeId);
+                        if (incoming.length > 0) {
+                            // Split the demand increase among all inputs of the merger/splitter
+                            const share = amount / incoming.length;
+                            incoming.forEach(e => incrementNode(e.source, share));
+                        }
+                    }
+                };
+
+                incrementNode(source, demandToAdd);
+            } else {
+                get().recalculateFlows();
+            }
+        } else {
+            get().recalculateFlows();
+        }
     },
 
     recalculateFlows: (options?: { skipRateSolver?: boolean }) => {
@@ -443,15 +612,37 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
                     let changed = false;
                     const inputFlows = new Map<string, number>();
 
-                    // Transfer flow across edges
-                    state.edges.forEach(edge => {
-                        const sourceNode = state.nodes.find(n => n.id === edge.source);
-                        const sourcePort = getPort(sourceNode!, edge.sourceHandle ?? null, 'output');
+                    // Transfer flow across edges with distribution
+                    const edgesBySource = new Map<string, Edge[]>();
+                    state.edges.forEach(e => {
+                        const key = `${e.source}-${e.sourceHandle}`;
+                        const group = edgesBySource.get(key) || [];
+                        group.push(e);
+                        edgesBySource.set(key, group);
+                    });
+
+                    edgesBySource.forEach((group) => {
+                        const firstEdge = group[0];
+                        const sourceNode = state.nodes.find(n => n.id === firstEdge.source);
+                        if (!sourceNode) return;
+                        const sourcePort = getPort(sourceNode, firstEdge.sourceHandle ?? null, 'output');
                         if (!sourcePort) return;
 
-                        const supply = sourcePort.currentRate ?? 0;
-                        const targetKey = `${edge.target}-${edge.targetHandle}`;
-                        inputFlows.set(targetKey, (inputFlows.get(targetKey) || 0) + supply);
+                        const totalAvailable = sourcePort.currentRate ?? 0;
+                        if (group.length === 1) {
+                            const targetKey = `${firstEdge.target}-${firstEdge.targetHandle}`;
+                            inputFlows.set(targetKey, (inputFlows.get(targetKey) || 0) + totalAvailable);
+                        } else {
+                            // Split flow based on demand
+                            const demands = group.map(e => getTargetDemand(e.target, e.targetHandle!, state.nodes, state.edges));
+                            const totalDemand = demands.reduce((a, b) => a + b, 0);
+                            group.forEach((edge, idx) => {
+                                const share = totalDemand > 0 ? (demands[idx] / totalDemand) : (1 / group.length);
+                                const flow = totalAvailable * share;
+                                const targetKey = `${edge.target}-${edge.targetHandle}`;
+                                inputFlows.set(targetKey, (inputFlows.get(targetKey) || 0) + flow);
+                            });
+                        }
                     });
 
                     // Process Nodes
@@ -502,8 +693,24 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
                                 data.outputPorts.forEach((p: Port) => p.itemId = incomingItem);
                             }
 
+                            const connectedInputPorts = data.inputPorts.filter((p: Port) => connectedInputs.has(`${node.id}-${p.id}`));
+                            const totalCurrentSupply = connectedInputPorts.reduce((sum: number, p: Port) => sum + (inputFlows.get(`${node.id}-${p.id}`) || 0), 0);
+
                             data.inputPorts.forEach((p: Port) => {
-                                p.rate = totalDemand;
+                                const key = `${node.id}-${p.id}`;
+                                if (!connectedInputs.has(key)) {
+                                    p.rate = 0;
+                                    return;
+                                }
+
+                                const mySupply = inputFlows.get(key) || 0;
+                                if (totalCurrentSupply >= totalDemand) {
+                                    p.rate = mySupply;
+                                } else if (totalCurrentSupply === 0) {
+                                    p.rate = totalDemand / connectedInputPorts.length;
+                                } else {
+                                    p.rate = (mySupply / totalCurrentSupply) * totalDemand;
+                                }
                             });
 
                             let newRates: number[] = [];
@@ -544,6 +751,11 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
                             outputs.forEach((p, idx) => {
                                 const newRate = newRates[idx] || 0;
+                                const demand = demands[idx] || 0;
+
+                                // Update both current flow and requested rate (demand)
+                                p.rate = demand;
+
                                 if (Math.abs((p.currentRate ?? 0) - newRate) > 0.001) {
                                     p.currentRate = newRate;
                                     changed = true;
@@ -556,8 +768,76 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
                 }
             }
 
+            // Capture final distributed flows for edge rendering
+            const edgeFlows = new Map<string, number>();
+            const edgeDemands = new Map<string, number>();
+
+            const edgesBySourceGroup = new Map<string, Edge[]>();
+            state.edges.forEach(e => {
+                const key = `${e.source}-${e.sourceHandle}`;
+                const group = edgesBySourceGroup.get(key) || [];
+                group.push(e);
+                edgesBySourceGroup.set(key, group);
+            });
+
+            edgesBySourceGroup.forEach((group) => {
+                const firstEdge = group[0];
+                const sourceNode = state.nodes.find(n => n.id === firstEdge.source);
+                if (!sourceNode) return;
+                const sourcePort = getPort(sourceNode, firstEdge.sourceHandle ?? null, 'output');
+                if (!sourcePort) return;
+
+                const totalAvailable = sourcePort.currentRate ?? 0;
+                const demands = group.map(e => getTargetDemand(e.target, e.targetHandle!, state.nodes, state.edges));
+                const totalDemand = demands.reduce((a, b) => a + b, 0);
+
+                group.forEach((edge, idx) => {
+                    const share = totalDemand > 0 ? (demands[idx] / totalDemand) : (1 / group.length);
+                    edgeFlows.set(edge.id, totalAvailable * share);
+                    edgeDemands.set(edge.id, demands[idx]);
+                });
+            });
+
             // Always update edge status (Geometry Check)
-            state.edges = state.edges.map(edge => updateEdgeStatus(edge, state.nodes, game));
+            state.edges = state.edges.map(edge => {
+                const flow = edgeFlows.get(edge.id);
+                const demand = edgeDemands.get(edge.id);
+                return updateEdgeStatus(edge, state.nodes, game, flow, demand);
+            });
+
+            // Detect Bridges (Intersections)
+            const edgeSegments = state.edges.map(e => ({ id: e.id, segs: getEdgeSegments(e, state.nodes) }));
+            const bridges = new Set<string>();
+
+            for (let i = 0; i < edgeSegments.length; i++) {
+                const a = edgeSegments[i];
+                if (!a.segs) continue;
+                for (let j = i + 1; j < edgeSegments.length; j++) {
+                    const b = edgeSegments[j];
+                    if (!b.segs) continue;
+
+                    let cross = false;
+                    for (const s1 of a.segs) {
+                        for (const s2 of b.segs) {
+                            if (segmentsIntersect(s1, s2)) {
+                                cross = true;
+                                break;
+                            }
+                        }
+                        if (cross) break;
+                    }
+
+                    if (cross) {
+                        // Higher index or ID wins 'top' position
+                        const bridgeId = a.id > b.id ? a.id : b.id;
+                        bridges.add(bridgeId);
+                    }
+                }
+            }
+
+            state.edges.forEach(e => {
+                if (e.data) e.data.isBridge = bridges.has(e.id);
+            });
         }));
     },
 
