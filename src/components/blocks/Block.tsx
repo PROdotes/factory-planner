@@ -14,7 +14,6 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
     const updateBlock = useLayoutStore((state) => state.updateBlock);
     const edges = useLayoutStore((state) => state.edges);
     const onPortClick = useLayoutStore((state) => state.onPortClick);
-    const isNodeColliding = useLayoutStore((state) => state.nodeConflicts.has(id));
 
     // Lookup data for display
     const recipe = DSP_DATA.recipes.find(r => r.id === data.recipeId);

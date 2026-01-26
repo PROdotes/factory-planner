@@ -351,12 +351,23 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
     onNodesChange: (changes: NodeChange[]) => {
         set({ nodes: applyNodeChanges(changes, get().nodes) as BlockNode[] });
-        // Live collision detection during drag
-        get().recalculateFlows({ skipRateSolver: true });
+
+        const hasRemoval = changes.some(c => c.type === 'remove');
+        if (hasRemoval) {
+            get().recalculateFlows();
+        } else {
+            // Live collision detection during drag
+            get().recalculateFlows({ skipRateSolver: true });
+        }
     },
 
     onEdgesChange: (changes: EdgeChange[]) => {
-        set({ edges: applyEdgeChanges(changes, get().edges) });
+        const nextEdges = applyEdgeChanges(changes, get().edges);
+        set({ edges: nextEdges });
+
+        if (changes.some(c => c.type === 'remove')) {
+            get().recalculateFlows();
+        }
     },
 
     onConnect: (connection: Connection) => {

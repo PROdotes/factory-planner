@@ -9,7 +9,6 @@ import {
     Package
 } from 'lucide-react';
 import { useLayoutStore } from '@/stores/layoutStore';
-import { useReactFlow } from 'reactflow';
 
 interface ToolbarProps {
     className?: string;
@@ -18,18 +17,7 @@ interface ToolbarProps {
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({ className = '', onOpenEditor, onAddBlock }) => {
-    const { saveToStorage, loadFromStorage, exportLayout, importLayout, addSplitter } = useLayoutStore();
-    const { getViewport, project } = useReactFlow();
-
-    const handleAddSplitter = () => {
-        // Project center of window to flow space
-        // project() automatically accounts for viewport x, y and zoom
-        const center = project({
-            x: window.innerWidth / 2,
-            y: window.innerHeight / 2
-        });
-        addSplitter('splitter', center);
-    };
+    const { saveToStorage, loadFromStorage, exportLayout, importLayout } = useLayoutStore();
 
     const handleImport = () => {
         const input = document.createElement('input');
@@ -73,15 +61,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({ className = '', onOpenEditor, 
                 >
                     <Plus size={16} />
                     <span>New Block</span>
-                </button>
-
-                <button
-                    onClick={handleAddSplitter}
-                    className="glass-button flex items-center gap-2"
-                    title="Add Splitter/Merger"
-                >
-                    <Plus size={14} className="text-amber-500" />
-                    <span>Splitter</span>
                 </button>
 
                 <div className="flex items-center gap-1.5 ml-2">

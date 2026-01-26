@@ -49,11 +49,8 @@ const CanvasContent: React.FC<CanvasProps> = ({ className = '' }) => {
             event.preventDefault();
 
             const type = event.dataTransfer.getData('application/reactflow');
-            const recipeId = event.dataTransfer.getData('recipeId');
 
-            if (typeof type === 'undefined' || !type || !recipeId) {
-                return;
-            }
+            if (!type) return;
 
             if (reactFlowWrapper.current) {
                 const reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect();
@@ -62,7 +59,14 @@ const CanvasContent: React.FC<CanvasProps> = ({ className = '' }) => {
                     y: event.clientY - reactFlowBounds.top,
                 });
 
-                addBlock(recipeId, position);
+                if (type === 'splitter') {
+                    useLayoutStore.getState().addSplitter('splitter', position);
+                } else if (type === 'new-block') {
+                    const recipeId = event.dataTransfer.getData('recipeId');
+                    if (recipeId) {
+                        addBlock(recipeId, position);
+                    }
+                }
             }
         },
         [project, addBlock]
@@ -80,6 +84,7 @@ const CanvasContent: React.FC<CanvasProps> = ({ className = '' }) => {
                 edgeTypes={edgeTypes}
                 onDragOver={onDragOver}
                 onDrop={onDrop}
+                deleteKeyCode={['Backspace', 'Delete']}
                 fitView
                 defaultEdgeOptions={{
                     type: 'connection',
