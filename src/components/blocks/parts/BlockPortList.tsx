@@ -33,7 +33,7 @@ export const BlockPortList = memo(({
         <div className="relative w-full h-full">
             <span
                 style={{ height: BLOCK_LAYOUT.PORT_LABEL }}
-                className={`absolute top-0 w-full text-[9px] text-slate-500 font-black uppercase tracking-tighter border-b border-slate-900 pb-1 flex items-end ${side === 'output' ? 'justify-end' : ''}`}
+                className={`absolute top-0 w-full text-[9px] text-slate-500 font-black uppercase tracking-tighter pb-1 flex items-end ${side === 'output' ? 'justify-end' : ''}`}
             >
                 {side === 'input' ? 'Inputs' : 'Outputs'}
             </span>

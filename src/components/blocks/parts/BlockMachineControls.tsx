@@ -14,6 +14,7 @@ interface BlockMachineControlsProps {
 
     modifier?: ModifierState;
     onUpdateModifier: (mod?: ModifierState) => void;
+    height: number;
 }
 
 export const BlockMachineControls = memo(({
@@ -21,32 +22,14 @@ export const BlockMachineControls = memo(({
     hasAlternatives,
     onCycleMachine,
     modifier,
-    onUpdateModifier
+    onUpdateModifier,
+    height
 }: BlockMachineControlsProps) => {
 
     return (
-        <div className="px-4 py-2 bg-slate-900/20 border-b border-slate-900/50 flex items-center justify-between gap-2">
+        <div style={{ height }} className="px-4 bg-slate-900/20 border-b border-slate-900/50 flex items-center justify-between gap-2 box-border">
 
-            {/* Machine Selection (Left) */}
-            <div className="flex-1 flex items-center justify-between pr-2 border-r border-slate-800/50">
-                <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest hidden sm:inline">Machine</span>
-
-                <div
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        if (hasAlternatives) onCycleMachine();
-                    }}
-                    className={`
-                        text-[10px] font-bold py-0.5 px-2 rounded border border-transparent transition-all flex items-center gap-1
-                        ${hasAlternatives ? 'cursor-pointer hover:bg-slate-800 hover:border-cyan-500/30 text-cyan-400 bg-slate-900 shadow-sm' : 'text-slate-400'}
-                    `}
-                >
-                    <span className="truncate max-w-[200px]">{machineName}</span>
-                    {hasAlternatives && <ChevronDown size={10} className="text-cyan-500/50" />}
-                </div>
-            </div>
-
-            {/* Modifier Selection (Right) */}
+            {/* Modifier Selection (Left) */}
             <div className="flex items-center gap-1">
                 {/* Level Cycle */}
                 <button
@@ -70,7 +53,7 @@ export const BlockMachineControls = memo(({
                     title="Proliferator Level (Mk.I / II / III)"
                 >
                     <FlaskConical size={12} fill={(modifier?.level || 0) > 0 ? "currentColor" : "none"} />
-                    {(modifier?.level || 0) > 0 && <span className="text-[9px] font-black ml-1">Mk.{modifier.level}</span>}
+                    {(modifier?.level || 0) > 0 && <span className="text-[9px] font-black ml-1">Mk.{modifier?.level}</span>}
                 </button>
 
                 {/* Type Toggle (Only if Level > 0) */}
@@ -92,6 +75,23 @@ export const BlockMachineControls = memo(({
                         {modifier?.type === 'productivity' ? 'Prod' : 'Speed'}
                     </button>
                 )}
+            </div>
+
+            {/* Machine Selection (Right) */}
+            <div className="flex-1 flex items-center justify-end">
+                <div
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (hasAlternatives) onCycleMachine();
+                    }}
+                    className={`
+                        text-[10px] font-bold py-0.5 px-2 rounded border border-transparent transition-all flex items-center gap-1
+                         ${hasAlternatives ? 'cursor-pointer hover:bg-slate-800 hover:border-cyan-500/30 text-cyan-400 bg-slate-900 shadow-sm' : 'text-slate-400'}
+                    `}
+                >
+                    <span className="truncate max-w-[150px] text-right">{machineName}</span>
+                    {hasAlternatives && <ChevronDown size={10} className="text-cyan-500/50" />}
+                </div>
             </div>
         </div>
     );

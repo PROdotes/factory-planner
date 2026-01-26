@@ -10,11 +10,12 @@ export function calculateBlockDimensions(
     outputCount: number
 ): { size: Size } {
     const count = Math.max(inputCount, outputCount, 1);
-    const midHeight = BLOCK_LAYOUT.PORT_LABEL + (count * BLOCK_LAYOUT.PORT_ROW) + (Math.max(0, count - 1) * BLOCK_LAYOUT.PORT_GAP);
+    const portsHeight = (count * BLOCK_LAYOUT.PORT_ROW) + (Math.max(0, count - 1) * BLOCK_LAYOUT.PORT_GAP);
+    const midHeight = BLOCK_LAYOUT.PORT_LABEL + portsHeight;
 
-    const height = BLOCK_LAYOUT.HEADER + BLOCK_LAYOUT.PADDING + midHeight + BLOCK_LAYOUT.PADDING + BLOCK_LAYOUT.FOOTER;
+    const height = BLOCK_LAYOUT.HEADER + midHeight + BLOCK_LAYOUT.PADDING + BLOCK_LAYOUT.FOOTER;
 
     return {
-        size: { width: 380, height }
+        size: { width: BLOCK_LAYOUT.WIDTH, height }
     };
 }

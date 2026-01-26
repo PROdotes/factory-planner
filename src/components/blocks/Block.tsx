@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react';
 import { NodeProps } from 'reactflow';
-import { Block as BlockType } from '@/types/block';
+import { Block as BlockType, BLOCK_LAYOUT } from '@/types/block';
 import { DSP_DATA } from '@/data/dsp';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { ArrowRight, Activity, Zap } from 'lucide-react';
@@ -113,27 +113,32 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
             {/* Top Accent Bar */}
             <div className={`absolute top-0 left-0 w-full h-1 rounded-t-lg bg-gradient-to-r ${hasConflict ? 'from-red-600 to-red-400' : (selected ? 'from-cyan-400 to-blue-500' : 'from-slate-700 to-slate-800')}`}></div>
 
-            <BlockHeader
-                id={id}
-                label={data.name}
-                subLabel={recipe?.category || 'Production'}
-                targetRate={data.targetRate}
-                hasConflict={hasConflict}
-                selected={selected}
-                onDelete={handleDelete}
-                onUpdateRate={handleUpdateRate}
-            />
+            {/* HEADER SECTION: Strict Height Enforcement */}
+            <div style={{ height: BLOCK_LAYOUT.HEADER }} className="flex flex-col flex-none relative z-10">
+                <BlockHeader
+                    id={id}
+                    label={data.name}
+                    subLabel={recipe?.category || 'Production'}
+                    targetRate={data.targetRate}
+                    hasConflict={hasConflict}
+                    selected={selected}
+                    onDelete={handleDelete}
+                    onUpdateRate={handleUpdateRate}
+                    height={BLOCK_LAYOUT.HEADER_TOP_HEIGHT}
+                />
 
-            <BlockMachineControls
-                machineName={currentMachine?.name || 'Unknown'}
-                hasAlternatives={alternatives.length > 0}
-                onCycleMachine={handleCycleMachine}
-                modifier={data.modifier}
-                onUpdateModifier={handleUpdateModifier}
-            />
+                <BlockMachineControls
+                    machineName={currentMachine?.name || 'Unknown'}
+                    hasAlternatives={alternatives.length > 0}
+                    onCycleMachine={handleCycleMachine}
+                    modifier={data.modifier}
+                    onUpdateModifier={handleUpdateModifier}
+                    height={BLOCK_LAYOUT.HEADER_CONTROLS_HEIGHT}
+                />
+            </div>
 
             {/* BODY: The Flow (Input -> Machine -> Output) */}
-            <div className="p-[19px] pt-0 grid grid-cols-[100px_1fr_100px] gap-2 items-start relative box-border">
+            <div className="flex-1 p-[10px] pt-0 grid grid-cols-[100px_1fr_100px] gap-2 items-stretch relative box-border">
                 <BlockPortList
                     ports={data.inputPorts}
                     side="input"
@@ -144,13 +149,16 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
                 />
 
                 {/* CENTER: THE MACHINE MATH */}
-                <div className="flex flex-col items-center justify-center pt-[34px] relative">
-                    <div className="absolute text-slate-900/50 -z-10 opacity-40">
+                <div className="relative h-full w-full pointer-events-none">
+                    {/* Spacer to keep consistency if needed, though now purely visual if at all */}
+                    <div style={{ height: BLOCK_LAYOUT.PORT_LABEL }} className="w-full flex-none" />
+
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mt-[12px] -z-10 opacity-40 text-slate-900/50">
                         <ArrowRight size={48} strokeWidth={3} />
                     </div>
 
                     {/* Required Count */}
-                    <div className="bg-slate-900 border border-slate-800 rounded px-3 py-1 text-center shadow-lg transition-colors group-hover:border-cyan-500/20">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mt-[12px] pointer-events-auto bg-slate-900 border border-slate-800 rounded px-3 py-1 text-center shadow-lg transition-colors group-hover:border-cyan-500/20">
                         <div className="text-[9px] uppercase font-black tracking-widest text-cyan-500/80 mb-0.5">Required</div>
                         <div className="text-xl font-black text-white leading-none tracking-tighter">
                             {data.machineCount.toFixed(1)}
@@ -171,7 +179,7 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
             </div>
 
             {/* FOOTER: Meta Data */}
-            <div className="mt-auto bg-slate-950/80 border-t border-slate-900 rounded-b-lg p-2.5 flex justify-between items-center text-[9px] font-bold text-slate-500 tracking-wider">
+            <div style={{ height: BLOCK_LAYOUT.FOOTER }} className="mt-auto bg-slate-950/80 border-t border-slate-900 rounded-b-lg px-2.5 flex justify-between items-center text-[9px] font-bold text-slate-500 tracking-wider box-border">
                 <div className="flex gap-4">
                     <span className="flex items-center gap-1.5 hover:text-yellow-500 transition-colors">
                         <Zap size={11} /> {formatPower(totalPowerWatts)}

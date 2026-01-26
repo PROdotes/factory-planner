@@ -138,13 +138,17 @@ export interface BlockNode extends Node<Block | SplitterNodeData> {
 }
 
 export const BLOCK_LAYOUT = {
-    HEADER: 110,
-    PADDING: 19,
+    HEADER: 98,
+    WIDTH: 350,
+    HEADER_TOP_HEIGHT: 64,
+    HEADER_CONTROLS_HEIGHT: 34,
+    PADDING: 10,
     PORT_LABEL: 24,
     PORT_ROW: 40,
     PORT_GAP: 10,
-    FOOTER: 38,
-    HANDLE_OFFSET: 4 // The 4px the handle pokes out
+    FOOTER: 30,
+    HANDLE_OFFSET: 4, // The 4px the handle pokes out
+    CENTER_BODY_MIN_HEIGHT: 46 // Height of the "Required" box area
 };
 
 import { XYPosition } from 'reactflow';
@@ -168,7 +172,7 @@ export function getPortPosition(
     }
 
     // Building Logic
-    const { HEADER, PADDING, PORT_LABEL, PORT_ROW, PORT_GAP, HANDLE_OFFSET } = BLOCK_LAYOUT;
+    const { HEADER, PORT_LABEL, PORT_ROW, PORT_GAP, HANDLE_OFFSET } = BLOCK_LAYOUT;
 
     switch (port.side) {
         case 'top': return { x: x + width * port.offset, y: y - HANDLE_OFFSET };
@@ -179,7 +183,7 @@ export function getPortPosition(
             const index = ports.findIndex(p => p.id === port.id);
             const safeIndex = index === -1 ? 0 : index;
 
-            const topOffset = HEADER + PADDING + PORT_LABEL;
+            const topOffset = HEADER + PORT_LABEL;
             const rowCenter = topOffset + (safeIndex * (PORT_ROW + PORT_GAP)) + (PORT_ROW / 2);
 
             const buildingX = port.side === 'left' ? x - HANDLE_OFFSET : x + width + HANDLE_OFFSET;
