@@ -50,7 +50,16 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
     }, [edges, id]);
 
     // Handlers
-    const handleUpdateRate = (newRate: number) => updateBlock(id, { targetRate: newRate });
+    const handleUpdateRate = (newRate: number) => updateBlock(id, {
+        targetRate: newRate,
+        calculationMode: 'output'
+    });
+
+    const handleUpdateMachineCount = (count: number) => updateBlock(id, {
+        targetMachineCount: count,
+        calculationMode: 'machines'
+    });
+
     const handleDelete = () => deleteBlock(id);
 
     // Machine Logic
@@ -119,7 +128,8 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
                     id={id}
                     label={data.name}
                     subLabel={recipe?.category || 'Production'}
-                    targetRate={data.targetRate}
+                    targetRate={data.calculationMode === 'output' ? data.targetRate : data.actualRate}
+                    calculationMode={data.calculationMode}
                     hasConflict={hasConflict}
                     selected={selected}
                     onDelete={handleDelete}
@@ -158,10 +168,56 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
                     </div>
 
                     {/* Required Count */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mt-[12px] pointer-events-auto bg-slate-900 border border-slate-800 rounded px-3 py-1 text-center shadow-lg transition-colors group-hover:border-cyan-500/20">
-                        <div className="text-[9px] uppercase font-black tracking-widest text-cyan-500/80 mb-0.5">Required</div>
-                        <div className="text-xl font-black text-white leading-none tracking-tighter">
-                            {data.machineCount.toFixed(1)}
+                    <div className={`
+                        absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mt-[12px] pointer-events-auto 
+                        bg-slate-900 border rounded px-3 py-1 text-center shadow-lg transition-all group-hover:border-cyan-500/20
+                        ${data.calculationMode === 'machines' ? 'border-cyan-500/50' : 'border-slate-800'}
+                    `}>
+                        <div className={`text-[9px] uppercase font-black tracking-widest mb-0.5 transition-colors ${data.calculationMode === 'machines' ? 'text-cyan-500' : 'text-slate-500'}`}>
+                            {data.calculationMode === 'machines' ? 'Fixed' : 'Required'}
+                        </div>
+                        <div className="flex items-baseline justify-center">
+                            <input
+                                type="number"
+                                step="0.1"
+                                value={data.calculationMode === 'machines' ? (data.targetMachineCount ?? data.machineCount) : data.machineCount.toFixed(1)}
+                                onChange={(e) => {
+                                    handleUpdateMachineCount(parseFloat(e.target.value) || 0);
+                                }}
+                                onFocus={(e) => {
+                                    const target = e.target as HTMLInputElement;
+                                    const handleWheel = (event: WheelEvent) => {
+                                        if (document.activeElement === target) {
+                                            event.preventDefault();
+                                            event.stopPropagation();
+                                            const step = event.shiftKey ? 10 : 1;
+                                            const direction = event.deltaY < 0 ? 1 : -1;
+                                            const currentVal = parseFloat(target.value) || 0;
+
+                                            const newVal = direction > 0
+                                                ? Math.floor(currentVal + step)
+                                                : Math.ceil(currentVal - step);
+
+                                            handleUpdateMachineCount(Math.max(0, newVal));
+                                        }
+                                    };
+                                    target.addEventListener('wheel', handleWheel, { passive: false });
+                                    (target as any)._wheelFixed = handleWheel;
+                                }}
+                                onBlur={(e) => {
+                                    const target = e.target as HTMLInputElement;
+                                    if ((target as any)._wheelFixed) {
+                                        target.removeEventListener('wheel', (target as any)._wheelFixed);
+                                    }
+                                }}
+                                className={`
+                                    bg-transparent text-xl font-black focus:outline-none w-16 text-center
+                                    [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none 
+                                    nodrag nopan pointer-events-auto transition-all rounded
+                                    hover:bg-white/5 focus:bg-white/10 cursor-text
+                                    ${data.calculationMode === 'machines' ? 'text-white' : 'text-white/60'}
+                                `}
+                            />
                         </div>
                     </div>
                 </div>

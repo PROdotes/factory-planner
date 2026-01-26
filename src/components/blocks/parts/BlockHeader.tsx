@@ -6,6 +6,7 @@ interface BlockHeaderProps {
     label: string;
     subLabel: string;
     targetRate: number;
+    calculationMode: 'output' | 'machines';
     hasConflict: boolean;
     selected: boolean;
     onDelete: () => void;
@@ -17,6 +18,7 @@ export const BlockHeader = memo(({
     label,
     subLabel,
     targetRate,
+    calculationMode,
     hasConflict,
     selected,
     onDelete,
@@ -83,14 +85,14 @@ export const BlockHeader = memo(({
                                 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none 
                                 nodrag nopan pointer-events-auto transition-all rounded px-1
                                 hover:bg-white/5 focus:bg-white/10 cursor-text
-                                ${hasConflict ? 'text-red-400' : 'text-white'}
+                                ${hasConflict ? 'text-red-400' : (calculationMode === 'output' ? 'text-white' : 'text-white/40')}
                             `}
                         />
-                        <span className="text-xs font-bold text-white/50">/m</span>
+                        <span className={`text-xs font-bold ${calculationMode === 'output' ? 'text-white/50' : 'text-white/20'}`}>/m</span>
                     </div>
                     <div className="text-[9px] text-slate-500 uppercase tracking-widest font-bold flex items-center justify-end gap-1">
-                        {selected && <Edit2 size={8} className="text-cyan-400" />}
-                        Target Output
+                        {selected && calculationMode === 'output' && <Edit2 size={8} className="text-cyan-400" />}
+                        {calculationMode === 'output' ? 'Target Output' : 'Calculated Output'}
                     </div>
                 </div>
 

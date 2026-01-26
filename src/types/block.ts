@@ -66,8 +66,14 @@ export interface Block {
     /** Machine variant for this block (optional override) */
     machineId?: string; // "arc-smelter-mk2"
 
+    /** Calculation mode: output driven or machine count driven */
+    calculationMode: 'output' | 'machines';
+
     /** Target output rate (items per minute) */
     targetRate: number;
+
+    /** Target number of machines (when mode is 'machines') */
+    targetMachineCount?: number;
 
     /** Visual size (calculated from machine count) */
     size: Size;

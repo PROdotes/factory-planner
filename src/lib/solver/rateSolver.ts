@@ -16,7 +16,8 @@ export function solveBlock(
     targetRate: number,
     speedModifier: number = 1.0,
     primaryOutputId?: string,
-    productivityModifier: number = 0.0
+    productivityModifier: number = 0.0,
+    targetMachineCount?: number
 ) {
     // 1. Determine which output drives the calculation
     const primaryOutput = primaryOutputId
@@ -32,26 +33,12 @@ export function solveBlock(
     // Note: If speedModifier is passed as a multiplier (e.g. 1.0 is normal), usage is direct.
     const actualItemsPerMinutePerMachine = itemsPerMinuteBase * machine.speed * speedModifier;
 
-    // 3. Calculate machines needed to hit target rate
-    if (targetRate === 0) {
-        return {
-            machineCount: 1,
-            actualRate: actualItemsPerMinutePerMachine,
-            inputRates: recipe.inputs.map(input => ({
-                itemId: input.itemId,
-                // Input consumption is NOT affected by productivity multiplier on output
-                // But it IS affected by machine speed
-                rate: (input.amount / recipe.craftingTime) * 60 * machine.speed * speedModifier
-            })),
-            outputRates: recipe.outputs.map(output => ({
-                itemId: output.itemId,
-                // Output IS affected by productivity
-                rate: (output.amount * (1 + productivityModifier) / recipe.craftingTime) * 60 * machine.speed * speedModifier
-            }))
-        };
-    }
+    // 3. Calculate machines needed to hit target rate OR use provided count
+    let machineCount = targetMachineCount !== undefined ? targetMachineCount : (targetRate / actualItemsPerMinutePerMachine);
 
-    const machineCount = targetRate / actualItemsPerMinutePerMachine;
+    if (targetRate === 0 && targetMachineCount === undefined) {
+        machineCount = 1;
+    }
 
     // 4. Calculate actual rates
     const inputRates = recipe.inputs.map(input => ({

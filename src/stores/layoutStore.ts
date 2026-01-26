@@ -82,7 +82,15 @@ const applyBlockSolver = (block: Block, game: any) => {
             }
         }
 
-        const solved = solveBlock(recipe, machine, block.targetRate, speedMult, block.primaryOutputId, prodBonus);
+        const solved = solveBlock(
+            recipe,
+            machine,
+            block.targetRate,
+            speedMult,
+            block.primaryOutputId,
+            prodBonus,
+            block.calculationMode === 'machines' ? (block.targetMachineCount ?? block.machineCount) : undefined
+        );
         block.machineCount = solved.machineCount;
         block.actualRate = solved.actualRate;
 
@@ -335,7 +343,10 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
         const { size } = calculateBlockDimensions(inputPorts.length, outputPorts.length);
         const newBlock: Block = {
-            id, name: recipe.name, recipeId, machineId: machine.id, targetRate: 60,
+            id, name: recipe.name, recipeId, machineId: machine.id,
+            calculationMode: 'output',
+            targetRate: 60,
+            targetMachineCount: solved.machineCount,
             machineCount: solved.machineCount, actualRate: solved.actualRate,
             size, inputPorts, outputPorts, speedModifier: 1.0,
             primaryOutputId: recipe.outputs[0].itemId, efficiency: 1.0
