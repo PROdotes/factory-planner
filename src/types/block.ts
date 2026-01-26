@@ -113,6 +113,9 @@ export interface Block {
 
     /** Room/floor this block belongs to */
     containerId?: string;
+
+    /** Calculated production efficiency (0.0 to 1.0) */
+    efficiency: number;
 }
 
 /**
