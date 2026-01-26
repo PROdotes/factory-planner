@@ -1,7 +1,7 @@
-import { Block } from '@/types/block';
+import { BlockNode } from '@/types/block';
 import { Point } from '@/lib/router/channelRouter';
 
-interface Rect {
+export interface Rect {
     x: number;
     y: number;
     width: number;
@@ -9,87 +9,96 @@ interface Rect {
 }
 
 /**
- * Checks if a Channel (defined by points and a total width)
- * intersects with any of the valid blocks.
+ * Checks if nodes (Blocks/Splitters) intersect with each other.
+ * Returns a Set of Node IDs that are in conflict.
  */
-export function findChannelConflicts(points: Point[], width: number, blocks: Block[]): Block[] {
-    if (points.length < 2) return [];
+export function findNodeConflicts(nodes: BlockNode[]): Set<string> {
+    const overlapping = new Set<string>();
 
-    const conflicts: Block[] = [];
-    const segments = [];
+    for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+            const n1 = nodes[i];
+            const n2 = nodes[j];
 
-    // 1. Build Segment Rects for the collision
+            const r1 = getNodeRect(n1);
+            const r2 = getNodeRect(n2);
+
+            if (r1 && r2 && isIntersecting(r1, r2)) {
+                overlapping.add(n1.id);
+                overlapping.add(n2.id);
+            }
+        }
+    }
+
+    return overlapping;
+}
+
+function getNodeRect(node: BlockNode): Rect | null {
+    const data = node.data as any;
+    if (!data.size) return null;
+    return {
+        x: node.position.x,
+        y: node.position.y,
+        width: data.size.width,
+        height: data.size.height
+    };
+}
+
+/**
+ * Shared utility to get the actual collision rectangles for a channel.
+ * Used by both the logic engine and the debug renderer.
+ */
+export function getChannelSegments(points: Point[], width: number): Rect[] {
+    const segments: Rect[] = [];
     for (let i = 0; i < points.length - 1; i++) {
         const p1 = points[i];
         const p2 = points[i + 1];
+        const isHorizontal = Math.abs(p1.y - p2.y) < 0.1;
 
-        // Determine bounds
-        const xMin = Math.min(p1.x, p2.x);
-        const xMax = Math.max(p1.x, p2.x);
-        const yMin = Math.min(p1.y, p2.y);
-        const yMax = Math.max(p1.y, p2.y);
-
-        // Expand by half-width to get the full footprint
-        // Note: For Manhattan segments, one dimension is just 'width', the other is 'length + width'
-        // But to be safe and cover corners, we expand the AABB.
-
-        let rect: Rect;
-
-        // Horizontal Segment
-        if (Math.abs(p1.y - p2.y) < 0.1) {
-            rect = {
-                x: xMin, // Start X
-                y: yMin - width / 2, // Center Y
-                width: xMax - xMin, // Length
+        if (isHorizontal) {
+            segments.push({
+                x: Math.min(p1.x, p2.x),
+                y: p1.y - width / 2,
+                width: Math.abs(p2.x - p1.x),
                 height: width
-            };
-        }
-        // Vertical Segment
-        else {
-            rect = {
-                x: xMin - width / 2, // Center X
-                y: yMin,
+            });
+        } else {
+            segments.push({
+                x: p1.x - width / 2,
+                y: Math.min(p1.y, p2.y),
                 width: width,
-                height: yMax - yMin // Length
-            };
+                height: Math.abs(p2.y - p1.y)
+            });
         }
-        segments.push(rect);
     }
+    return segments;
+}
 
-    // 2. Check against all Blocks
-    for (const block of blocks) {
-        // Block Rect
-        // ReactFlow positions are Top-Left
-        const blockRect: Rect = {
-            x: block.position.x,
-            y: block.position.y,
-            width: block.size.width,
-            height: block.size.height
-        };
+/**
+ * Checks if a Channel (defined by points and a total width)
+ * intersects with any of the valid nodes.
+ */
+export function findChannelConflicts(points: Point[], width: number, nodes: BlockNode[]): BlockNode[] {
+    if (points.length < 2) return [];
 
-        // Simple shrinking of block rect to be "forgiving"?
-        // e.g. Ports are on the edge, so we allow touching the edge.
-        // Let's shrink the block rect by a small epsilon to allow snap-to-edge connections.
-        const PADDING = 2; // Pixels to ignore on edges
-        const safeBlockRect: Rect = {
-            x: blockRect.x + PADDING,
-            y: blockRect.y + PADDING,
-            width: blockRect.width - PADDING * 2,
-            height: blockRect.height - PADDING * 2
-        };
+    const conflicts: BlockNode[] = [];
+    const segments = getChannelSegments(points, width);
 
-        if (safeBlockRect.width <= 0 || safeBlockRect.height <= 0) continue;
+    // 2. Check against all Nodes
+    for (const node of nodes) {
+        const blockRect = getNodeRect(node);
+        if (!blockRect) continue;
 
         let hasHit = false;
         for (const seg of segments) {
-            if (isIntersecting(seg, safeBlockRect)) {
+            if (isIntersecting(seg, blockRect)) {
                 hasHit = true;
                 break;
             }
         }
 
         if (hasHit) {
-            conflicts.push(block);
+            conflicts.push(node);
         }
     }
 

@@ -5,47 +5,31 @@ import { GameDataEditor } from './components/modals/GameDataEditor/GameDataEdito
 import { RecipePicker } from './components/modals/RecipePicker/RecipePicker';
 import { ConnectPicker } from './components/modals/ConnectPicker/ConnectPicker';
 import { useLayoutStore } from './stores/layoutStore';
+import { ReactFlowProvider, useReactFlow } from 'reactflow';
 
 import { Recipe } from './types/game';
 
-function App() {
-  const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [isPickerOpen, setIsPickerOpen] = useState(false);
+const AppModals = ({
+  isEditorOpen,
+  setIsEditorOpen,
+  isPickerOpen,
+  setIsPickerOpen
+}: any) => {
+  const { project } = useReactFlow();
   const addBlock = useLayoutStore((state) => state.addBlock);
-  const activePort = useLayoutStore((state) => state.activePort);
-  const setActivePort = useLayoutStore((state) => state.setActivePort);
-  const loadFromStorage = useLayoutStore((state) => state.loadFromStorage);
-
-  // Auto-load on mount
-  useEffect(() => {
-    loadFromStorage();
-  }, [loadFromStorage]);
-
-  // Global escape key handler to clear all modal states
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setIsEditorOpen(false);
-        setIsPickerOpen(false);
-        setActivePort(null);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setActivePort]);
 
   const handleRecipeSelect = (recipe: Recipe) => {
-    addBlock(recipe.id, { x: 100, y: 100 });
+    // Project center of window to flow space
+    const center = project({
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2
+    });
+    addBlock(recipe.id, center);
     setIsPickerOpen(false);
   };
 
   return (
-    <AppShell
-      onOpenEditor={() => setIsEditorOpen(true)}
-      onAddBlock={() => setIsPickerOpen(true)}
-    >
-      <Canvas />
-
+    <>
       {isEditorOpen && (
         <div
           className="fixed inset-0 z-[100] bg-background/80 flex items-center justify-center p-10 backdrop-blur-sm"
@@ -82,23 +66,67 @@ function App() {
           </div>
         </div>
       )}
+    </>
+  );
+};
 
-      {activePort && (
-        <div
-          className="fixed inset-0 z-[100] bg-background/80 flex items-center justify-center p-20 backdrop-blur-sm"
-          onClick={() => setActivePort(null)}
-        >
+function App() {
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const activePort = useLayoutStore((state) => state.activePort);
+  const setActivePort = useLayoutStore((state) => state.setActivePort);
+  const loadFromStorage = useLayoutStore((state) => state.loadFromStorage);
+
+  // Auto-load on mount
+  useEffect(() => {
+    loadFromStorage();
+  }, [loadFromStorage]);
+
+  // Global escape key handler to clear all modal states
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsEditorOpen(false);
+        setIsPickerOpen(false);
+        setActivePort(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [setActivePort]);
+
+  return (
+    <ReactFlowProvider>
+      <AppShell
+        onOpenEditor={() => setIsEditorOpen(true)}
+        onAddBlock={() => setIsPickerOpen(true)}
+      >
+        <Canvas />
+
+        <AppModals
+          isEditorOpen={isEditorOpen}
+          setIsEditorOpen={setIsEditorOpen}
+          isPickerOpen={isPickerOpen}
+          setIsPickerOpen={setIsPickerOpen}
+        />
+
+        {activePort && (
           <div
-            className="w-full max-w-xl h-[500px] border border-border rounded-xl overflow-hidden shadow-2xl bg-surface"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[100] bg-background/80 flex items-center justify-center p-20 backdrop-blur-sm"
+            onClick={() => setActivePort(null)}
           >
-            <ConnectPicker
-              onCancel={() => setActivePort(null)}
-            />
+            <div
+              className="w-full max-w-xl h-[500px] border border-border rounded-xl overflow-hidden shadow-2xl bg-surface"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ConnectPicker
+                onCancel={() => setActivePort(null)}
+              />
+            </div>
           </div>
-        </div>
-      )}
-    </AppShell>
+        )}
+      </AppShell>
+    </ReactFlowProvider>
   );
 }
 

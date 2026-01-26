@@ -113,15 +113,13 @@ describe('Conflict & Multiplier Engine', () => {
         return edge.data as BeltEdgeData;
     };
 
-    it('detects Bottleneck (Red) when supply > belt capacity', () => {
-        // Mining Ore at 120/min (Needs 2 machines)
+    it('handles high throughput (Infinite Bundle) without bottleneck status', () => {
+        // Mining Ore at 120/min
         const sourceId = createBlock('mining-ore', 0, 0, 120);
 
         // Smelt Ingot at 120/min
         const targetId = createBlock('smelting-ingot', 200, 0, 120);
 
-        // Connect Source -> Target
-        // Default belt is Mk1 (60/min)
         const sourceNode = useLayoutStore.getState().nodes.find(n => n.id === sourceId)!;
         const targetNode = useLayoutStore.getState().nodes.find(n => n.id === targetId)!;
 
@@ -132,22 +130,21 @@ describe('Conflict & Multiplier Engine', () => {
             targetHandle: targetNode.data.inputPorts[0].id
         });
 
-        // Supply 120, Capacity 60.
-        // Expect: Bottleneck
+        // Supply 120, Capacity 60 (Mk1).
+        // Expect: No bottleneck status, flowRate 120 (Infinite Bundle)
         const edgeData = getEdgeData();
-        expect(edgeData.status).toBe('bottleneck');
-        expect(edgeData.flowRate).toBe(60); // Capped by belt
+        expect(edgeData.status).not.toBe('bottleneck');
+        expect(edgeData.flowRate).toBe(120);
         expect(edgeData.demandRate).toBe(120);
     });
 
-    it('detects Starvation (Amber) when supply < demand but within capacity', () => {
-        // Mining Ore at 30/min (0.5 machines)
+    it('detects Starvation (Amber) when supply < demand', () => {
+        // Mining Ore at 30/min
         const sourceId = createBlock('mining-ore', 0, 0, 30);
 
         // Smelt Ingot at 60/min (Needs 60 Ore)
         const targetId = createBlock('smelting-ingot', 200, 0, 60);
 
-        // Connect with Mk1 (Capacity 60)
         const sourceNode = useLayoutStore.getState().nodes.find(n => n.id === sourceId)!;
         const targetNode = useLayoutStore.getState().nodes.find(n => n.id === targetId)!;
 
@@ -158,46 +155,15 @@ describe('Conflict & Multiplier Engine', () => {
             targetHandle: targetNode.data.inputPorts[0].id
         });
 
-        // Supply 30, Demand 60, Capacity 60.
+        // Supply 30, Demand 60.
         // Supply < Demand -> Underload
         const edgeData = getEdgeData();
         expect(edgeData.status).toBe('underload');
         expect(edgeData.flowRate).toBe(30);
     });
 
-    it('resolves conflicts when belt is upgraded', () => {
-        // Mining Ore at 120/min
-        const sourceId = createBlock('mining-ore', 0, 0, 120);
-        // Smelt Ingot at 120/min
-        const targetId = createBlock('smelting-ingot', 200, 0, 120);
-
-        // Connect with Mk1 (Capacity 60) -> Bottleneck
-        const sourceNode = useLayoutStore.getState().nodes.find(n => n.id === sourceId)!;
-        const targetNode = useLayoutStore.getState().nodes.find(n => n.id === targetId)!;
-
-        useLayoutStore.getState().onConnect({
-            source: sourceId,
-            sourceHandle: sourceNode.data.outputPorts[0].id,
-            target: targetId,
-            targetHandle: targetNode.data.inputPorts[0].id
-        });
-
-        let edgeData = getEdgeData();
-        expect(edgeData.status).toBe('bottleneck');
-
-        // Upgrade Belt to Mk2 (Capacity 120)
-        const edgeId = useLayoutStore.getState().edges[0].id;
-        useLayoutStore.getState().cycleEdgeBelt(edgeId);
-
-        edgeData = getEdgeData();
-        expect(edgeData.beltId).toBe('belt-mk2');
-        expect(edgeData.capacity).toBe(120);
-        expect(edgeData.status).toBe('ok');
-        expect(edgeData.flowRate).toBe(120);
-    });
-
     it('updates edge status when source rate changes', () => {
-        // Start ok: 60 -> 60 on Mk1 (60)
+        // Start ok: 60 -> 60
         const sourceId = createBlock('mining-ore', 0, 0, 60);
         const targetId = createBlock('smelting-ingot', 200, 0, 60);
 
@@ -213,37 +179,13 @@ describe('Conflict & Multiplier Engine', () => {
 
         expect(getEdgeData().status).toBe('ok');
 
-        // Increase Source to 120 -> Bottleneck (Supply > Cap)
+        // Increase Source to 120 -> Still OK (Infinite Bundle holds it)
         useLayoutStore.getState().updateBlock(sourceId, { targetRate: 120 });
-        expect(getEdgeData().status).toBe('bottleneck');
+        expect(getEdgeData().status).toBe('ok');
 
         // Reduce Source to 30 -> Underload (Demand 60 > Supply 30)
         useLayoutStore.getState().updateBlock(sourceId, { targetRate: 30 });
         expect(getEdgeData().status).toBe('underload');
-    });
-
-    it('updates edge status when demand rate changes', () => {
-        // Start ok: 60 -> 60 on Mk1 (60)
-        const sourceId = createBlock('mining-ore', 0, 0, 60);
-        const targetId = createBlock('smelting-ingot', 200, 0, 60);
-
-        const sourceNode = useLayoutStore.getState().nodes.find(n => n.id === sourceId)!;
-        const targetNode = useLayoutStore.getState().nodes.find(n => n.id === targetId)!;
-
-        useLayoutStore.getState().onConnect({
-            source: sourceId,
-            sourceHandle: sourceNode.data.outputPorts[0].id,
-            target: targetId,
-            targetHandle: targetNode.data.inputPorts[0].id
-        });
-
-        expect(getEdgeData().status).toBe('ok');
-
-        // Increase Demand to 120 -> Overload (Demand > Cap)
-        // Note: Supply is still 60. Cap 60. Demand 120.
-        // Overload Logic: demandRate > capacity.
-        useLayoutStore.getState().updateBlock(targetId, { targetRate: 120 });
-        expect(getEdgeData().status).toBe('overload');
     });
 
     it('propagates Starvation downstream (3-block chain)', () => {
@@ -295,9 +237,6 @@ describe('Conflict & Multiplier Engine', () => {
             target: idC,
             targetHandle: nodeC.data.inputPorts[0].id // Ingot
         });
-
-        // Forces a refresh to be safe (propagation often requires explicit trigger or is auto)
-        // onConnect calls recalculateFlows.
 
         // Verify Edge 2 (B->C)
         const edges = useLayoutStore.getState().edges;

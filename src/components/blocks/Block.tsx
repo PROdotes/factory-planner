@@ -5,7 +5,6 @@ import { DSP_DATA } from '@/data/dsp';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { ArrowRight, Activity, Zap } from 'lucide-react';
 
-import { calculateBlockDimensions } from '@/lib/layout/manifoldSolver';
 import { BlockHeader } from './parts/BlockHeader';
 import { BlockMachineControls } from './parts/BlockMachineControls';
 import { BlockPortList, PortState } from './parts/BlockPortList';
@@ -15,9 +14,7 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
     const updateBlock = useLayoutStore((state) => state.updateBlock);
     const edges = useLayoutStore((state) => state.edges);
     const onPortClick = useLayoutStore((state) => state.onPortClick);
-
-    // Calculate dimensions LIVE to ensure instant feedback on code changes
-    const { size } = calculateBlockDimensions(data.inputPorts.length, data.outputPorts.length, data.machineCount);
+    const isNodeColliding = useLayoutStore((state) => state.nodeConflicts.has(id));
 
     // Lookup data for display
     const recipe = DSP_DATA.recipes.find(r => r.id === data.recipeId);
@@ -81,8 +78,6 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
     const handleUpdateModifier = (mod?: any) => updateBlock(id, { modifier: mod });
 
     const handlePortClick = (pid: string) => {
-        // We need to know type. Input or Output?
-        // Check inputs first
         if (data.inputPorts.some(p => p.id === pid)) {
             onPortClick(id, pid, 'input');
             return;
@@ -97,14 +92,24 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
 
     return (
         <div
-            style={{ width: size.width, minHeight: size.height }}
+            style={{ width: data.size.width, minHeight: data.size.height }}
             className={`
-                h-auto
+                h-auto flex flex-col
                 bg-slate-950 border rounded-lg shadow-2xl font-mono overflow-hidden relative group transition-all duration-300
                 ${selected ? 'border-cyan-500 ring-1 ring-cyan-500/50 shadow-[0_0_20px_rgba(6,182,212,0.25)]' : 'border-slate-800 hover:border-slate-700'}
                 ${hasConflict && !selected ? 'border-red-500/50 shadow-[0_0_15px_rgba(244,63,94,0.1)]' : ''}
             `}
         >
+            {/* DEBUG COLLISION BOUNDARY (PINK/RED) */}
+            <div
+                className={`absolute top-0 left-0 border-2 pointer-events-none z-[500] ${isNodeColliding ? 'border-red-500 animate-pulse' : 'border-pink-500/40'}`}
+                style={{ width: data.size.width, height: data.size.height }}
+            >
+                <div className={`absolute top-0 right-0 ${isNodeColliding ? 'bg-red-500' : 'bg-pink-500'} text-white text-[8px] px-1 font-black`}>
+                    {isNodeColliding ? 'COLLISION' : `BOX: ${data.size.width}x${data.size.height}`}
+                </div>
+            </div>
+
             {/* Top Accent Bar */}
             <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${hasConflict ? 'from-red-600 to-red-400' : (selected ? 'from-cyan-400 to-blue-500' : 'from-slate-700 to-slate-800')}`}></div>
 
@@ -128,8 +133,7 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
             />
 
             {/* BODY: The Flow (Input -> Machine -> Output) */}
-            <div className="p-4 grid grid-cols-[100px_1fr_100px] gap-2 items-center relative">
-
+            <div className="p-[19px] pt-0 grid grid-cols-[100px_1fr_100px] gap-2 items-start relative box-border">
                 <BlockPortList
                     ports={data.inputPorts}
                     side="input"
@@ -140,7 +144,7 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
                 />
 
                 {/* CENTER: THE MACHINE MATH */}
-                <div className="flex flex-col items-center justify-center py-2 relative">
+                <div className="flex flex-col items-center justify-center pt-[34px] relative">
                     <div className="absolute text-slate-900/50 -z-10 opacity-40">
                         <ArrowRight size={48} strokeWidth={3} />
                     </div>
@@ -167,7 +171,7 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
             </div>
 
             {/* FOOTER: Meta Data */}
-            <div className="bg-slate-950/80 border-t border-slate-900 p-2.5 flex justify-between items-center text-[9px] font-bold text-slate-500 tracking-wider">
+            <div className="mt-auto bg-slate-950/80 border-t border-slate-900 p-2.5 flex justify-between items-center text-[9px] font-bold text-slate-500 tracking-wider">
                 <div className="flex gap-4">
                     <span className="flex items-center gap-1.5 hover:text-yellow-500 transition-colors">
                         <Zap size={11} /> {formatPower(totalPowerWatts)}

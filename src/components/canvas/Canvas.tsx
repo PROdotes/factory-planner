@@ -3,7 +3,6 @@ import ReactFlow, {
     Background,
     BackgroundVariant,
     Controls,
-    ReactFlowProvider,
     useReactFlow,
     NodeTypes,
     EdgeTypes,
@@ -12,6 +11,7 @@ import 'reactflow/dist/style.css';
 import { useLayoutStore } from '@/stores/layoutStore';
 import Block from '@/components/blocks/Block';
 import ConnectionEdge from '@/components/connections/ConnectionEdge';
+import SplitterNode from '@/components/nodes/SplitterNode';
 
 interface CanvasProps {
     className?: string;
@@ -28,8 +28,11 @@ const CanvasContent: React.FC<CanvasProps> = ({ className = '' }) => {
     const onConnect = useLayoutStore((state) => state.onConnect);
     const addBlock = useLayoutStore((state) => state.addBlock);
 
+    // ...
+
     const nodeTypes = useMemo<NodeTypes>(() => ({
         block: Block,
+        splitter: SplitterNode,
     }), []);
 
     const edgeTypes = useMemo<EdgeTypes>(() => ({
@@ -112,7 +115,5 @@ const CanvasContent: React.FC<CanvasProps> = ({ className = '' }) => {
 };
 
 export const Canvas: React.FC<CanvasProps> = (props) => (
-    <ReactFlowProvider>
-        <CanvasContent {...props} />
-    </ReactFlowProvider>
+    <CanvasContent {...props} />
 );

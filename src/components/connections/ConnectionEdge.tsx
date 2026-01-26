@@ -4,13 +4,10 @@ import {
     EdgeLabelRenderer,
     BaseEdge,
 } from 'reactflow';
+import { getChannelSegments } from '@/lib/validation/conflictDetection';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { ChannelRenderer } from '@/components/connections/ChannelRenderer';
 import { Point } from '@/lib/router/channelRouter';
-
-import { BeltEdgeData } from '@/types/block';
-import { DSP_DATA } from '@/data/dsp';
-import { Item } from '@/types/game';
 
 const ConnectionEdge = ({
     id,
@@ -18,38 +15,32 @@ const ConnectionEdge = ({
     sourceY,
     targetX,
     targetY,
-    markerEnd,
+    sourceHandleId,
+    targetHandleId,
     selected,
-    data,
-}: EdgeProps<BeltEdgeData>) => {
-    const deleteEdge = useLayoutStore((state) => state.deleteEdge);
+    data: edgeData,
+}: EdgeProps) => {
+    const status = edgeData?.status || 'ok';
+    const throughput = edgeData?.flowRate || 60;
+    const capacity = edgeData?.capacity || 300; // Match default
 
-    const edgeData = data as BeltEdgeData;
-    const status = edgeData?.status;
-    const isOverloaded = status === 'bottleneck' || status === 'overload' || status === 'conflict';
-    const isStarved = status === 'underload';
-    const hasConflict = isOverloaded || isStarved;
+    // Line colors based on status
+    const getColors = () => {
+        switch (status) {
+            case 'conflict': return { main: '#f43f5e', glow: 'rgba(244, 63, 94, 0.4)' };
+            case 'bottleneck':
+            case 'overload': return { main: '#ef4444', glow: 'rgba(239, 68, 68, 0.4)' };
+            case 'underload': return { main: '#fbbf24', glow: 'rgba(251, 191, 36, 0.4)' };
+            case 'mismatch': return { main: '#a855f7', glow: 'rgba(168, 85, 247, 0.4)' };
+            default: return { main: '#22d3ee', glow: 'rgba(34, 211, 238, 0.4)' };
+        }
+    };
 
-    // 1. Determine Color
-    let mainColor = '#3b82f6'; // Default cyan
-    if (isOverloaded) mainColor = '#f43f5e'; // Red
-    else if (isStarved) mainColor = '#fbbf24'; // Amber
+    const colors = getColors();
+    const mainColor = colors.main;
 
-    // 2. Generate Path Points
-    // Currently, we are using simple routing. 
-    // In the future, this should come from the edge data itself (saved waypoints).
-    // For now, let's create a simple Manhattan step.
-
-    // Simple L-shape logic:
-    // Move out from source, turn 90 deg, move to target.
+    // Fixed Manhattan Path (Z-shape)
     const midX = sourceX + (targetX - sourceX) * 0.5;
-
-    // We construct 4 points for an S-curve like manhattan
-    // P1 (Start) -> P2 (MidX, StartY) -> P3 (MidX, EndY) -> P4 (End)
-    // Actually, let's just feed the renderer the start/end and let it draw a straight line
-    // for Phase 1.1 verification, then we upgrade to Manhattan.
-
-    // Better Manhattan S-Curve:
     const points: Point[] = [
         { x: sourceX, y: sourceY },
         { x: midX, y: sourceY },
@@ -57,40 +48,24 @@ const ConnectionEdge = ({
         { x: targetX, y: targetY }
     ];
 
-    // Determine Throughput for Width
-    // If not calculated yet, assume 1 lane
-    const throughput = edgeData?.flowRate || 60;
-    const capacity = edgeData?.capacity || 360;
-
-    // Calculate Label Position (Center of the middle segment)
-    // Segment 2 is from points[1] to points[2]
-    // which is the vertical segment in our Z shape
-    const labelX = midX;
-    const labelY = sourceY + (targetY - sourceY) * 0.5;
+    const lanes = Math.ceil(throughput / capacity);
+    const bWidth = (lanes - 1) * 6 + 12;
 
     return (
         <>
-            {/* 
-                We use a custom SVG renderer inside the Edge 
-                instead of the default path.
-                However, ReactFlow expects a path for interaction.
-                We render the ChannelRenderer as a "decoration"
-            */}
-
             {/* The actual clickable path (invisible but captures events) */}
             <BaseEdge
                 id={id}
                 path={`M ${sourceX} ${sourceY} L ${midX} ${sourceY} L ${midX} ${targetY} L ${targetX} ${targetY}`}
-                markerEnd={markerEnd}
                 style={{
-                    strokeWidth: Math.max(20, (Math.ceil(throughput / capacity) - 1) * 6 + 12),
+                    strokeWidth: Math.max(20, bWidth),
                     stroke: 'transparent',
                     cursor: 'pointer'
                 }}
             />
 
             {/* The Visual Ribbon */}
-            <g className="react-flow__edge-path-selector" style={{ pointerEvents: 'none' }}>
+            <g style={{ pointerEvents: 'none' }}>
                 <ChannelRenderer
                     points={points}
                     throughput={throughput}
@@ -99,78 +74,52 @@ const ConnectionEdge = ({
                     isSelected={selected}
                     pattern={status === 'conflict' ? 'conflict' : undefined}
                 />
+
+                {/* DEBUG COLLISION SEGMENTS (LIME) 
+                {getChannelSegments(points, bWidth).map((rect, i) => (
+                    <rect
+                        key={`segment-${i}`}
+                        x={rect.x}
+                        y={rect.y}
+                        width={rect.width}
+                        height={rect.height}
+                        fill="rgba(132, 204, 22, 0.2)"
+                        stroke="#84cc16"
+                        strokeWidth="1"
+                        strokeDasharray="2 2"
+                        className="z-[500]"
+                    />
+                ))}
+                */}
             </g>
 
-            <EdgeLabelRenderer>
-                <div
-                    style={{
-                        position: 'absolute',
-                        transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-                        pointerEvents: 'all',
-                    }}
-                    className="nodrag nopan z-[100] flex flex-col items-center gap-2"
-                >
-                    {/* Flow Rate Label Check: Only show if selected OR has an issue */}
-                    {(selected || hasConflict) && edgeData && (
-                        <div
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                useLayoutStore.getState().cycleEdgeBelt(id);
-                            }}
-                            className={`
-                                px-2.5 py-1 rounded-full text-[10px] font-bold border backdrop-blur-xl shadow-2xl transition-all flex items-center gap-2 cursor-pointer hover:scale-105 active:scale-95
-                                ${isOverloaded
-                                    ? 'bg-red-500/10 border-red-500/40 text-red-100 shadow-red-500/10'
-                                    : ''}
-                                ${isStarved
-                                    ? 'bg-amber-500/10 border-amber-500/40 text-amber-100 shadow-amber-500/10'
-                                    : ''}
-                                ${!hasConflict
-                                    ? 'bg-slate-900/60 text-cyan-400 border-cyan-500/20 hover:border-cyan-500/40'
-                                    : ''}
-                            `}
-                            title="Click to cycle belt tier"
-                        >
-                            <span className="opacity-50">
-                                {DSP_DATA.items.find((i: Item) => i.id === edgeData.itemId)?.name || 'Item'}
-                            </span>
-                            <span className="font-black tabular-nums">
-                                {hasConflict
-                                    ? `${edgeData.flowRate.toFixed(1)} / ${edgeData.demandRate.toFixed(1)}/m`
-                                    : `${edgeData.flowRate.toFixed(1)}/m`
-                                }
-                            </span>
-                            {/* Belt Tier Indicator */}
-                            <span className={`
-                                ml-1 px-1.5 py-0.5 rounded text-[9px] font-black flex items-center gap-1 border
-                                ${isOverloaded ? 'bg-red-500/20 border-red-500/30 text-red-300' : ''}
-                                ${isStarved ? 'bg-amber-500/20 border-amber-500/30 text-amber-300' : ''}
-                                ${!hasConflict ? 'bg-white/5 border-white/10 text-cyan-400/60' : ''}
-                            `}>
-                                <span>{edgeData.capacity === 360 ? 'MK1' : (edgeData.capacity === 720 ? 'MK2' : 'MK3')}</span>
-                                <span className={hasConflict ? 'text-white' : 'text-cyan-400'}>
-                                    ×{Math.ceil(edgeData.demandRate / edgeData.capacity)}
-                                </span>
-                            </span>
+            {/* Status Tooltip / Info */}
+            {selected && (
+                <EdgeLabelRenderer>
+                    <div
+                        style={{
+                            position: 'absolute',
+                            transform: `translate(-50%, -50%) translate(${midX}px, ${(sourceY + targetY) / 2}px)`,
+                            pointerEvents: 'all',
+                        }}
+                        className="bg-slate-900/90 backdrop-blur border border-slate-700 rounded-lg p-2 flex flex-col gap-1 min-w-[120px] shadow-2xl z-50"
+                    >
+                        <div className="flex items-center justify-between gap-4">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Flow</span>
+                            <span className="text-xs font-black text-cyan-400">{throughput.toFixed(1)}/min</span>
                         </div>
-                    )}
-
-                    {selected && (
-                        <button
-                            className="w-7 h-7 bg-error text-white rounded-full flex items-center justify-center shadow-xl border-2 border-white/20 hover:scale-110 active:scale-95 transition-all"
-                            onClick={(event) => {
-                                event.stopPropagation();
-                                deleteEdge(id);
-                            }}
-                            title="Sever Link"
-                        >
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    )}
-                </div>
-            </EdgeLabelRenderer>
+                        <div className="flex items-center justify-between gap-4">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Type</span>
+                            <span className="text-xs font-black text-slate-300">{edgeData?.itemId || 'Any'}</span>
+                        </div>
+                        {status !== 'ok' && (
+                            <div className={`mt-1 pt-1 border-t border-white/5 text-[9px] font-black uppercase tracking-tighter text-center ${status === 'underload' ? 'text-amber-400' : 'text-rose-400'}`}>
+                                STATUS: {status}
+                            </div>
+                        )}
+                    </div>
+                </EdgeLabelRenderer>
+            )}
         </>
     );
 };

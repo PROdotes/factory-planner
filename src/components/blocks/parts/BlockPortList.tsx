@@ -1,5 +1,5 @@
 import { Handle, Position } from 'reactflow';
-import { Port, EdgeStatus } from '@/types/block';
+import { Port, EdgeStatus, BLOCK_LAYOUT } from '@/types/block';
 import { memo } from 'react';
 
 export interface PortState {
@@ -30,11 +30,14 @@ export const BlockPortList = memo(({
 }: BlockPortListProps) => {
 
     return (
-        <div className="flex flex-col gap-2.5">
-            <span className={`text-[9px] text-slate-500 font-black uppercase tracking-tighter border-b border-slate-900 pb-1 ${side === 'output' ? 'text-right' : ''}`}>
+        <div className="relative w-full h-full">
+            <span
+                style={{ height: BLOCK_LAYOUT.PORT_LABEL }}
+                className={`absolute top-0 w-full text-[9px] text-slate-500 font-black uppercase tracking-tighter border-b border-slate-900 pb-1 flex items-end ${side === 'output' ? 'justify-end' : ''}`}
+            >
                 {side === 'input' ? 'Inputs' : 'Outputs'}
             </span>
-            {ports.map((port) => {
+            {ports.map((port, index) => {
                 const state = portStates[port.id] || { status: 'ok', connected: false };
                 const isOverloaded = state.status === 'bottleneck' || state.status === 'overload';
                 const isStarved = state.status === 'underload';
@@ -43,26 +46,27 @@ export const BlockPortList = memo(({
                 const conflictColor = isOverloaded ? 'rgba(239,68,68,1)' : (isStarved ? 'rgba(251,191,36,1)' : 'rgba(6,182,212,0.5)');
                 const conflictBg = isOverloaded ? 'rgba(239,68,68,0.1)' : (isStarved ? 'rgba(251,191,36,0.1)' : 'rgba(255,255,255,0.02)');
 
-                const handlePosition = side === 'input' ? Position.Left : Position.Right;
+                const itemTop = BLOCK_LAYOUT.PORT_LABEL + (index * (BLOCK_LAYOUT.PORT_ROW + BLOCK_LAYOUT.PORT_GAP));
 
                 return (
-                    <div key={port.id} className="relative group/port">
+                    <div
+                        key={port.id}
+                        className="absolute w-full group/port"
+                        style={{ top: itemTop, height: BLOCK_LAYOUT.PORT_ROW }}
+                    >
                         <Handle
                             type={side === 'input' ? 'target' : 'source'}
-                            position={handlePosition}
+                            position={side === 'input' ? Position.Left : Position.Right}
                             id={port.id}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onPortClick(port.id);
-                            }}
                             style={{
                                 top: '50%',
                                 transform: 'translateY(-50%)',
                                 borderColor: conflictColor,
-                                boxShadow: hasConflict ? `0 0 8px ${conflictColor}66` : 'none'
+                                boxShadow: hasConflict ? `0 0 8px ${conflictColor}66` : 'none',
+                                [side === 'input' ? 'left' : 'right']: -(BLOCK_LAYOUT.HANDLE_OFFSET + BLOCK_LAYOUT.PADDING)
                             }}
                             className={`
-                                !${side === 'input' ? 'left' : 'right'}-[-4px] !w-3 !h-3 !bg-slate-900 transition-all !cursor-pointer z-50 !border-2
+                                !w-3 !h-3 !bg-slate-900 transition-all !cursor-pointer z-50 !border-2
                                 ${!hasConflict ? 'hover:!border-cyan-400' : ''}
                             `}
                         />
@@ -72,7 +76,7 @@ export const BlockPortList = memo(({
                                 backgroundColor: conflictBg
                             }}
                             className={`
-                                flex flex-col px-2 py-1.5 rounded ${side === 'input' ? 'border-l-2' : 'border-r-2 items-end'} transition-colors
+                                flex flex-col px-2 py-1.5 rounded h-full ${side === 'input' ? 'border-l-2' : 'border-r-2 items-end'} transition-colors
                                 ${!hasConflict ? 'hover:border-cyan-500/50' : ''}
                             `}
                         >
@@ -89,17 +93,7 @@ export const BlockPortList = memo(({
                                         `}
                                         title="Set as Primary Output"
                                     >
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            width="10"
-                                            height="10"
-                                            viewBox="0 0 24 24"
-                                            fill={primaryOutputId === port.itemId ? "currentColor" : "none"}
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                        >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill={primaryOutputId === port.itemId ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                                         </svg>
                                     </button>

@@ -1,3 +1,4 @@
+import { Node } from 'reactflow';
 export type PortSide = 'top' | 'bottom' | 'left' | 'right';
 
 /**
@@ -38,6 +39,7 @@ export interface BeltEdgeData {
     capacity: number; // Max items/min for this belt tier
     status: EdgeStatus;
     itemId: string;
+    collisionRects?: any[];
 }
 
 export interface Position {
@@ -66,9 +68,6 @@ export interface Block {
 
     /** Target output rate (items per minute) */
     targetRate: number;
-
-    /** Position on canvas */
-    position: Position;
 
     /** Visual size (calculated from machine count) */
     size: Size;
@@ -118,23 +117,76 @@ export interface Block {
     efficiency: number;
 }
 
+// ─── Splitters ──────────────────────────────────────────────
+
+export interface SplitterNodeData {
+    id: string;
+    size?: Size;
+    type: 'splitter' | 'merger';
+
+    // Splitters are simpler than blocks - strict 1:2 or 2:1 mapping usually
+    // But we keep the generic port structure for consistency
+    inputPorts: Port[];
+    outputPorts: Port[];
+
+    priority: 'balanced' | 'in-left' | 'in-right' | 'out-left' | 'out-right';
+    filterItemId?: string; // If filtered, which item (usually on priority output)
+}
+
+export interface BlockNode extends Node<Block | SplitterNodeData> {
+    origin?: [number, number];
+}
+
+export const BLOCK_LAYOUT = {
+    HEADER: 110,
+    PADDING: 19,
+    PORT_LABEL: 24,
+    PORT_ROW: 40,
+    PORT_GAP: 10,
+    FOOTER: 38,
+    HANDLE_OFFSET: 4 // The 4px the handle pokes out
+};
+
+import { XYPosition } from 'reactflow';
+
 /**
  * Calculate absolute position of a port on canvas.
  */
-export function getPortPosition(block: Block, port: Port): Position {
-    const { x, y } = block.position;
-    const { width, height } = block.size;
+export function getPortPosition(
+    nodeData: Block | SplitterNodeData,
+    nodePosition: XYPosition,
+    port: Port
+): XYPosition {
+    const width = (nodeData as any).size?.width || 80;
+    const height = (nodeData as any).size?.height || 80;
+    const { x, y } = nodePosition;
+
+    // Splitter Logic
+    if (!('recipeId' in nodeData)) {
+        const splitterX = port.side === 'left' ? x - BLOCK_LAYOUT.HANDLE_OFFSET : x + width + BLOCK_LAYOUT.HANDLE_OFFSET;
+        return { x: splitterX, y: y + height * port.offset };
+    }
+
+    // Building Logic
+    const { HEADER, PADDING, PORT_LABEL, PORT_ROW, PORT_GAP, HANDLE_OFFSET } = BLOCK_LAYOUT;
 
     switch (port.side) {
-        case 'top':
-            return { x: x + width * port.offset, y: y };
-        case 'bottom':
-            return { x: x + width * port.offset, y: y + height };
+        case 'top': return { x: x + width * port.offset, y: y - HANDLE_OFFSET };
+        case 'bottom': return { x: x + width * port.offset, y: y + height + HANDLE_OFFSET };
         case 'left':
-            return { x: x, y: y + height * port.offset };
-        case 'right':
-            return { x: x + width, y: y + height * port.offset };
+        case 'right': {
+            const ports = port.type === 'input' ? nodeData.inputPorts : nodeData.outputPorts;
+            const index = ports.findIndex(p => p.id === port.id);
+            const safeIndex = index === -1 ? 0 : index;
+
+            const topOffset = HEADER + PADDING + PORT_LABEL;
+            const rowCenter = topOffset + (safeIndex * (PORT_ROW + PORT_GAP)) + (PORT_ROW / 2);
+
+            const buildingX = port.side === 'left' ? x - HANDLE_OFFSET : x + width + HANDLE_OFFSET;
+            return { x: buildingX, y: y + rowCenter };
+        }
     }
+    return { x, y };
 }
 
 // ─── Internal Layout ────────────────────────────────────────
