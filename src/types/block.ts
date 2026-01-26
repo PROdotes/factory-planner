@@ -29,7 +29,7 @@ export interface Port {
     currentRate?: number;
 }
 
-export type EdgeStatus = 'ok' | 'bottleneck' | 'overload' | 'underload' | 'mismatch';
+export type EdgeStatus = 'ok' | 'bottleneck' | 'overload' | 'underload' | 'mismatch' | 'conflict';
 
 export interface BeltEdgeData {
     beltId: string;

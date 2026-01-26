@@ -15,6 +15,9 @@ import { useGameStore } from './gameStore';
 import { beltItemsPerMinute } from '@/types/game';
 import { solveBlock } from '@/lib/solver/rateSolver';
 import { calculateBlockDimensions } from '@/lib/layout/manifoldSolver';
+import { findChannelConflicts } from '@/lib/validation/conflictDetection';
+import { getPortPosition } from '@/types/block';
+import { getLaneCount, Point } from '@/lib/router/channelRouter';
 
 // We'll use this Type for our React Flow nodes
 // The 'data' field will contain our Block interface
@@ -80,12 +83,53 @@ const updateEdgeStatus = (edge: Edge, nodes: BlockNode[], game: any): Edge => {
 
     let status: EdgeStatus = 'ok';
 
-    if (supplyRate > capacity + 0.01) {
-        status = 'bottleneck';
-    } else if (demandRate > capacity + 0.01) {
-        status = 'overload';
-    } else if (demandRate > Math.min(supplyRate, capacity) + 0.01) {
+    // Logic Update for Channels:
+    // We now support multiple lanes, so a single belt capacity is NOT a hard limit.
+    // We only care if Demand > Supply (Starvation).
+    // "Overload" in the sense of "Needs more belts than fit in the map" is a spatial problem, not a logic one here.
+
+    // Check for Starvation
+    if (demandRate > supplyRate + 0.01) {
         status = 'underload';
+    }
+
+    // Check for Spatial Conflict
+    if (status === 'ok' || status === 'underload') {
+        const p1 = getPortPosition(sourceNode.data, sourcePort);
+        const p2 = getPortPosition(targetNode.data, targetPort);
+        const midX = p1.x + (p2.x - p1.x) * 0.5;
+
+        // "Manhattan" Points Logic (Must match ConnectionEdge.tsx)
+        const points: Point[] = [
+            { x: p1.x, y: p1.y },
+            { x: midX, y: p1.y },
+            { x: midX, y: p2.y },
+            { x: p2.x, y: p2.y }
+        ];
+
+        const lanes = getLaneCount(supplyRate, capacity);
+        // Visual constants: LaneWidth(4) + Spacing(6). 
+        // Total width is roughly (Lanes * 6) + Padding. 
+        // ChannelRenderer uses spread = (N-1)*6. 
+        // Total footprint width = ((N-1)*6) + 4 + 8 = 6N + 6.
+        const width = (lanes - 1) * 6 + 12;
+
+        // Ensure we pass up-to-date positions from the Node itself, not stale data in 'data'
+        const collisionBlocks = nodes.map(n => ({
+            ...n.data,
+            position: n.position,
+            // Ensure size is present (Block interface has size, but just in case)
+            size: n.data.size || { width: 150, height: 100 }
+        }));
+
+        const conflicts = findChannelConflicts(points, width, collisionBlocks);
+
+        // Filter out source/target blocks themselves
+        const relevantConflicts = conflicts.filter(c => c.id !== sourceNode.id && c.id !== targetNode.id);
+
+        if (relevantConflicts.length > 0) {
+            status = 'conflict';
+        }
     }
 
     return {
@@ -93,7 +137,8 @@ const updateEdgeStatus = (edge: Edge, nodes: BlockNode[], game: any): Edge => {
         data: {
             ...edgeData,
             capacity,
-            flowRate: Math.min(supplyRate, capacity),
+            // Flow is no longer capped by single belt capacity
+            flowRate: supplyRate,
             demandRate,
             status
         }
@@ -367,7 +412,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
             data: {
                 beltId: belt.id,
                 capacity,
-                flowRate: Math.min(initialSupply, capacity),
+                // Channel logic: We support N belts, so don't cap at single belt rate
+                flowRate: initialSupply,
                 demandRate: targetPort.rate,
                 status: 'ok',
                 itemId: sourcePort.itemId
@@ -409,12 +455,15 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
                     if (!sourcePort) return;
 
-                    const edgeData = edge.data as BeltEdgeData;
-                    const belt = game.belts.find(b => b.id === edgeData.beltId) || game.belts[0];
-                    const capacity = beltItemsPerMinute(belt);
+                    // const edgeData = edge.data as BeltEdgeData;
+                    // const belt = game.belts.find(b => b.id === edgeData.beltId) || game.belts[0];
+                    // const capacity = beltItemsPerMinute(belt);
 
                     const supply = sourcePort.currentRate !== undefined ? sourcePort.currentRate : sourcePort.rate;
-                    const flow = Math.min(supply, capacity);
+
+                    // Update for Channels: Flow is NOT capped by single belt capacity any more.
+                    // The visualizer will draw N lanes to accommodate the flow.
+                    const flow = supply;
 
                     const targetKey = `${edge.target}-${edge.targetHandle}`;
                     inputFlows.set(targetKey, (inputFlows.get(targetKey) || 0) + flow);

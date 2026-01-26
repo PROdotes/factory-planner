@@ -1,11 +1,12 @@
 import { memo } from 'react';
 import {
     EdgeProps,
-    getBezierPath,
     EdgeLabelRenderer,
     BaseEdge,
 } from 'reactflow';
 import { useLayoutStore } from '@/stores/layoutStore';
+import { ChannelRenderer } from '@/components/connections/ChannelRenderer';
+import { Point } from '@/lib/router/channelRouter';
 
 import { BeltEdgeData } from '@/types/block';
 import { DSP_DATA } from '@/data/dsp';
@@ -17,57 +18,88 @@ const ConnectionEdge = ({
     sourceY,
     targetX,
     targetY,
-    sourcePosition,
-    targetPosition,
     markerEnd,
     selected,
     data,
 }: EdgeProps<BeltEdgeData>) => {
     const deleteEdge = useLayoutStore((state) => state.deleteEdge);
-    const [edgePath, labelX, labelY] = getBezierPath({
-        sourceX,
-        sourceY,
-        sourcePosition,
-        targetX,
-        targetY,
-        targetPosition,
-    });
 
     const edgeData = data as BeltEdgeData;
     const status = edgeData?.status;
-    const isOverloaded = status === 'bottleneck' || status === 'overload';
+    const isOverloaded = status === 'bottleneck' || status === 'overload' || status === 'conflict';
     const isStarved = status === 'underload';
     const hasConflict = isOverloaded || isStarved;
 
-    let strokeColor = '#3b82f6'; // Default cyan
-    let strokeDasharray = undefined;
+    // 1. Determine Color
+    let mainColor = '#3b82f6'; // Default cyan
+    if (isOverloaded) mainColor = '#f43f5e'; // Red
+    else if (isStarved) mainColor = '#fbbf24'; // Amber
 
-    if (isOverloaded) {
-        strokeColor = '#f43f5e'; // Error red
-    } else if (isStarved) {
-        strokeColor = '#fbbf24'; // Starvation Amber
-        strokeDasharray = '6 4';
-    }
+    // 2. Generate Path Points
+    // Currently, we are using simple routing. 
+    // In the future, this should come from the edge data itself (saved waypoints).
+    // For now, let's create a simple Manhattan step.
 
-    if (selected) {
-        strokeColor = isOverloaded || isStarved ? strokeColor : '#3b82f6';
-    }
+    // Simple L-shape logic:
+    // Move out from source, turn 90 deg, move to target.
+    const midX = sourceX + (targetX - sourceX) * 0.5;
+
+    // We construct 4 points for an S-curve like manhattan
+    // P1 (Start) -> P2 (MidX, StartY) -> P3 (MidX, EndY) -> P4 (End)
+    // Actually, let's just feed the renderer the start/end and let it draw a straight line
+    // for Phase 1.1 verification, then we upgrade to Manhattan.
+
+    // Better Manhattan S-Curve:
+    const points: Point[] = [
+        { x: sourceX, y: sourceY },
+        { x: midX, y: sourceY },
+        { x: midX, y: targetY },
+        { x: targetX, y: targetY }
+    ];
+
+    // Determine Throughput for Width
+    // If not calculated yet, assume 1 lane
+    const throughput = edgeData?.flowRate || 60;
+    const capacity = edgeData?.capacity || 360;
+
+    // Calculate Label Position (Center of the middle segment)
+    // Segment 2 is from points[1] to points[2]
+    // which is the vertical segment in our Z shape
+    const labelX = midX;
+    const labelY = sourceY + (targetY - sourceY) * 0.5;
 
     return (
         <>
+            {/* 
+                We use a custom SVG renderer inside the Edge 
+                instead of the default path.
+                However, ReactFlow expects a path for interaction.
+                We render the ChannelRenderer as a "decoration"
+            */}
+
+            {/* The actual clickable path (invisible but captures events) */}
             <BaseEdge
                 id={id}
-                path={edgePath}
+                path={`M ${sourceX} ${sourceY} L ${midX} ${sourceY} L ${midX} ${targetY} L ${targetX} ${targetY}`}
                 markerEnd={markerEnd}
                 style={{
-                    stroke: strokeColor,
-                    strokeWidth: selected ? 3 : 2,
-                    strokeDasharray: strokeDasharray,
-                    filter: hasConflict
-                        ? `drop-shadow(0 0 8px ${strokeColor}66)`
-                        : 'none',
+                    strokeWidth: Math.max(20, (Math.ceil(throughput / capacity) - 1) * 6 + 12),
+                    stroke: 'transparent',
+                    cursor: 'pointer'
                 }}
             />
+
+            {/* The Visual Ribbon */}
+            <g className="react-flow__edge-path-selector" style={{ pointerEvents: 'none' }}>
+                <ChannelRenderer
+                    points={points}
+                    throughput={throughput}
+                    beltCapacity={capacity}
+                    color={mainColor}
+                    isSelected={selected}
+                    pattern={status === 'conflict' ? 'conflict' : undefined}
+                />
+            </g>
 
             <EdgeLabelRenderer>
                 <div
@@ -78,8 +110,8 @@ const ConnectionEdge = ({
                     }}
                     className="nodrag nopan z-[100] flex flex-col items-center gap-2"
                 >
-                    {/* Flow Rate Label */}
-                    {edgeData && (
+                    {/* Flow Rate Label Check: Only show if selected OR has an issue */}
+                    {(selected || hasConflict) && edgeData && (
                         <div
                             onClick={(e) => {
                                 e.stopPropagation();
