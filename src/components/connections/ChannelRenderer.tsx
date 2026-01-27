@@ -12,11 +12,18 @@ export interface ChannelRendererProps {
     pattern?: string;
     isBridge?: boolean;
     status?: string;
+    flowMode?: boolean;
 }
 
+// Standard mode dimensions
 const LANE_WIDTH = 4; // Visual width of the belt line
 const LANE_SPACING = 6; // Distance between lane centers
 const FOUNDATION_PADDING = 8; // Extra width for the background ribbon
+
+// Flow mode dimensions (thicker, more prominent)
+const FLOW_MODE_LANE_WIDTH = 8;
+const FLOW_MODE_LANE_SPACING = 10;
+const FLOW_MODE_FOUNDATION_PADDING = 12;
 
 /**
  * Calculates the offset points for a specific lane index.
@@ -185,8 +192,14 @@ export const ChannelRenderer: React.FC<ChannelRendererProps> = ({
     showFlow = true,
     bundleLanes = false,
     pattern,
-    status = 'ok'
+    status = 'ok',
+    flowMode = false
 }) => {
+    // Use thicker dimensions in flow mode
+    const laneWidth = flowMode ? FLOW_MODE_LANE_WIDTH : LANE_WIDTH;
+    const laneSpacing = flowMode ? FLOW_MODE_LANE_SPACING : LANE_SPACING;
+    const foundationPadding = flowMode ? FLOW_MODE_FOUNDATION_PADDING : FOUNDATION_PADDING;
+
     // 1. Calculate number of lanes
     const laneCount = getLaneCount(throughput, beltCapacity);
 
@@ -195,15 +208,15 @@ export const ChannelRenderer: React.FC<ChannelRendererProps> = ({
         if (!points || points.length < 2) return [];
 
         const paths: string[] = [];
-        const spread = (laneCount - 1) * LANE_SPACING;
+        const spread = (laneCount - 1) * laneSpacing;
         const startOffset = -spread / 2;
 
         for (let i = 0; i < laneCount; i++) {
-            const offset = startOffset + (i * LANE_SPACING);
+            const offset = startOffset + (i * laneSpacing);
             paths.push(getOffsetPath(points, offset));
         }
         return paths;
-    }, [points, laneCount]);
+    }, [points, laneCount, laneSpacing]);
 
     // 3. Generate Foundation (Background) Path
     // The foundation is just the center path, drawn very thick
@@ -217,7 +230,57 @@ export const ChannelRenderer: React.FC<ChannelRendererProps> = ({
     }, [points]);
 
     // Foundation width covers all lanes plus padding
-    const foundationWidth = ((laneCount - 1) * LANE_SPACING) + LANE_WIDTH + FOUNDATION_PADDING;
+    const foundationWidth = ((laneCount - 1) * laneSpacing) + laneWidth + foundationPadding;
+
+    // Generate arrow markers for flow mode
+    const arrowMarkers = useMemo(() => {
+        if (!flowMode || !points || points.length < 2) return [];
+
+        const markers: Array<{ x: number; y: number; angle: number }> = [];
+        const ARROW_SPACING = 80; // pixels between arrows
+
+        // Calculate total path length and place arrows along it
+        let totalLength = 0;
+        const segments: Array<{ start: Point; end: Point; length: number; cumLength: number }> = [];
+
+        for (let i = 0; i < points.length - 1; i++) {
+            const dx = points[i + 1].x - points[i].x;
+            const dy = points[i + 1].y - points[i].y;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            segments.push({
+                start: points[i],
+                end: points[i + 1],
+                length: len,
+                cumLength: totalLength + len
+            });
+            totalLength += len;
+        }
+
+        // Place arrows at regular intervals
+        const numArrows = Math.floor(totalLength / ARROW_SPACING);
+        for (let i = 1; i <= numArrows; i++) {
+            const targetDist = i * ARROW_SPACING;
+
+            // Find which segment this distance falls in
+            for (const seg of segments) {
+                if (targetDist <= seg.cumLength) {
+                    const distIntoSeg = targetDist - (seg.cumLength - seg.length);
+                    const t = distIntoSeg / seg.length;
+
+                    const x = seg.start.x + (seg.end.x - seg.start.x) * t;
+                    const y = seg.start.y + (seg.end.y - seg.start.y) * t;
+
+                    // Calculate angle
+                    const angle = Math.atan2(seg.end.y - seg.start.y, seg.end.x - seg.start.x) * (180 / Math.PI);
+
+                    markers.push({ x, y, angle });
+                    break;
+                }
+            }
+        }
+
+        return markers;
+    }, [flowMode, points]);
 
     return (
         <g className="channel-renderer pointer-events-none">
@@ -309,7 +372,7 @@ export const ChannelRenderer: React.FC<ChannelRendererProps> = ({
                         <path
                             d={d}
                             stroke="#1e293b" // slate-800
-                            strokeWidth={LANE_WIDTH + 2}
+                            strokeWidth={laneWidth + 2}
                             fill="none"
                             strokeLinecap="round"
                             strokeLinejoin="round"
@@ -319,14 +382,16 @@ export const ChannelRenderer: React.FC<ChannelRendererProps> = ({
                         <path
                             d={d}
                             stroke={color}
-                            strokeWidth={LANE_WIDTH - 0.5}
+                            strokeWidth={laneWidth - 0.5}
                             fill="none"
                             strokeLinecap={bundleLanes ? "butt" : "round"}
                             strokeLinejoin="round"
                             strokeDasharray={showFlow ? "8 22" : "none"}
                             style={{
                                 opacity: 1,
-                                filter: 'brightness(1.2) drop-shadow(0 0 2px rgba(255,255,255,0.5))'
+                                filter: flowMode
+                                    ? 'brightness(1.3) drop-shadow(0 0 4px rgba(255,255,255,0.6))'
+                                    : 'brightness(1.2) drop-shadow(0 0 2px rgba(255,255,255,0.5))'
                             }}
                         >
                             {showFlow && (
@@ -344,7 +409,7 @@ export const ChannelRenderer: React.FC<ChannelRendererProps> = ({
                             <path
                                 d={d}
                                 stroke="rgba(255,255,255,0.7)"
-                                strokeWidth={LANE_WIDTH / 3}
+                                strokeWidth={laneWidth / 3}
                                 fill="none"
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
@@ -362,6 +427,18 @@ export const ChannelRenderer: React.FC<ChannelRendererProps> = ({
                     </g>
                 ))
             )}
+
+            {/* Direction arrows (flow mode only) */}
+            {flowMode && arrowMarkers.map((marker, i) => (
+                <g key={`arrow-${i}`} transform={`translate(${marker.x}, ${marker.y}) rotate(${marker.angle})`}>
+                    <polygon
+                        points="-6,-4 6,0 -6,4"
+                        fill={color}
+                        opacity={0.9}
+                        style={{ filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.5))' }}
+                    />
+                </g>
+            ))}
         </g>
     );
 };

@@ -48,9 +48,8 @@ const CanvasContent: React.FC<CanvasProps> = ({ className = '' }) => {
         (event: React.DragEvent) => {
             event.preventDefault();
 
-            const type = event.dataTransfer.getData('application/reactflow');
-
-            if (!type) return;
+            const draggingItem = useLayoutStore.getState().draggingItem;
+            if (!draggingItem) return;
 
             if (reactFlowWrapper.current) {
                 const reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect();
@@ -59,14 +58,13 @@ const CanvasContent: React.FC<CanvasProps> = ({ className = '' }) => {
                     y: event.clientY - reactFlowBounds.top,
                 });
 
-                if (type === 'splitter') {
+                if (draggingItem.type === 'splitter') {
                     useLayoutStore.getState().addSplitter('splitter', position);
-                } else if (type === 'new-block') {
-                    const recipeId = event.dataTransfer.getData('recipeId');
-                    if (recipeId) {
-                        addBlock(recipeId, position);
-                    }
+                } else if (draggingItem.type === 'new-block' && draggingItem.recipeId) {
+                    addBlock(draggingItem.recipeId, position);
                 }
+
+                useLayoutStore.getState().setDraggingItem(null);
             }
         },
         [project, addBlock]
@@ -104,7 +102,12 @@ const CanvasContent: React.FC<CanvasProps> = ({ className = '' }) => {
     }, [project]);
 
     return (
-        <div className={`w-full h-full ${className}`} ref={reactFlowWrapper}>
+        <div
+            className={`w-full h-full ${className}`}
+            ref={reactFlowWrapper}
+            onDragOver={onDragOver}
+            onDrop={onDrop}
+        >
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
@@ -116,10 +119,33 @@ const CanvasContent: React.FC<CanvasProps> = ({ className = '' }) => {
                 }}
                 onConnectStart={onConnectStart}
                 onConnectEnd={onConnectEnd}
+                onContextMenu={(e) => {
+                    if (useLayoutStore.getState().draggingItem) {
+                        e.preventDefault();
+                        useLayoutStore.getState().setDraggingItem(null);
+                    }
+                }}
+                onMouseUp={(e) => {
+                    const draggingItem = useLayoutStore.getState().draggingItem;
+                    if (draggingItem && reactFlowWrapper.current) {
+                        const { top, left } = reactFlowWrapper.current.getBoundingClientRect();
+                        const position = project({
+                            x: e.clientX - left,
+                            y: e.clientY - top,
+                        });
+
+                        if (draggingItem.type === 'splitter') {
+                            useLayoutStore.getState().addSplitter('splitter', position);
+                        } else if (draggingItem.type === 'new-block' && draggingItem.recipeId) {
+                            addBlock(draggingItem.recipeId, position);
+                        }
+
+                        // Clear dragging state after placement
+                        useLayoutStore.getState().setDraggingItem(null);
+                    }
+                }}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
-                onDragOver={onDragOver}
-                onDrop={onDrop}
                 deleteKeyCode={['Backspace', 'Delete']}
                 fitView
                 defaultEdgeOptions={{

@@ -89,14 +89,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
                         </h3>
                         <div className="px-2 space-y-1">
                             <div
-                                draggable
-                                onDragStart={(e) => {
-                                    e.dataTransfer.setData('application/reactflow', 'splitter');
-                                    e.dataTransfer.effectAllowed = 'move';
+                                onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    useLayoutStore.getState().setDraggingItem({ type: 'splitter' });
                                 }}
-                                className="px-4 py-3 bg-primary/5 hover:bg-primary/10 cursor-grab active:cursor-grabbing flex items-center justify-between rounded-xl border border-primary/10 hover:border-primary/30 transition-all group"
+                                className="px-4 py-3 bg-primary/5 hover:bg-primary/10 cursor-pointer flex items-center justify-between rounded-xl border border-primary/10 hover:border-primary/30 transition-all group select-none"
                             >
-                                <div className="flex flex-col">
+                                <div className="flex flex-col pointer-events-none">
                                     <span className="text-sm font-semibold text-text group-hover:text-primary transition-colors">
                                         4-Way Splitter
                                     </span>
@@ -104,7 +103,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
                                         Modular Logistics
                                     </span>
                                 </div>
-                                <div className="h-8 w-8 rounded-lg bg-black/20 flex items-center justify-center text-primary border border-primary/20">
+                                <div className="h-8 w-8 rounded-lg bg-black/20 flex items-center justify-center text-primary border border-primary/20 pointer-events-none">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M7 11V7a5 5 0 0 1 10 0v4" /><path d="M11 21a2 2 0 1 0 4 0 2 2 0 1 0-4 0" /><path d="M7 21a2 2 0 1 0 4 0 2 2 0 1 0-4 0" /><path d="M11 11v6" /></svg>
                                 </div>
                             </div>
@@ -127,15 +126,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
                             {recipes.map(recipe => (
                                 <div
                                     key={recipe.id}
-                                    draggable
-                                    onDragStart={(e) => {
-                                        e.dataTransfer.setData('application/reactflow', 'new-block');
-                                        e.dataTransfer.setData('recipeId', recipe.id);
-                                        e.dataTransfer.effectAllowed = 'move';
+                                    onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        useLayoutStore.getState().setDraggingItem({ type: 'new-block', recipeId: recipe.id });
                                     }}
-                                    className="px-4 py-3 bg-white/[0.02] hover:bg-white/[0.08] cursor-grab active:cursor-grabbing flex items-center justify-between rounded-xl border border-transparent hover:border-white/10 transition-all group"
+                                    className="px-4 py-3 bg-white/[0.02] hover:bg-white/[0.08] cursor-pointer flex items-center justify-between rounded-xl border border-transparent hover:border-white/10 transition-all group select-none"
                                 >
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-3 pointer-events-none">
                                         <div className="w-10 h-10 rounded-lg bg-black/40 border border-white/5 flex items-center justify-center p-1 group-hover:border-primary/30 transition-all">
                                             <DSPIcon
                                                 index={ITEM_ICON_MAP[recipe.id] || 0}
@@ -151,7 +148,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
                                             </span>
                                         </div>
                                     </div>
-                                    <div className="h-8 w-8 rounded-lg bg-black/20 flex items-center justify-center text-[10px] font-bold text-textSecondary border border-white/5">
+                                    <div className="h-8 w-8 rounded-lg bg-black/20 flex items-center justify-center text-[10px] font-bold text-textSecondary border border-white/5 pointer-events-none">
                                         {recipe.craftingTime}s
                                     </div>
                                 </div>

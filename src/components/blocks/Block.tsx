@@ -1,20 +1,23 @@
-import { memo, useMemo, useCallback, useRef, useEffect } from 'react';
-import { NodeProps } from 'reactflow';
+import { memo, useMemo, useCallback, useRef, useEffect, useState } from 'react';
+import { NodeProps, Handle, Position } from 'reactflow';
 import { Block as BlockType, BLOCK_LAYOUT } from '@/types/block';
 import { DSP_DATA } from '@/data/dsp';
 import { useLayoutStore } from '@/stores/layoutStore';
-import { ArrowRight, Activity, Zap } from 'lucide-react';
+import { ArrowRight, Activity, Zap, Factory } from 'lucide-react';
 
 import { BlockHeader } from './parts/BlockHeader';
 import { BlockMachineControls } from './parts/BlockMachineControls';
 import { BlockPortList, PortState } from './parts/BlockPortList';
+import { BlockDetailModal } from './BlockDetailModal';
 
 const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
     const deleteBlock = useLayoutStore((state) => state.deleteBlock);
     const updateBlock = useLayoutStore((state) => state.updateBlock);
     const edges = useLayoutStore((state) => state.edges);
     const onPortClick = useLayoutStore((state) => state.onPortClick);
+    const flowMode = useLayoutStore((state) => state.viewSettings.flowMode);
     const machineInputRef = useRef<HTMLInputElement>(null);
+    const [showDetailModal, setShowDetailModal] = useState(false);
 
     // Lookup data for display
     const recipe = DSP_DATA.recipes.find(r => r.id === data.recipeId);
@@ -122,6 +125,110 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
 
     const handleSetPrimary = useCallback((itemId: string) => updateBlock(id, { primaryOutputId: itemId }), [id, updateBlock]);
 
+    // Get the primary output item for the badge icon color
+    const primaryOutput = data.outputPorts[0];
+    const primaryItem = primaryOutput ? DSP_DATA.items.find(i => i.id === primaryOutput.itemId) : null;
+    const badgeColor = primaryItem?.color || '#64748b';
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FLOW MODE: Compact Badge Rendering
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (flowMode) {
+        const BADGE_WIDTH = 80;
+        const BADGE_HEIGHT = 56;
+
+        return (
+            <>
+                <div
+                    style={{ width: BADGE_WIDTH, height: BADGE_HEIGHT }}
+                    className={`
+                        flex flex-col items-center justify-center
+                        bg-slate-900/90 backdrop-blur-sm border rounded-lg shadow-lg font-mono relative
+                        cursor-pointer transition-all duration-200
+                        ${selected ? 'border-cyan-500 ring-2 ring-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'border-slate-700 hover:border-slate-500'}
+                        ${hasConflict ? 'border-red-500/70' : ''}
+                    `}
+                    onClick={() => setShowDetailModal(true)}
+                >
+                    {/* Accent bar */}
+                    <div
+                        className="absolute top-0 left-0 w-full h-0.5 rounded-t-lg"
+                        style={{ backgroundColor: badgeColor }}
+                    />
+
+                    {/* Recipe Icon + Count */}
+                    <div className="flex items-center gap-1.5">
+                        <Factory size={18} style={{ color: badgeColor }} />
+                        <span className="text-white font-black text-lg">
+                            ×{Math.ceil(data.machineCount)}
+                        </span>
+                    </div>
+
+                    {/* Output Rate */}
+                    <div className="text-[10px] text-slate-400 font-bold">
+                        {data.actualRate.toFixed(0)}/m
+                    </div>
+
+                    {/* Invisible handles for connections - centered on badge */}
+                    {data.inputPorts.map((port, idx) => (
+                        <Handle
+                            key={port.id}
+                            type="target"
+                            position={Position.Left}
+                            id={port.id}
+                            style={{
+                                top: `${30 + (idx * 12)}%`,
+                                left: -4,
+                                width: 8,
+                                height: 8,
+                                background: 'transparent',
+                                border: 'none',
+                            }}
+                        />
+                    ))}
+                    {data.outputPorts.map((port, idx) => (
+                        <Handle
+                            key={port.id}
+                            type="source"
+                            position={Position.Right}
+                            id={port.id}
+                            style={{
+                                top: `${30 + (idx * 12)}%`,
+                                right: -4,
+                                width: 8,
+                                height: 8,
+                                background: 'transparent',
+                                border: 'none',
+                            }}
+                        />
+                    ))}
+                </div>
+
+                {/* Detail Modal */}
+                {showDetailModal && (
+                    <BlockDetailModal
+                        data={data}
+                        recipe={recipe}
+                        machine={currentMachine}
+                        totalPower={totalPowerWatts}
+                        hasConflict={hasConflict}
+                        onClose={() => setShowDetailModal(false)}
+                        onUpdateRate={handleUpdateRate}
+                        onUpdateMachineCount={handleUpdateMachineCount}
+                        onCycleMachine={handleCycleMachine}
+                        onUpdateModifier={handleUpdateModifier}
+                        onDelete={handleDelete}
+                        formatPower={formatPower}
+                        getItemName={getItemName}
+                    />
+                )}
+            </>
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STANDARD MODE: Full Block Rendering
+    // ═══════════════════════════════════════════════════════════════════════════
     return (
         <div
             style={{ width: data.size.width, minHeight: data.size.height }}
@@ -132,17 +239,6 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
                 ${hasConflict && !selected ? 'border-red-500/50 shadow-[0_0_15px_rgba(244,63,94,0.1)]' : ''}
             `}
         >
-            {/* DEBUG COLLISION BOUNDARY (PINK/RED)
-            <div
-                className={`absolute top-0 left-0 border-2 pointer-events-none z-[500] ${isNodeColliding ? 'border-red-500 animate-pulse' : 'border-pink-500/40'}`}
-                style={{ width: data.size.width, height: data.size.height }}
-            >
-                <div className={`absolute top-0 right-0 ${isNodeColliding ? 'bg-red-500' : 'bg-pink-500'} text-white text-[8px] px-1 font-black`}>
-                    {isNodeColliding ? 'COLLISION' : `BOX: ${data.size.width}x${data.size.height}`}
-                </div>
-            </div>
-            */}
-
             {/* Top Accent Bar */}
             <div className={`absolute top-0 left-0 w-full h-1 rounded-t-lg bg-gradient-to-r ${hasConflict ? 'from-red-600 to-red-400' : (selected ? 'from-cyan-400 to-blue-500' : 'from-slate-700 to-slate-800')}`}></div>
 

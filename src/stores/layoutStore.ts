@@ -30,6 +30,7 @@ export interface ViewSettings {
     showFlow: boolean;
     bundleLanes: boolean;
     autoIncrementSource: boolean;
+    flowMode: boolean;
 }
 
 interface LayoutState {
@@ -63,6 +64,8 @@ interface LayoutState {
     saveToStorage: () => void;
     loadFromStorage: () => void;
     refreshGlobalRates: () => void;
+    setDraggingItem: (item: { type: 'splitter' | 'new-block', recipeId?: string } | null) => void;
+    draggingItem: { type: 'splitter' | 'new-block', recipeId?: string } | null;
 }
 
 const getPort = (node: BlockNode, handleId: string | null, type: 'input' | 'output'): Port | undefined => {
@@ -248,8 +251,11 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         showFlow: true,
         bundleLanes: false,
         autoIncrementSource: false,
+        flowMode: false,
     },
     nodeConflicts: new Set(),
+    draggingItem: null,
+    setDraggingItem: (item) => set({ draggingItem: item }),
 
     onPortClick: (nodeId, portId, type) => {
         set({ activePort: { nodeId, portId, type }, dropPosition: null });

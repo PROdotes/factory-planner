@@ -22,6 +22,7 @@ const ConnectionEdge = ({
     const [isHovered, setIsHovered] = useState(false);
     const { deleteEdge, viewSettings } = useLayoutStore();
     const getItem = useGameStore(state => state.getItem);
+    const flowMode = viewSettings.flowMode;
 
     const item = edgeData?.itemId ? getItem(edgeData.itemId) : null;
     const itemName = item?.name || 'Any';
@@ -53,7 +54,8 @@ const ConnectionEdge = ({
     };
 
     const mainColor = getCategoryColor();
-    const showLabels = viewSettings.showLabels || selected;
+    // In flow mode, always show labels; otherwise respect the toggle
+    const showLabels = flowMode || viewSettings.showLabels || selected;
 
     // Fixed Manhattan Path (Z-shape)
     const midX = sourceX + (targetX - sourceX) * 0.5;
@@ -108,6 +110,7 @@ const ConnectionEdge = ({
                     bundleLanes={viewSettings.bundleLanes}
                     status={status}
                     pattern={status === 'conflict' ? 'conflict' : undefined}
+                    flowMode={flowMode}
                 />
             </g>
 

@@ -10,7 +10,8 @@ import {
     Eye,
     Activity,
     Layers,
-    TrendingUp
+    TrendingUp,
+    GitBranch
 } from 'lucide-react';
 import { useLayoutStore } from '@/stores/layoutStore';
 
@@ -96,6 +97,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({ className = '', onOpenEditor, 
                 <div className="h-8 w-px bg-white/10 mx-4" />
 
                 <div className="flex items-center gap-1.5">
+                    {/* Flow Mode Toggle - Primary */}
+                    <button
+                        onClick={() => toggleViewSetting('flowMode')}
+                        className={`glass-button !p-2 ${viewSettings.flowMode ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/30' : 'text-white/40'}`}
+                        title="Flow Mode - Compact factories, emphasized belts"
+                    >
+                        <GitBranch size={16} />
+                    </button>
+
+                    <div className="h-6 w-px bg-white/5 mx-0.5" />
+
                     <button
                         onClick={() => toggleViewSetting('showLabels')}
                         className={`glass-button !p-2 ${viewSettings.showLabels ? 'text-cyan-400 bg-cyan-400/10 border-cyan-400/30' : 'text-white/40'}`}

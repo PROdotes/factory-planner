@@ -6,8 +6,48 @@ import { RecipePicker } from './components/modals/RecipePicker/RecipePicker';
 import { ConnectPicker } from './components/modals/ConnectPicker/ConnectPicker';
 import { useLayoutStore } from './stores/layoutStore';
 import { ReactFlowProvider, useReactFlow } from 'reactflow';
+import { DSPIcon, ITEM_ICON_MAP } from './components/ui/DSPIcon';
 
 import { Recipe } from './types/game';
+
+const GlobalGhost = () => {
+  const draggingItem = useLayoutStore(state => state.draggingItem);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    if (!draggingItem) return;
+    const handleMove = (e: MouseEvent) => setPos({ x: e.clientX, y: e.clientY });
+    const handleUp = () => {
+      // Small delay to let Canvas.onMouseUp fire first if applicable
+      setTimeout(() => useLayoutStore.getState().setDraggingItem(null), 50);
+    };
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+  }, [draggingItem]);
+
+  if (!draggingItem) return null;
+
+  return (
+    <div
+      className="fixed pointer-events-none z-[9999] opacity-70 -translate-x-1/2 -translate-y-1/2 border-2 border-primary/50 bg-primary/10 rounded-lg p-2 backdrop-blur-sm"
+      style={{ left: pos.x, top: pos.y }}
+    >
+      {draggingItem.type === 'splitter' ? (
+        <div className="w-10 h-10 flex items-center justify-center text-primary">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M7 11V7a5 5 0 0 1 10 0v4" /><path d="M11 21a2 2 0 1 0 4 0 2 2 0 1 0-4 0" /><path d="M7 21a2 2 0 1 0 4 0 2 2 0 1 0-4 0" /><path d="M11 11v6" /></svg>
+        </div>
+      ) : (
+        <div className="w-10 h-10 flex items-center justify-center">
+          <DSPIcon index={ITEM_ICON_MAP[draggingItem.recipeId!] || 0} size={32} />
+        </div>
+      )}
+    </div>
+  );
+};
 
 const AppModals = ({
   isEditorOpen,
@@ -102,6 +142,7 @@ function App() {
         onAddBlock={() => setIsPickerOpen(true)}
       >
         <Canvas />
+        <GlobalGhost />
 
         <AppModals
           isEditorOpen={isEditorOpen}
