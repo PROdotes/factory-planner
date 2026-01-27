@@ -232,6 +232,11 @@ export const ChannelRenderer: React.FC<ChannelRendererProps> = ({
     // Foundation width covers all lanes plus padding
     const foundationWidth = ((laneCount - 1) * laneSpacing) + laneWidth + foundationPadding;
 
+    // Calculate animation duration based on saturation of ALL rendered lanes
+    // If we have 2 lanes for 400/360 flow, capacity is 720, so speed should be slower.
+    const effectiveCapacity = Math.max(beltCapacity, laneCount * beltCapacity);
+    const flowDuration = Math.min(8, Math.max(0.4, 1.0 * (effectiveCapacity / Math.max(0.1, throughput))));
+
     // Generate arrow markers for flow mode
     const arrowMarkers = useMemo(() => {
         if (!flowMode || !points || points.length < 2) return [];
@@ -359,7 +364,7 @@ export const ChannelRenderer: React.FC<ChannelRendererProps> = ({
                                 attributeName="stroke-dashoffset"
                                 from="0"
                                 to="-30"
-                                dur="1.2s"
+                                dur={`${flowDuration}s`}
                                 repeatCount="indefinite"
                             />
                         </path>
@@ -399,7 +404,7 @@ export const ChannelRenderer: React.FC<ChannelRendererProps> = ({
                                     attributeName="stroke-dashoffset"
                                     from="0"
                                     to="-30"
-                                    dur="1.2s"
+                                    dur={`${flowDuration}s`}
                                     repeatCount="indefinite"
                                 />
                             )}
@@ -419,7 +424,7 @@ export const ChannelRenderer: React.FC<ChannelRendererProps> = ({
                                     attributeName="stroke-dashoffset"
                                     from="-1"
                                     to="-31"
-                                    dur="1.2s"
+                                    dur={`${flowDuration}s`}
                                     repeatCount="indefinite"
                                 />
                             </path>
