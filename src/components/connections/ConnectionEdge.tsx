@@ -114,57 +114,78 @@ const ConnectionEdge = ({
                 />
             </g>
 
-            {/* Status Tooltip / Info - Hover Only */}
-            {isVisible && (
-                <EdgeLabelRenderer>
+            {/* Labels Layer */}
+            <EdgeLabelRenderer>
+                {/* Source Endpoint Pill */}
+                {isVisible && (
+                    <div
+                        style={{
+                            position: 'absolute',
+                            transform: `translate(12px, -100%) translate(${sourceX}px, ${sourceY - 8}px)`,
+                            pointerEvents: 'none',
+                        }}
+                        className={`
+                            backdrop-blur border rounded-full px-2 py-0.5 flex items-center gap-1.5 shadow-xl z-40 transition-all font-mono
+                            bg-slate-900 border-white/20 whitespace-nowrap
+                            ${selected ? 'scale-110 border-cyan-500/50' : 'scale-90 opacity-90'}
+                        `}
+                    >
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: mainColor }} />
+                        <span className="text-[9px] font-black text-white/90">
+                            {throughput.toFixed(1)} {itemName}
+                        </span>
+                    </div>
+                )}
+
+                {/* Target Endpoint Pill */}
+                {isVisible && (
+                    <div
+                        style={{
+                            position: 'absolute',
+                            transform: `translate(calc(-100% - 12px), -100%) translate(${targetX}px, ${targetY - 8}px)`,
+                            pointerEvents: 'none',
+                        }}
+                        className={`
+                            backdrop-blur border rounded-full px-2 py-0.5 flex items-center gap-1.5 shadow-xl z-40 transition-all font-mono
+                            bg-slate-900 border-white/20 whitespace-nowrap
+                            ${selected ? 'scale-110 border-cyan-500/50' : 'scale-90 opacity-90'}
+                        `}
+                    >
+                        <span className="text-[9px] font-black text-white/90 text-right">
+                            {throughput.toFixed(1)} {itemName}
+                        </span>
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: mainColor }} />
+                    </div>
+                )}
+
+                {/* Minimal Selection Overlay (Delete Button + Status) */}
+                {selected && (
                     <div
                         style={{
                             position: 'absolute',
                             transform: `translate(-50%, -50%) translate(${longest.x}px, ${longest.y}px)`,
-                            pointerEvents: selected ? 'all' : 'none',
+                            pointerEvents: 'all',
                         }}
-                        className={`
-                            backdrop-blur border rounded-lg p-1.5 flex flex-col gap-0.5 min-w-[80px] shadow-2xl z-50 transition-all
-                            ${selected ? 'bg-slate-900/90 border-slate-500 scale-110' : 'bg-slate-950/60 border-white/10 scale-90 opacity-80'}
-                        `}
+                        className="z-50 flex flex-col items-center gap-2"
                     >
-                        {selected && (
-                            <button
-                                className="absolute -top-3 -right-3 text-slate-400 hover:text-red-400 bg-slate-900 border border-slate-700 rounded-full p-1 transition-colors shadow-lg cursor-pointer pointer-events-auto"
-                                onMouseDown={(e) => {
-                                    e.stopPropagation();
-                                    deleteEdge(id);
-                                }}
-                            >
-                                <X size={10} strokeWidth={3} />
-                            </button>
-                        )}
-                        <div className="flex items-center justify-between gap-2">
-                            <span className={`text-[10px] font-black tracking-widest ${selected ? 'text-slate-300' : 'text-slate-500'}`}>
-                                {itemName}
-                            </span>
-                            <div className="flex items-baseline gap-0.5">
-                                <span className={`text-[11px] font-black ${status === 'underload' ? 'text-amber-400' : (selected ? 'text-cyan-400' : 'text-white/60')}`}>
-                                    {throughput.toFixed(1)}
-                                </span>
-                                {edgeData?.demandRate && Math.abs(edgeData.demandRate - throughput) > 0.05 && (
-                                    <>
-                                        <span className="text-[10px] text-white/20">/</span>
-                                        <span className="text-[10px] font-bold text-white/40">
-                                            {edgeData.demandRate.toFixed(1)}
-                                        </span>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                        {selected && status !== 'ok' && (
-                            <div className={`mt-0.5 pt-0.5 border-t border-white/5 text-[8px] font-black uppercase tracking-tighter text-center ${status === 'underload' ? 'text-amber-400' : 'text-rose-400'}`}>
-                                STATUS: {status}
+                        <button
+                            className="bg-slate-900 border border-slate-700 hover:border-red-500 text-slate-400 hover:text-red-500 rounded-full p-2 transition-all shadow-2xl scale-125 group"
+                            onMouseDown={(e) => {
+                                e.stopPropagation();
+                                deleteEdge(id);
+                            }}
+                        >
+                            <X size={14} strokeWidth={3} className="group-hover:rotate-90 transition-transform" />
+                        </button>
+
+                        {status !== 'ok' && (
+                            <div className={`backdrop-blur border rounded-md px-2 py-0.5 text-[9px] font-black uppercase tracking-tighter shadow-xl ${status === 'underload' ? 'bg-amber-900/40 border-amber-500/50 text-amber-400' : 'bg-rose-900/40 border-rose-500/50 text-rose-400'}`}>
+                                {status}
                             </div>
                         )}
                     </div>
-                </EdgeLabelRenderer>
-            )}
+                )}
+            </EdgeLabelRenderer>
         </>
     );
 };
