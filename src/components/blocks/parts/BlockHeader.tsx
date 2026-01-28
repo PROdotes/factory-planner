@@ -1,6 +1,7 @@
 import { Settings, Edit2, Trash2 } from 'lucide-react';
 import { memo, useRef, useEffect } from 'react';
-import { DSPIcon, ITEM_ICON_MAP } from '@/components/ui/DSPIcon';
+import { DSPIcon } from '@/components/ui/DSPIcon';
+import { useGameStore } from '@/stores/gameStore';
 
 interface BlockHeaderProps {
     id: string;
@@ -29,6 +30,7 @@ export const BlockHeader = memo(({
     height
 }: BlockHeaderProps) => {
     const rateInputRef = useRef<HTMLInputElement>(null);
+    const { game } = useGameStore();
 
     useEffect(() => {
         const target = rateInputRef.current;
@@ -58,13 +60,13 @@ export const BlockHeader = memo(({
             <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 bg-slate-900/50 border rounded flex items-center justify-center shadow-inner transition-colors overflow-hidden ${hasConflict ? 'border-red-500/30 text-red-500' : 'border-cyan-500/30 text-cyan-400'}`}>
                     {recipeId ? (
-                        <DSPIcon index={ITEM_ICON_MAP[recipeId] || 0} size={32} />
+                        <DSPIcon index={game.items.find(i => i.id === recipeId)?.iconIndex || 0} size={32} />
                     ) : (
                         <Settings size={20} className={selected && !hasConflict ? 'animate-spin-slow' : ''} />
                     )}
                 </div>
                 <div>
-                    <h2 className="text-slate-50 font-bold text-base leading-none uppercase tracking-wider truncate max-w-[150px]">
+                    <h2 className="text-slate-50 font-bold text-base leading-none uppercase tracking-wider truncate max-w-[180px]">
                         {label}
                     </h2>
                     <span className={`text-[10px] font-semibold uppercase tracking-widest mt-1 block ${hasConflict ? 'text-red-400/60' : 'text-cyan-400/60'}`}>

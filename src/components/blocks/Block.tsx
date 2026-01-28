@@ -1,8 +1,8 @@
 import { memo, useMemo, useCallback, useRef, useEffect, useState } from 'react';
 import { NodeProps, Handle, Position } from 'reactflow';
 import { Block as BlockType, BLOCK_LAYOUT } from '@/types/block';
-import { DSP_DATA } from '@/data/dsp';
 import { useLayoutStore } from '@/stores/layoutStore';
+import { useGameStore } from '@/stores/gameStore';
 import { ArrowRight, Activity, Zap, Factory } from 'lucide-react';
 
 import { BlockHeader } from './parts/BlockHeader';
@@ -11,6 +11,7 @@ import { BlockPortList, PortState } from './parts/BlockPortList';
 import { BlockDetailModal } from './BlockDetailModal';
 
 const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
+    const { game } = useGameStore();
     const deleteBlock = useLayoutStore((state) => state.deleteBlock);
     const updateBlock = useLayoutStore((state) => state.updateBlock);
     const edges = useLayoutStore((state) => state.edges);
@@ -20,8 +21,8 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
     const [showDetailModal, setShowDetailModal] = useState(false);
 
     // Lookup data for display
-    const recipe = DSP_DATA.recipes.find(r => r.id === data.recipeId);
-    const currentMachine = DSP_DATA.machines.find(m => m.id === data.machineId);
+    const recipe = game.recipes.find(r => r.id === data.recipeId);
+    const currentMachine = game.machines.find(m => m.id === data.machineId);
 
     const totalPowerWatts = data.machineCount * (currentMachine?.powerUsage || 0);
     const formatPower = (watts: number) => {
@@ -31,7 +32,7 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
     };
 
     const getItemName = (id: string) => {
-        return DSP_DATA.items.find(i => i.id === id)?.name || id;
+        return game.items.find(i => i.id === id)?.name || id;
     };
 
     // Check for conflicts on connected edges & Build Port States
@@ -91,16 +92,16 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
 
     // Machine Logic
     const alternatives = useMemo(() => {
-        return DSP_DATA.machines.filter(m =>
+        return game.machines.filter(m =>
             currentMachine &&
             m.category === currentMachine.category &&
             m.id !== currentMachine.id
         );
-    }, [currentMachine]);
+    }, [game.machines, currentMachine]);
 
     const handleCycleMachine = useCallback(() => {
         if (alternatives.length === 0) return;
-        const allInCategory = DSP_DATA.machines.filter(m =>
+        const allInCategory = game.machines.filter(m =>
             currentMachine && m.category === currentMachine.category
         );
         const currentIndex = allInCategory.findIndex(m => m.id === data.machineId);
@@ -108,7 +109,7 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
         const nextMachine = allInCategory[nextIndex];
 
         updateBlock(id, { machineId: nextMachine.id });
-    }, [alternatives, currentMachine, data.machineId, id, updateBlock]);
+    }, [alternatives, currentMachine, game.machines, data.machineId, id, updateBlock]);
 
     const handleUpdateModifier = useCallback((mod?: any) => updateBlock(id, { modifier: mod }), [id, updateBlock]);
 
@@ -127,7 +128,7 @@ const Block = ({ id, data, selected }: NodeProps<BlockType>) => {
 
     // Get the primary output item for the badge icon color
     const primaryOutput = data.outputPorts[0];
-    const primaryItem = primaryOutput ? DSP_DATA.items.find(i => i.id === primaryOutput.itemId) : null;
+    const primaryItem = primaryOutput ? game.items.find(i => i.id === primaryOutput.itemId) : null;
     const badgeColor = primaryItem?.color || '#64748b';
 
     // ═══════════════════════════════════════════════════════════════════════════

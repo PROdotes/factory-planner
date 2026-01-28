@@ -150,7 +150,7 @@ export function isBlock(data: Block | SplitterNodeData): data is Block {
 
 export const BLOCK_LAYOUT = {
     HEADER: 98,
-    WIDTH: 350,
+    WIDTH: 380,
     HEADER_TOP_HEIGHT: 64,
     HEADER_CONTROLS_HEIGHT: 34,
     PADDING: 10,

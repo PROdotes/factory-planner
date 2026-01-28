@@ -1,0 +1,155 @@
+{
+  "id": "factorio",
+  "name": "Factorio",
+  "version": "1.1",
+  "items": [
+    {
+      "id": "iron-ore",
+      "name": "Iron Ore",
+      "category": "ore",
+      "stackSize": 50,
+      "color": "#78716c",
+      "iconIndex": 0
+    },
+    {
+      "id": "copper-ore",
+      "name": "Copper Ore",
+      "category": "ore",
+      "stackSize": 50,
+      "color": "#ea580c",
+      "iconIndex": 1
+    },
+    {
+      "id": "iron-plate",
+      "name": "Iron Plate",
+      "category": "ingot",
+      "stackSize": 100,
+      "color": "#94a3b8",
+      "iconIndex": 2
+    },
+    {
+      "id": "copper-plate",
+      "name": "Copper Plate",
+      "category": "ingot",
+      "stackSize": 100,
+      "color": "#fb923c",
+      "iconIndex": 3
+    },
+    {
+      "id": "iron-gear-wheel",
+      "name": "Iron Gear Wheel",
+      "category": "component",
+      "stackSize": 100,
+      "color": "#64748b",
+      "iconIndex": 4
+    },
+    {
+      "id": "electronic-circuit",
+      "name": "Electronic Circuit",
+      "category": "component",
+      "stackSize": 200,
+      "color": "#22c55e",
+      "iconIndex": 5
+    }
+  ],
+  "recipes": [
+    {
+      "id": "iron-plate",
+      "name": "Iron Plate",
+      "machineId": "stone-furnace",
+      "inputs": [
+        {
+          "itemId": "iron-ore",
+          "amount": 1
+        }
+      ],
+      "outputs": [
+        {
+          "itemId": "iron-plate",
+          "amount": 1
+        }
+      ],
+      "craftingTime": 3.2,
+      "category": "smelting"
+    },
+    {
+      "id": "iron-gear-wheel",
+      "name": "Iron Gear Wheel",
+      "machineId": "assembling-machine-1",
+      "inputs": [
+        {
+          "itemId": "iron-plate",
+          "amount": 2
+        }
+      ],
+      "outputs": [
+        {
+          "itemId": "iron-gear-wheel",
+          "amount": 1
+        }
+      ],
+      "craftingTime": 0.5,
+      "category": "assembling"
+    }
+  ],
+  "machines": [
+    {
+      "id": "stone-furnace",
+      "name": "Stone Furnace",
+      "category": "smelter",
+      "speed": 1.0,
+      "size": {
+        "width": 2,
+        "height": 2
+      },
+      "powerUsage": 90000,
+      "allowedCategories": [
+        "smelting"
+      ]
+    },
+    {
+      "id": "assembling-machine-1",
+      "name": "Assembling Machine 1",
+      "category": "assembler",
+      "speed": 0.5,
+      "size": {
+        "width": 3,
+        "height": 3
+      },
+      "powerUsage": 75000,
+      "allowedCategories": [
+        "assembling"
+      ]
+    }
+  ],
+  "belts": [
+    {
+      "id": "transport-belt",
+      "name": "Transport Belt",
+      "tier": 1,
+      "itemsPerSecond": 15,
+      "color": "#facc15"
+    },
+    {
+      "id": "fast-transport-belt",
+      "name": "Fast Transport Belt",
+      "tier": 2,
+      "itemsPerSecond": 30,
+      "color": "#ef4444"
+    }
+  ],
+  "settings": {
+    "lanesPerBelt": 2,
+    "hasSpeedModifiers": true,
+    "rateUnit": "second",
+    "gridSize": 1,
+    "defaultMachineIds": {
+      "smelting": "stone-furnace",
+      "assembling": "assembling-machine-1"
+    }
+  },
+  "spriteSheet": {
+    "url": "/icons.png",
+    "columns": 16
+  }
+}

@@ -8,17 +8,24 @@ export const DSP_DATA: GameDefinition = {
     items: [
         { id: "iron-ore", name: "Iron Ore", category: "ore", stackSize: 100, color: "#94a3b8", iconIndex: 2 },
         { id: "copper-ore", name: "Copper Ore", category: "ore", stackSize: 100, color: "#f97316", iconIndex: 3 },
+        { id: "coal", name: "Coal", category: "ore", stackSize: 100, color: "#1a1a1a", iconIndex: 4 },
+        { id: "stone", name: "Stone", category: "ore", stackSize: 100, color: "#78716c", iconIndex: 5 },
         { id: "crude-oil", name: "Crude Oil", category: "fluid", stackSize: 20, color: "#1e293b", iconIndex: 9 },
-        { id: "refined-oil", name: "Refined Oil", category: "fluid", stackSize: 20, color: "#475569", iconIndex: 25 },
+        { id: "refined-oil", name: "Refined Oil", category: "fluid", stackSize: 20, color: "#475569", iconIndex: 21 },
         { id: "hydrogen", name: "Hydrogen", category: "fluid", stackSize: 20, color: "#38bdf8", iconIndex: 10 },
-        { id: "iron-ingot", name: "Iron Ingot", category: "ingot", stackSize: 100, color: "#cbd5e1", iconIndex: 13 },
-        { id: "copper-ingot", name: "Copper Ingot", category: "ingot", stackSize: 100, color: "#fdba74", iconIndex: 14 },
-        { id: "magnet", name: "Magnet", category: "component", stackSize: 100, color: "#6366f1", iconIndex: 18 },
-        { id: "magnetic-coil", name: "Magnetic Coil", category: "component", stackSize: 100, color: "#818cf8", iconIndex: 19 },
+        { id: "iron-ingot", name: "Iron Ingot", category: "ingot", stackSize: 100, color: "#cbd5e1", iconIndex: 14 },
+        { id: "copper-ingot", name: "Copper Ingot", category: "ingot", stackSize: 100, color: "#fdba74", iconIndex: 15 },
+        { id: "magnet", name: "Magnet", category: "component", stackSize: 100, color: "#6366f1", iconIndex: 26 },
+        { id: "magnetic-coil", name: "Magnetic Coil", category: "component", stackSize: 100, color: "#818cf8", iconIndex: 27 },
         { id: "gear", name: "Gear", category: "component", stackSize: 100, color: "#94a3b8", iconIndex: 50 },
-        { id: "circuit-board", name: "Circuit Board", category: "component", stackSize: 100, color: "#10b981", iconIndex: 36 },
-        { id: "electromagnetic-matrix", name: "Electromagnetic Matrix", category: "science", stackSize: 100, color: "#22d3ee", iconIndex: 80 }
+        { id: "circuit-board", name: "Circuit Board", category: "component", stackSize: 100, color: "#10b981", iconIndex: 39 },
+        { id: "processor", name: "Processor", category: "component", stackSize: 100, color: "#34d399", iconIndex: 76 },
+        { id: "electromagnetic-matrix", name: "Electromagnetic Matrix", category: "science", stackSize: 100, color: "#22d3ee", iconIndex: 72 }
     ],
+    spriteSheet: {
+        url: '/icons.png',
+        columns: 16
+    },
     recipes: [
         {
             id: "iron-ingot",

@@ -31,6 +31,7 @@ export interface ViewSettings {
     bundleLanes: boolean;
     autoIncrementSource: boolean;
     flowMode: boolean;
+    snapToGrid: boolean;
 }
 
 interface LayoutState {
@@ -63,6 +64,7 @@ interface LayoutState {
     importLayout: (json: string) => void;
     saveToStorage: () => void;
     loadFromStorage: () => void;
+    resetLayout: () => void;
     refreshGlobalRates: () => void;
     setDraggingItem: (item: { type: 'splitter' | 'new-block', recipeId?: string } | null) => void;
     draggingItem: { type: 'splitter' | 'new-block', recipeId?: string } | null;
@@ -252,6 +254,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         bundleLanes: false,
         autoIncrementSource: false,
         flowMode: false,
+        snapToGrid: true,
     },
     nodeConflicts: new Set(),
     draggingItem: null,
@@ -804,6 +807,10 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     loadFromStorage: () => {
         const stored = localStorage.getItem('dsp_layout');
         if (stored) get().importLayout(stored);
+    },
+
+    resetLayout: () => {
+        set({ nodes: [], edges: [] });
     },
 
     refreshGlobalRates: () => {

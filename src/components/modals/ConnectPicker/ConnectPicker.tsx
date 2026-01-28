@@ -3,6 +3,8 @@ import { useLayoutStore } from '@/stores/layoutStore';
 import { useGameStore } from '@/stores/gameStore';
 import { Recipe } from '@/types/game';
 
+import { BLOCK_LAYOUT } from '@/types/block';
+
 interface ConnectPickerProps {
     onCancel: () => void;
 }
@@ -104,14 +106,14 @@ export const ConnectPicker: React.FC<ConnectPickerProps> = ({ onCancel }) => {
         let pos;
         if (dropPosition) {
             // Adjust position so the block is somewhat centered or aligned nicely
-            // Blocks are 350px wide. If output, we probably want the left side at drop.
+            // Blocks are sized by BLOCK_LAYOUT.WIDTH. If output, we probably want the left side at drop.
             // If input, we probably want the right side at drop.
             pos = {
-                x: activePort.type === 'output' ? dropPosition.x : dropPosition.x - 350,
+                x: activePort.type === 'output' ? dropPosition.x : dropPosition.x - BLOCK_LAYOUT.WIDTH,
                 y: dropPosition.y - 50 // Center vertically roughly
             };
         } else {
-            const offsetX = activePort.type === 'output' ? 350 : -350;
+            const offsetX = activePort.type === 'output' ? BLOCK_LAYOUT.WIDTH : -BLOCK_LAYOUT.WIDTH;
             pos = { x: sourceNode.position.x + offsetX, y: sourceNode.position.y };
         }
 

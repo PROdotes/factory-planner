@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useGameStore } from '@/stores/gameStore';
 import { Recipe } from '@/types/game';
+import { DSPIcon } from '@/components/ui/DSPIcon';
+import { ArrowRight } from 'lucide-react';
 
 interface RecipePickerProps {
     onSelect: (recipe: Recipe) => void;
@@ -83,10 +85,24 @@ export const RecipePicker: React.FC<RecipePickerProps> = ({ onSelect, onCancel }
 
                             <div className="mt-4 flex items-center justify-between pointer-events-none">
                                 <div className="flex -space-x-1 overflow-hidden">
-                                    {/* Simple visual for inputs */}
-                                    {recipe.inputs.slice(0, 3).map((input, i) => (
-                                        <div key={i} className="w-5 h-5 rounded-md bg-gray-700 border border-gray-600 flex items-center justify-center text-[8px] font-bold" title={input.itemId}>
-                                            {input.itemId.slice(0, 1).toUpperCase()}
+                                    {/* Item Icons */}
+                                    {recipe.inputs.slice(0, 4).map((input, i) => (
+                                        <div key={i} className="w-5 h-5 rounded-md bg-gray-900 border border-gray-700 p-0.5 flex items-center justify-center" title={game.items.find(it => it.id === input.itemId)?.name || input.itemId}>
+                                            <DSPIcon
+                                                index={game.items.find(it => it.id === input.itemId)?.iconIndex || 0}
+                                                size={16}
+                                            />
+                                        </div>
+                                    ))}
+                                    <div className="w-0.5" />
+                                    <ArrowRight size={10} className="text-gray-600" />
+                                    <div className="w-0.5" />
+                                    {recipe.outputs.slice(0, 1).map((output, i) => (
+                                        <div key={i} className="w-5 h-5 rounded-md bg-blue-900/20 border border-blue-500/30 p-0.5 flex items-center justify-center" title={game.items.find(it => it.id === output.itemId)?.name || output.itemId}>
+                                            <DSPIcon
+                                                index={game.items.find(it => it.id === output.itemId)?.iconIndex || 0}
+                                                size={16}
+                                            />
                                         </div>
                                     ))}
                                 </div>

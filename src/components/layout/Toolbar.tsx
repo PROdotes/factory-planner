@@ -11,9 +11,11 @@ import {
     Activity,
     Layers,
     TrendingUp,
-    GitBranch
+    GitBranch,
+    Grid3X3
 } from 'lucide-react';
 import { useLayoutStore } from '@/stores/layoutStore';
+import { useGameStore } from '@/stores/gameStore';
 
 interface ToolbarProps {
     className?: string;
@@ -22,6 +24,7 @@ interface ToolbarProps {
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({ className = '', onOpenEditor, onAddBlock }) => {
+    const { game } = useGameStore();
     const {
         saveToStorage,
         loadFromStorage,
@@ -62,7 +65,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ className = '', onOpenEditor, 
                     <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-lg shadow-primary/20">
                         <Package size={20} className="text-white" />
                     </div>
-                    <span className="font-black italic text-xl tracking-tighter text-white">DSP<span className="text-primary NOT-italic">FLOW</span></span>
+                    <span className="font-black italic text-xl tracking-tighter text-white uppercase">{game.name.split(' ')[0]}<span className="text-primary NOT-italic">FLOW</span></span>
                 </div>
 
                 <div className="h-8 w-px bg-white/10 mx-2" />
@@ -135,6 +138,16 @@ export const Toolbar: React.FC<ToolbarProps> = ({ className = '', onOpenEditor, 
                         title="Auto-increment Source Rate on Connection"
                     >
                         <TrendingUp size={16} />
+                    </button>
+
+                    <div className="h-6 w-px bg-white/5 mx-0.5" />
+
+                    <button
+                        onClick={() => toggleViewSetting('snapToGrid')}
+                        className={`glass-button !p-2 ${viewSettings.snapToGrid ? 'text-indigo-400 bg-indigo-400/10 border-indigo-400/30' : 'text-white/40'}`}
+                        title="Snap to Grid"
+                    >
+                        <Grid3X3 size={16} />
                     </button>
                 </div>
             </div>

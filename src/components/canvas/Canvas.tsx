@@ -27,6 +27,7 @@ const CanvasContent: React.FC<CanvasProps> = ({ className = '' }) => {
     const onEdgesChange = useLayoutStore((state) => state.onEdgesChange);
     const onConnect = useLayoutStore((state) => state.onConnect);
     const addBlock = useLayoutStore((state) => state.addBlock);
+    const snapToGrid = useLayoutStore((state) => state.viewSettings.snapToGrid);
 
     // ...
 
@@ -146,6 +147,8 @@ const CanvasContent: React.FC<CanvasProps> = ({ className = '' }) => {
                 }}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
+                snapToGrid={snapToGrid}
+                snapGrid={[20, 20]}
                 deleteKeyCode={['Backspace', 'Delete']}
                 fitView
                 defaultEdgeOptions={{

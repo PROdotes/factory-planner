@@ -12,6 +12,12 @@ export interface GameDefinition {
     machines: Machine[];
     belts: BeltTier[];
 
+    /** Sprite sheet configuration for icons */
+    spriteSheet?: {
+        url: string;
+        columns: number;
+    };
+
     // Game-specific quirks
     settings: GameSettings;
 }

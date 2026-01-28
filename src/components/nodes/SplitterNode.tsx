@@ -6,10 +6,11 @@ import { useLayoutStore } from '@/stores/layoutStore';
 
 const SplitterNode = ({ id, data, selected }: NodeProps<SplitterNodeData>) => {
     const updateBlock = useLayoutStore(state => state.updateBlock);
+    const flowMode = useLayoutStore(state => state.viewSettings.flowMode);
 
-    // Fixed size for splitters for now
-    const width = 80;
-    const height = 80;
+    // Dynamic size based on mode
+    const width = flowMode ? 40 : 80;
+    const height = flowMode ? 40 : 80;
 
     const cycleType = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -56,6 +57,45 @@ const SplitterNode = ({ id, data, selected }: NodeProps<SplitterNodeData>) => {
         updateBlock(id, { priority: priorities[nextIdx] });
     };
 
+    if (flowMode) {
+        return (
+            <div
+                style={{ width, height }}
+                className={`
+                    bg-slate-900 border rounded flex items-center justify-center relative shadow-lg transition-all rotate-45
+                    ${selected ? 'border-amber-500 ring-2 ring-amber-500/30' : 'border-slate-700 hover:border-slate-600'}
+                `}
+                onClick={cycleType}
+            >
+                <div className="-rotate-45 text-white/70">
+                    {data.type === 'balancer' ? <Shuffle size={16} /> : (data.type === 'splitter' ? <GitMerge className="rotate-90" size={16} /> : <GitMerge className="-rotate-90" size={16} />)}
+                </div>
+
+                {/* Handles - must adjust for rotation and smaller size */}
+                {data.inputPorts.map((port) => (
+                    <Handle
+                        key={port.id}
+                        type="target"
+                        position={Position.Left}
+                        id={port.id}
+                        className="!bg-slate-900 !border-slate-500 !w-2 !h-2 z-50 !opacity-0"
+                        style={{ top: '50%', left: 0 }}
+                    />
+                ))}
+                {data.outputPorts.map((port) => (
+                    <Handle
+                        key={port.id}
+                        type="source"
+                        position={Position.Right}
+                        id={port.id}
+                        className="!bg-slate-900 !border-slate-500 !w-2 !h-2 z-50 !opacity-0"
+                        style={{ top: '50%', right: 0 }}
+                    />
+                ))}
+            </div>
+        );
+    }
+
     return (
         <div
             style={{ width, height }}
@@ -64,16 +104,6 @@ const SplitterNode = ({ id, data, selected }: NodeProps<SplitterNodeData>) => {
                 ${selected ? 'border-amber-500 ring-2 ring-amber-500/30' : 'border-slate-700 hover:border-slate-600'}
             `}
         >
-            {/* DEBUG COLLISION BOUNDARY (PINK/RED) 
-            <div
-                className={`absolute inset-0 border-2 pointer-events-none z-[500] rounded-full ${isNodeColliding ? 'border-red-500 animate-pulse' : 'border-pink-500/40'}`}
-                style={{ width, height }}
-            >
-                <div className={`absolute -top-4 left-1/2 -translate-x-1/2 ${isNodeColliding ? 'bg-red-500' : 'bg-pink-500'} text-white text-[8px] px-1 font-black whitespace-nowrap`}>
-                    {isNodeColliding ? 'COLLISION' : `BOX: ${width}x${height}`}
-                </div>
-            </div>
-            */}
             {/* Center Icon */}
             <div
                 onClick={cycleType}

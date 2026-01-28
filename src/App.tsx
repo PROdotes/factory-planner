@@ -6,12 +6,14 @@ import { RecipePicker } from './components/modals/RecipePicker/RecipePicker';
 import { ConnectPicker } from './components/modals/ConnectPicker/ConnectPicker';
 import { useLayoutStore } from './stores/layoutStore';
 import { ReactFlowProvider, useReactFlow } from 'reactflow';
-import { DSPIcon, ITEM_ICON_MAP } from './components/ui/DSPIcon';
+import { DSPIcon } from './components/ui/DSPIcon';
+import { useGameStore } from './stores/gameStore';
 
 import { Recipe } from './types/game';
 
 const GlobalGhost = () => {
   const draggingItem = useLayoutStore(state => state.draggingItem);
+  const { game } = useGameStore();
   const [pos, setPos] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -42,7 +44,10 @@ const GlobalGhost = () => {
         </div>
       ) : (
         <div className="w-10 h-10 flex items-center justify-center">
-          <DSPIcon index={ITEM_ICON_MAP[draggingItem.recipeId!] || 0} size={32} />
+          <DSPIcon
+            index={game.items.find(i => i.id === (game.recipes.find(r => r.id === draggingItem.recipeId)?.outputs[0]?.itemId || draggingItem.recipeId))?.iconIndex || 0}
+            size={32}
+          />
         </div>
       )}
     </div>

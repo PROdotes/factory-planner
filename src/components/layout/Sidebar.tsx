@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useGameStore } from '@/stores/gameStore';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { AlertTriangle, CheckCircle2, Search } from 'lucide-react';
-import { DSPIcon, ITEM_ICON_MAP } from '@/components/ui/DSPIcon';
+import { DSPIcon } from '@/components/ui/DSPIcon';
 
 interface SidebarProps {
     className?: string;
@@ -37,6 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
     const stats = useMemo(() => {
         let totalPower = 0;
         let conflictCount = 0;
+        let machineCount = 0;
 
         nodes.forEach(node => {
             const data = node.data as any;
@@ -44,6 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
                 const machine = game.machines.find(m => m.id === data.machineId);
                 if (machine) {
                     totalPower += data.machineCount * (machine.powerUsage || 0);
+                    machineCount += Math.ceil(data.machineCount);
                 }
             }
         });
@@ -53,6 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
         return {
             totalPower,
             conflictCount,
+            machineCount,
             isReady: nodes.length > 0 && conflictCount === 0
         };
     }, [nodes, edges, game.machines]);
@@ -135,7 +138,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
                                     <div className="flex items-center gap-3 pointer-events-none">
                                         <div className="w-10 h-10 rounded-lg bg-black/40 border border-white/5 flex items-center justify-center p-1 group-hover:border-primary/30 transition-all">
                                             <DSPIcon
-                                                index={ITEM_ICON_MAP[recipe.id] || 0}
+                                                index={game.items.find(i => i.id === (recipe.outputs[0]?.itemId || recipe.id))?.iconIndex || 0}
                                                 size={32}
                                             />
                                         </div>
@@ -163,6 +166,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
                     <div className="flex items-center justify-between">
                         <span className="text-[10px] font-bold text-textSecondary uppercase tracking-widest">Power Grid</span>
                         <span className="text-xs font-black text-cyan-400">{formatPower(stats.totalPower)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-textSecondary uppercase tracking-widest">Buildings</span>
+                        <span className="text-xs font-black text-white">{stats.machineCount} Total</span>
                     </div>
                     <div className="flex items-center justify-between">
                         <span className="text-[10px] font-bold text-textSecondary uppercase tracking-widest">Flow Integrity</span>
