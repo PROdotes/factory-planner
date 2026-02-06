@@ -147,7 +147,7 @@ const ConnectionPath = memo(
           className={`edge-path ${isDimmed ? "dimmed" : ""} ${
             isStarved ? "starved" : ""
           } ${isShortfall && !isStarved ? "shortfall" : ""}`}
-          stroke="var(--accent)"
+          stroke="var(--flow-success)"
           strokeWidth="3"
           strokeOpacity={
             isDimmed ? "0.1" : isStarved ? "1.0" : isShortfall ? "0.4" : "0.6"
@@ -167,7 +167,7 @@ const ConnectionPath = memo(
               ? "drop-shadow(0 0 6px var(--flow-error))"
               : isShortfall
               ? "none"
-              : "drop-shadow(0 0 4px var(--accent-glow))",
+              : "drop-shadow(0 0 4px var(--flow-success-glow))",
           }}
           data-v={version}
         />
@@ -312,39 +312,6 @@ export const ConnectionLines = memo(
           zIndex: 0,
         }}
       >
-        <defs>
-          <desc>v{version}</desc>
-          <marker
-            id="arrowhead"
-            markerWidth="6"
-            markerHeight="6"
-            refX="5"
-            refY="3"
-            orient="auto"
-          >
-            <polygon points="0 0, 6 3, 0 6" fill="var(--accent)" />
-          </marker>
-          <marker
-            id="arrowhead-starved"
-            markerWidth="6"
-            markerHeight="6"
-            refX="5"
-            refY="3"
-            orient="auto"
-          >
-            <polygon points="0 0, 6 3, 0 6" fill="var(--flow-error)" />
-          </marker>
-          <marker
-            id="arrowhead-shortfall"
-            markerWidth="6"
-            markerHeight="6"
-            refX="5"
-            refY="3"
-            orient="auto"
-          >
-            <polygon points="0 0, 6 3, 0 6" fill="var(--flow-warning)" />
-          </marker>
-        </defs>
         <desc>v{version}</desc>
         {factory.connections.map((conn) => {
           const source = factory.blocks.get(conn.sourceBlockId);
@@ -373,7 +340,7 @@ export const ConnectionLines = memo(
         {ghostEdge && (
           <path
             d={`M ${ghostEdge.x1} ${ghostEdge.y1} L ${ghostEdge.x2} ${ghostEdge.y2}`}
-            stroke="var(--accent)"
+            stroke="var(--flow-success)"
             strokeWidth="2"
             strokeDasharray="4 4"
             fill="none"
