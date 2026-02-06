@@ -12,12 +12,10 @@ export default defineConfig(async () => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      "@components": path.resolve(__dirname, "./src/components"),
-      "@stores": path.resolve(__dirname, "./src/stores"),
-      "@hooks": path.resolve(__dirname, "./src/hooks"),
-      "@lib": path.resolve(__dirname, "./src/lib"),
-      "@types": path.resolve(__dirname, "./src/types"),
-      "@data": path.resolve(__dirname, "./src/data"),
+      "@canvas": path.resolve(__dirname, "./src/canvas"),
+      "@factory": path.resolve(__dirname, "./src/factory"),
+      "@solver": path.resolve(__dirname, "./src/solver"),
+      "@gamedata": path.resolve(__dirname, "./src/gamedata"),
     },
   },
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
@@ -46,6 +44,7 @@ export default defineConfig(async () => ({
     environment: 'jsdom',
     setupFiles: './src/tests/setup.ts',
     css: true,
+    exclude: ['old_src/**', 'node_modules/**', 'dist/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],

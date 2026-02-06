@@ -1,0 +1,7 @@
+{
+  "src/**/*.{ts,tsx,js,jsx,json,md}": [
+    "prettier --write",
+    "npm run -s lint:staged",
+    "git add"
+  ]
+}

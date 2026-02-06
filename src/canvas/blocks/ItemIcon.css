@@ -1,0 +1,26 @@
+/**
+ * ROLE: Styles for ItemIcon
+ */
+
+.item-icon {
+    background-image: url('/icons.png');
+    background-repeat: no-repeat;
+    display: inline-block;
+    flex-shrink: 0;
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, 0.2);
+    image-rendering: pixelated; /* Crisp icons */
+}
+
+.item-icon-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 0.6rem;
+    font-weight: bold;
+    border-radius: 4px;
+    flex-shrink: 0;
+}

@@ -24,12 +24,10 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@components/*": ["./src/components/*"],
-      "@stores/*": ["./src/stores/*"],
-      "@hooks/*": ["./src/hooks/*"],
-      "@lib/*": ["./src/lib/*"],
-      "@types/*": ["./src/types/*"],
-      "@data/*": ["./src/data/*"]
+      "@canvas/*": ["./src/canvas/*"],
+      "@factory/*": ["./src/factory/*"],
+      "@solver/*": ["./src/solver/*"],
+      "@gamedata/*": ["./src/gamedata/*"]
     }
   },
   "include": ["src"],
