@@ -245,20 +245,41 @@ export const ConnectionLines = memo(
           );
         };
 
-        const onUp = () => {
+        const onUp = (upEv: MouseEvent) => {
           window.removeEventListener("mousemove", onMove);
-          window.removeEventListener("mouseup", onUp);
+          window.removeEventListener("mouseup", onUp as any);
+
+          // If activeDrag is still set, it means we didn't land on a valid port (onEnd clears it)
+          if (activeDrag.current) {
+            const pt = clientToWorld(upEv.clientX, upEv.clientY);
+            useUIStore.getState().setImplicitSearch({
+              ...activeDrag.current,
+              worldPos: pt,
+              clientPos: { x: upEv.clientX, y: upEv.clientY },
+            });
+            activeDrag.current = null;
+          }
+
           setGhostEdge(null);
         };
 
         window.addEventListener("mousemove", onMove);
-        window.addEventListener("mouseup", onUp);
+        window.addEventListener("mouseup", onUp as any);
       };
 
       const onEnd = (e: any) => {
         if (!activeDrag.current) return;
         const src = activeDrag.current;
         const tgt = e.detail;
+
+        // Validation: Items must match!
+        if (src.itemId !== tgt.itemId) {
+          console.warn(
+            `[CONNECTION] Mismatched items: ${src.itemId} vs ${tgt.itemId}`
+          );
+          activeDrag.current = null;
+          return;
+        }
 
         if (src.side === "right" && tgt.side === "left") {
           connect(src.blockId, tgt.blockId, src.itemId);

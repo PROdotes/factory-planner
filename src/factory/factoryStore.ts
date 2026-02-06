@@ -31,7 +31,8 @@ interface FactoryState {
   removeBlock: (id: string) => void;
 
   connect: (sourceId: string, targetId: string, itemId: string) => void;
-  setRecipe: (blockId: string, recipeId: string) => void;
+  setRecipe: (blockId: string, recipeId: string | null) => void;
+  setMachine: (blockId: string, machineId: string | null) => void;
   selectBlock: (id: string | null) => void;
   updateBlockName: (id: string, name: string) => void;
   setRequest: (blockId: string, itemId: string, rate: number) => void;
@@ -101,11 +102,29 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
     debouncedSolve(get);
   },
 
-  setRecipe: (blockId: string, recipeId: string) => {
+  setRecipe: (blockId, recipeId) => {
     const { factory } = get();
+    const { recipes } = useGameDataStore.getState();
     const block = factory.blocks.get(blockId);
     if (block && block instanceof ProductionBlock) {
       block.setRecipe(recipeId);
+      // Auto-set machine from recipe
+      if (recipeId) {
+        const recipe = recipes[recipeId];
+        if (recipe) {
+          block.setMachine(recipe.machineId);
+        }
+      }
+      set((state) => ({ version: state.version + 1 }));
+      debouncedSolve(get);
+    }
+  },
+
+  setMachine: (blockId, machineId) => {
+    const { factory } = get();
+    const block = factory.blocks.get(blockId);
+    if (block && block instanceof ProductionBlock) {
+      block.setMachine(machineId);
       set((state) => ({ version: state.version + 1 }));
       debouncedSolve(get);
     }
@@ -233,7 +252,8 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
     // Always sync analysis results (demand, supply, output, satisfaction)
     factory.syncFromDTO(layoutDTO);
 
-    set((state) => ({ version: state.version + 1 }));
+    // Forces React to see the change even if object references in maps are stable
+    set({ version: Date.now() });
   },
 
   loadDemo: () => {

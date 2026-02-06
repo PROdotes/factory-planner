@@ -34,6 +34,7 @@ export interface FactoryBlock {
 export interface ProductionBlock extends FactoryBlock {
   type: "block";
   recipeId?: string;
+  machineId?: string;
   machineCount?: number;
 }
 

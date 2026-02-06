@@ -3,44 +3,67 @@
  * PURPOSE: Manages global UI visibility (sidebars, overlays) separately from the factory logic.
  */
 
-import { create } from 'zustand';
+import { create } from "zustand";
 
 interface UIState {
-    leftSidebarOpen: boolean;
-    rightSidebarOpen: boolean;
+  leftSidebarOpen: boolean;
+  rightSidebarOpen: boolean;
 
-    focusedNodeId: string | null;
+  focusedNodeId: string | null;
 
-    rateUnit: 'per_second' | 'per_minute';
-    autoSolveEnabled: boolean;
+  rateUnit: "per_second" | "per_minute";
+  autoSolveEnabled: boolean;
+  implicitSearch: {
+    blockId: string;
+    itemId: string;
+    side: "left" | "right";
+    worldPos: { x: number; y: number };
+    clientPos: { x: number; y: number };
+  } | null;
+  iconMapperOpen: boolean;
+  windEfficiency: number; // 0.0 to 2.0 (0% to 200%)
 
-    toggleLeftSidebar: () => void;
-    toggleRightSidebar: () => void;
-    setLeftSidebar: (open: boolean) => void;
-    setRightSidebar: (open: boolean) => void;
-    toggleFocus: (nodeId: string | null) => void;
-    toggleRateUnit: () => void;
-    toggleAutoSolve: () => void;
+  toggleLeftSidebar: () => void;
+  toggleRightSidebar: () => void;
+  setLeftSidebar: (open: boolean) => void;
+  setRightSidebar: (open: boolean) => void;
+  toggleFocus: (nodeId: string | null) => void;
+  toggleRateUnit: () => void;
+  toggleAutoSolve: () => void;
+  setImplicitSearch: (state: UIState["implicitSearch"] | null) => void;
+  setIconMapperOpen: (open: boolean) => void;
+  setWindEfficiency: (efficiency: number) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
-    // 1. [Visibility Toggles]
-    leftSidebarOpen: true,
-    rightSidebarOpen: true,
-    rateUnit: 'per_minute',
-    autoSolveEnabled: false, // Default to Advisory Mode
-    toggleLeftSidebar: () => set((state) => ({ leftSidebarOpen: !state.leftSidebarOpen })),
-    toggleRightSidebar: () => set((state) => ({ rightSidebarOpen: !state.rightSidebarOpen })),
-    setLeftSidebar: (open) => set({ leftSidebarOpen: open }),
-    setRightSidebar: (open) => set({ rightSidebarOpen: open }),
-    toggleRateUnit: () => set((state) => ({
-        rateUnit: state.rateUnit === 'per_second' ? 'per_minute' : 'per_second'
+  // 1. [Visibility Toggles]
+  leftSidebarOpen: true,
+  rightSidebarOpen: true,
+  rateUnit: "per_minute",
+  autoSolveEnabled: false, // Default to Advisory Mode
+  implicitSearch: null,
+  iconMapperOpen: false,
+  windEfficiency: 1.0,
+  toggleLeftSidebar: () =>
+    set((state) => ({ leftSidebarOpen: !state.leftSidebarOpen })),
+  toggleRightSidebar: () =>
+    set((state) => ({ rightSidebarOpen: !state.rightSidebarOpen })),
+  setLeftSidebar: (open) => set({ leftSidebarOpen: open }),
+  setRightSidebar: (open) => set({ rightSidebarOpen: open }),
+  toggleRateUnit: () =>
+    set((state) => ({
+      rateUnit: state.rateUnit === "per_second" ? "per_minute" : "per_second",
     })),
-    toggleAutoSolve: () => set((state) => ({ autoSolveEnabled: !state.autoSolveEnabled })),
+  toggleAutoSolve: () =>
+    set((state) => ({ autoSolveEnabled: !state.autoSolveEnabled })),
+  setImplicitSearch: (implicitSearch) => set({ implicitSearch }),
+  setIconMapperOpen: (iconMapperOpen) => set({ iconMapperOpen }),
+  setWindEfficiency: (windEfficiency) => set({ windEfficiency }),
 
-    // 2. [Deep Focus Mode] - Managed separately from selection
-    focusedNodeId: null,
-    toggleFocus: (nodeId) => set((state) => ({
-        focusedNodeId: (state.focusedNodeId === nodeId || !nodeId) ? null : nodeId
+  // 2. [Deep Focus Mode] - Managed separately from selection
+  focusedNodeId: null,
+  toggleFocus: (nodeId) =>
+    set((state) => ({
+      focusedNodeId: state.focusedNodeId === nodeId || !nodeId ? null : nodeId,
     })),
 }));

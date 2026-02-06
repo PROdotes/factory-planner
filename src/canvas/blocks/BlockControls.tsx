@@ -11,9 +11,10 @@ import { ItemIcon } from "./ItemIcon";
 
 interface Props {
   block: ProductionBlock;
-  recipe: Recipe;
+  recipe?: Recipe;
   machine: Machine;
   rateLabel: string;
+  displayRate?: string;
   requiredMachineCount: number;
   targetRateUnitValue: number;
   autoSolveEnabled: boolean;
@@ -29,6 +30,7 @@ export const BlockControls = memo(
     recipe,
     machine,
     rateLabel,
+    displayRate,
     requiredMachineCount,
     targetRateUnitValue,
     autoSolveEnabled,
@@ -55,7 +57,7 @@ export const BlockControls = memo(
       if (isEditingYield) yieldInputRef.current?.focus();
     }, [isEditingCount, isEditingRate, isEditingYield]);
 
-    const isGatherer = recipe.category === "Gathering";
+    const isGatherer = recipe?.category === "Gathering";
 
     const currentMachineCount = autoSolveEnabled
       ? requiredMachineCount
@@ -95,6 +97,7 @@ export const BlockControls = memo(
     };
 
     const handleRateWheel = (e: React.WheelEvent) => {
+      if (!recipe) return; // Cannot scroll rate for generators
       e.stopPropagation();
       const delta = e.shiftKey ? 10 : 1;
       const next =
@@ -104,17 +107,21 @@ export const BlockControls = memo(
       onRateChange(Math.max(0, next));
     };
 
-    const yieldLabel =
-      recipe.machineId.includes("pump") ||
-      recipe.machineId.includes("extractor")
-        ? "YIELD %"
-        : "VEINS";
+    const isGenerator = (machine as any).generation > 0 && !recipe;
 
-    const yieldTitle =
-      recipe.machineId.includes("pump") ||
-      recipe.machineId.includes("extractor")
-        ? "Yield Multiplier (%)"
-        : "Veins Count";
+    const yieldLabel = isGenerator
+      ? "POWER"
+      : recipe?.machineId.includes("pump") ||
+        recipe?.machineId.includes("extractor")
+      ? "YIELD %"
+      : "VEINS";
+
+    const yieldTitle = isGenerator
+      ? "Power Output (MW)"
+      : recipe?.machineId.includes("pump") ||
+        recipe?.machineId.includes("extractor")
+      ? "Yield Multiplier (%)"
+      : "Veins Count";
 
     return (
       <div className="controls-row">
@@ -207,13 +214,17 @@ export const BlockControls = memo(
           className="control-field rate-field has-label"
           onClick={(e) => {
             e.stopPropagation();
-            if (!wasDragged && !isEditingRate) {
+            if (!wasDragged && !isEditingRate && !isGenerator) {
               setEditRate(targetRateUnitValue.toFixed(1));
               setIsEditingRate(true);
             }
           }}
           onWheel={handleRateWheel}
-          title="Target rate (scroll or click)"
+          title={
+            isGenerator
+              ? "Total Power Generation"
+              : "Target rate (scroll or click)"
+          }
         >
           <div className="field-value-row">
             {isEditingRate ? (
@@ -234,12 +245,15 @@ export const BlockControls = memo(
               />
             ) : (
               <span className="control-value">
-                {targetRateUnitValue.toFixed(1)}
-                {rateLabel}
+                {displayRate
+                  ? displayRate
+                  : targetRateUnitValue.toFixed(1) + rateLabel}
               </span>
             )}
           </div>
-          <span className="field-label">RATE</span>
+          <span className="field-label">
+            {isGenerator ? "GENERATE" : "RATE"}
+          </span>
         </div>
 
         {/* 3. Secondary Control: Machines for gatherers only */}

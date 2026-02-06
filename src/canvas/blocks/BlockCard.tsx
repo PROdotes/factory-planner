@@ -48,8 +48,6 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
   const isSelected = selectedBlockId === block.id;
   const { toggleFocus, rateUnit, autoSolveEnabled } = useUIStore();
   const isPerMin = rateUnit === "per_minute";
-  const rateLabel = isPerMin ? "/m" : "/s";
-
   const highlightSet = useHighlightSet();
   const isDimmed =
     highlightSet.blocks.size > 0 && !highlightSet.blocks.has(block.id);
@@ -75,21 +73,32 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
     block instanceof ProductionBlock && block.recipeId
       ? recipes[block.recipeId]
       : null;
-  const machine = recipe ? machines[recipe.machineId] : null;
+  const machine = recipe
+    ? machines[recipe.machineId]
+    : block instanceof ProductionBlock && block.machineId
+    ? machines[block.machineId]
+    : null;
 
   // Calculate required machines
   let requiredMachineCount = 0;
   const mainOutput = recipe?.outputs[0];
   let targetRateUnitValue = 0;
 
-  if (block instanceof ProductionBlock && recipe && machine && mainOutput) {
-    const yieldMult =
-      recipe.category === "Gathering" ? block.sourceYield ?? 1.0 : 1.0;
-    const ratePerMachine =
-      ((mainOutput.amount * machine.speed) / recipe.craftingTime) * yieldMult;
-    const targetRate = block.machineCount * ratePerMachine;
-    requiredMachineCount = ratePerMachine > 0 ? targetRate / ratePerMachine : 0;
-    targetRateUnitValue = isPerMin ? targetRate * 60 : targetRate;
+  if (block instanceof ProductionBlock && machine) {
+    if (recipe && mainOutput) {
+      const yieldMult =
+        recipe.category === "Gathering" ? block.sourceYield ?? 1.0 : 1.0;
+      const ratePerMachine =
+        ((mainOutput.amount * machine.speed) / recipe.craftingTime) * yieldMult;
+      const targetRate = block.machineCount * ratePerMachine;
+      requiredMachineCount =
+        ratePerMachine > 0 ? targetRate / ratePerMachine : 0;
+      targetRateUnitValue = isPerMin ? targetRate * 60 : targetRate;
+    } else if (machine.generation) {
+      // It's a generator block
+      requiredMachineCount = block.machineCount;
+      targetRateUnitValue = block.machineCount * machine.generation;
+    }
   }
 
   // Collect I/O items
@@ -152,9 +161,25 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
   // demand = factory max (total downstream capacity)
   const footerActual = primaryFlow?.sent ?? 0;
   const footerDenom = primaryFlow?.demand ?? 0; // Factory max, NOT actual production
+
+  const isGenerator =
+    block instanceof ProductionBlock &&
+    machine &&
+    !recipe &&
+    (machine as any).generation;
+
   const footerEfficiency =
     footerDenom > 0 ? footerActual / footerDenom : block.satisfaction;
   const statusClass = getStatusClass(footerEfficiency);
+
+  const rateLabel = isGenerator ? "" : isPerMin ? "/m" : "/s";
+
+  // Helper to format power for the RATE field
+  const formatPowerRate = (watts: number) => {
+    if (watts >= 1e6) return (watts / 1e6).toFixed(1) + "MW";
+    if (watts >= 1e3) return (watts / 1e3).toFixed(1) + "kW";
+    return watts.toFixed(0) + "W";
+  };
 
   // Commit functions
   const commitMachineCount = (val: number) => {
@@ -166,6 +191,8 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
           ((mainOutput.amount * machine.speed) / recipe.craftingTime) *
           yieldMult;
         setRequest(block.id, mainOutput.itemId, val * ratePerMachine);
+      } else if (isGenerator) {
+        // For generators, we just set the machine count directly
       }
       if (!autoSolveEnabled) {
         setMachineCount(block.id, val);
@@ -174,6 +201,8 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
   };
 
   const commitOutputRate = (val: number) => {
+    if (isGenerator) return; // Cannot edit rate directly for generators for now
+
     if (!isNaN(val) && val >= 0 && mainOutput) {
       const perSec = isPerMin ? val / 60 : val;
       if (recipe?.category === "Gathering") {
@@ -268,14 +297,18 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
         ) : (
           <div className="zoom-in-view">
             {block instanceof ProductionBlock &&
-              recipe &&
               machine &&
-              mainOutput && (
+              (recipe || isGenerator) && (
                 <BlockControls
                   block={block}
-                  recipe={recipe}
+                  recipe={recipe || undefined}
                   machine={machine}
                   rateLabel={rateLabel}
+                  displayRate={
+                    isGenerator
+                      ? formatPowerRate(targetRateUnitValue)
+                      : undefined
+                  }
                   requiredMachineCount={requiredMachineCount}
                   targetRateUnitValue={targetRateUnitValue}
                   autoSolveEnabled={autoSolveEnabled}
