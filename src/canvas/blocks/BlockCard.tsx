@@ -93,35 +93,49 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
   }
 
   // Collect I/O items
+  // Input: actual = supply received, target = min(machineCapacity, demandForFactoryMax)
+  // Output: actual = sent, target = min(machineCapacity, factoryMax)
+  // Shows "108/360" = "I'm getting 108 but want 360" - machine is starved
+  // Footer shows "108/405" = factory utilization (actual vs factory max)
   const inputItems: IOItem[] =
     block.type === "sink"
-      ? Object.keys(block.demand).map((id) => ({
-          itemId: id,
-          name: items[id]?.name || id,
-          actual: block.supply[id] || 0,
-          target:
-            block.results?.flows?.[id]?.capacity ?? (block.demand[id] || 0),
-        }))
-      : recipe?.inputs.map((i) => ({
-          itemId: i.itemId,
-          name: items[i.itemId]?.name || i.itemId,
-          actual: block.supply[i.itemId] || 0,
-          target:
-            block.results?.flows?.[i.itemId]?.capacity ??
-            (block.demand[i.itemId] || 0),
-        })) || [];
+      ? Object.keys(block.demand).map((id) => {
+          return {
+            itemId: id,
+            name: items[id]?.name || id,
+            actual: block.supply[id] || 0,
+            target: block.demand[id] || 0,
+          };
+        })
+      : recipe?.inputs.map((i) => {
+          const flow = block.results?.flows?.[i.itemId];
+          // capacity = what machines can consume at full machineCount
+          // block.demand = input needed for factory max (from backward pass)
+          const machineCapacity =
+            flow?.capacity ?? (block.demand[i.itemId] || 0);
+          const demandForFactoryMax = block.demand[i.itemId] || 0;
+          const workingTarget = Math.min(machineCapacity, demandForFactoryMax);
+          return {
+            itemId: i.itemId,
+            name: items[i.itemId]?.name || i.itemId,
+            actual: block.supply[i.itemId] || 0,
+            target: workingTarget,
+          };
+        }) || [];
 
   const outputItems: IOItem[] =
-    recipe?.outputs.map((o) => ({
-      itemId: o.itemId,
-      name: items[o.itemId]?.name || o.itemId,
-      // sent = what actually left (gated by downstream), actual = what was produced
-      actual:
-        block.results?.flows?.[o.itemId]?.sent ?? (block.output[o.itemId] || 0),
-      target:
-        block.results?.flows?.[o.itemId]?.actual ??
-        (block.output[o.itemId] || 0),
-    })) || [];
+    recipe?.outputs.map((o) => {
+      const flow = block.results?.flows?.[o.itemId];
+      const factoryMax = flow?.demand ?? (block.output[o.itemId] || 0);
+      const machineCapacity = flow?.capacity ?? factoryMax;
+      const workingTarget = Math.min(machineCapacity, factoryMax);
+      return {
+        itemId: o.itemId,
+        name: items[o.itemId]?.name || o.itemId,
+        actual: flow?.sent ?? (block.output[o.itemId] || 0),
+        target: workingTarget,
+      };
+    }) || [];
 
   const isZoomedIn = scale >= 0.9;
 

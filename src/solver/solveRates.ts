@@ -100,15 +100,6 @@ function finalizeResults(
     if (nodeIndex) {
       for (const [itemId, edges] of nodeIndex.outgoing) {
         actualFlowOut[itemId] = edges.reduce((sum, e) => sum + e.rate, 0);
-        // DEBUG
-        if (node.name?.toLowerCase().includes("iron ingot")) {
-          console.log(
-            `[SOLVER DEBUG] ${node.name} actualFlowOut[${itemId}]:`,
-            actualFlowOut[itemId],
-            "edges:",
-            edges.map((e) => ({ rate: e.rate, demand: e.demand }))
-          );
-        }
       }
     }
 
@@ -165,15 +156,6 @@ function finalizeResults(
       const sentValue = isOutput
         ? actualFlowOut[id] ?? actualValue
         : actualValue;
-
-      // DEBUG
-      if (node.name?.toLowerCase().includes("iron ingot") && isOutput) {
-        console.log(`[SOLVER DEBUG] ${node.name} output ${id}:`, {
-          actualValue,
-          sentValue,
-          requested: node.requested?.[id],
-        });
-      }
 
       flows[id] = {
         demand: isOutput
@@ -494,14 +476,68 @@ function forwardPass(
       continue; // sinks have no outgoing edges
     }
 
-    // Distribute supply to outgoing edges proportionally by demand
+    // Distribute supply to outgoing edges based on PHYSICAL capacity, not solver demand
+    // This ensures overflow goes to blocks that can physically consume it
     for (const [itemId, edges] of idx.outgoing) {
       const available = supplyToGive[itemId] || 0;
-      const totalDemand = edges.reduce((s, e) => s + e.demand, 0);
 
-      if (totalDemand > EPSILON) {
-        for (const edge of edges) {
-          edge.rate = available * (edge.demand / totalDemand);
+      // Compute physical input capacity for each downstream block
+      // Use the MINIMUM of machine capacity and edge demand (factory max propagated)
+      const edgeCapacities: number[] = edges.map((edge) => {
+        const targetBlock = graph.blocks[edge.targetBlockId];
+        if (targetBlock?.type === "block") {
+          const targetProd = targetBlock as ProductionBlock;
+          if (targetProd.recipeId) {
+            const targetRecipe = recipes[targetProd.recipeId];
+            if (targetRecipe) {
+              const targetEffectiveTime = getEffectiveTime(
+                targetRecipe,
+                machines
+              );
+              if (
+                Number.isFinite(targetEffectiveTime) &&
+                targetEffectiveTime > 0
+              ) {
+                const targetCount = targetProd.machineCount ?? 1;
+                const inputDef = targetRecipe.inputs.find(
+                  (i) => i.itemId === itemId
+                );
+                if (inputDef) {
+                  const machineCapacity =
+                    (inputDef.amount / targetEffectiveTime) * targetCount;
+                  // Cap by edge demand (which reflects factory max from backward pass)
+                  return Math.min(machineCapacity, edge.demand);
+                }
+              }
+            }
+          }
+        } else if (targetBlock?.type === "sink") {
+          return targetBlock.demand[itemId] || Infinity;
+        } else if (targetBlock?.type === "logistics") {
+          // Logistics can pass through anything
+          return Infinity;
+        }
+        return edge.demand; // Fallback to solver demand
+      });
+
+      const totalCapacity = edgeCapacities.reduce(
+        (s, c) => s + (Number.isFinite(c) ? c : 0),
+        0
+      );
+
+      if (totalCapacity > EPSILON) {
+        // Distribute up to each edge's capacity, proportionally if not enough
+        let remaining = available;
+        for (let i = 0; i < edges.length; i++) {
+          const cap = edgeCapacities[i];
+          if (available <= totalCapacity) {
+            // Not enough to fill all - distribute proportionally by capacity
+            edges[i].rate = available * (cap / totalCapacity);
+          } else {
+            // More than enough - each gets up to their capacity
+            edges[i].rate = Math.min(cap, remaining);
+            remaining -= edges[i].rate;
+          }
         }
       } else {
         const share = available / edges.length;
