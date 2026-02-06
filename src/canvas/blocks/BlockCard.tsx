@@ -29,9 +29,10 @@ import { BlockZoomedOut } from "./BlockZoomedOut";
 interface Props {
   block: BlockBase;
   scale: number;
+  version: number;
 }
 
-export const BlockCard = memo(({ block, scale }: Props) => {
+export const BlockCard = memo(({ block, scale, version }: Props) => {
   const { recipes, items, machines } = useGameDataStore();
   const {
     moveBlock,
@@ -42,7 +43,6 @@ export const BlockCard = memo(({ block, scale }: Props) => {
     setRequest,
     setYield,
     setMachineCount,
-    version,
   } = useFactoryStore();
 
   const isSelected = selectedBlockId === block.id;
@@ -122,7 +122,6 @@ export const BlockCard = memo(({ block, scale }: Props) => {
     })) || [];
 
   const isZoomedIn = scale >= 0.9;
-  const statusClass = getStatusClass(block.satisfaction);
 
   const workingPowerMW =
     machine && requiredMachineCount > 0
@@ -143,6 +142,7 @@ export const BlockCard = memo(({ block, scale }: Props) => {
   const footerDenom = footerDemand > 0 ? footerDemand : footerCap;
   const footerEfficiency =
     footerDemand > 0 ? footerActual / footerDenom : block.satisfaction;
+  const statusClass = getStatusClass(footerEfficiency);
 
   // Commit functions
   const commitMachineCount = (val: number) => {

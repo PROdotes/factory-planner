@@ -1017,13 +1017,31 @@ body {
 }
 
 .edge-path {
-    stroke-dasharray: 5;
-    animation: flowDash 20s linear infinite;
+    stroke-dasharray: 8;
+    animation: flowDash 3s linear infinite;
+    transition: stroke 0.3s, stroke-opacity 0.3s, filter 0.3s;
+}
+
+.edge-path.starved {
+    stroke: var(--flow-warning) !important;
+    stroke-opacity: 0.9 !important;
+    filter: drop-shadow(0 0 6px var(--flow-warning-glow)) !important;
+    animation: flowDashStarved 1s linear infinite !important;
 }
 
 @keyframes flowDash {
     from {
-        stroke-dashoffset: 200;
+        stroke-dashoffset: 32;
+    }
+
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+@keyframes flowDashStarved {
+    from {
+        stroke-dashoffset: 16;
     }
 
     to {
