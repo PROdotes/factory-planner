@@ -51,6 +51,7 @@ interface ConnectionPathProps {
   label: string;
   isDimmed: boolean;
   isStarved: boolean;
+  isShortfall: boolean;
   version: number;
 }
 
@@ -65,6 +66,7 @@ const ConnectionPath = memo(
     label,
     isDimmed,
     isStarved,
+    isShortfall,
     version,
   }: ConnectionPathProps) => {
     const pathRef = useRef<SVGPathElement>(null);
@@ -135,27 +137,38 @@ const ConnectionPath = memo(
 
     return (
       <g
-        className={`${isDimmed ? "dimmed" : ""} ${isStarved ? "starved" : ""}`}
+        className={`${isDimmed ? "dimmed" : ""} ${isStarved ? "starved" : ""} ${
+          isShortfall && !isStarved ? "shortfall" : ""
+        }`}
       >
         <path
           ref={pathRef}
           d={bezier(p1.x, p1.y, p2.x, p2.y)}
           className={`edge-path ${isDimmed ? "dimmed" : ""} ${
             isStarved ? "starved" : ""
-          }`}
+          } ${isShortfall && !isStarved ? "shortfall" : ""}`}
           stroke="var(--accent)"
           strokeWidth="3"
-          strokeOpacity={isDimmed ? "0.1" : isStarved ? "0.8" : "0.6"}
+          strokeOpacity={
+            isDimmed ? "0.1" : isStarved ? "1.0" : isShortfall ? "0.4" : "0.6"
+          }
           fill="none"
-          markerEnd={isStarved ? "url(#arrowhead-starved)" : "url(#arrowhead)"}
+          markerEnd={
+            isStarved
+              ? "url(#arrowhead-starved)"
+              : isShortfall
+              ? "url(#arrowhead-shortfall)"
+              : "url(#arrowhead)"
+          }
           style={{
             filter: isDimmed
               ? "none"
               : isStarved
-              ? "drop-shadow(0 0 4px var(--flow-warning-glow))"
+              ? "drop-shadow(0 0 6px var(--flow-error))"
+              : isShortfall
+              ? "none"
               : "drop-shadow(0 0 4px var(--accent-glow))",
           }}
-          strokeDasharray={isStarved ? "4" : "8"}
           data-v={version}
         />
         <g
@@ -174,7 +187,13 @@ const ConnectionPath = memo(
           <text
             x="0"
             y="4"
-            fill={isStarved ? "var(--flow-warning)" : "var(--text-main)"}
+            fill={
+              isStarved
+                ? "var(--flow-error)"
+                : isShortfall
+                ? "var(--flow-warning)"
+                : "var(--text-main)"
+            }
             fontSize="11"
             fontWeight="600"
             textAnchor="middle"
@@ -292,6 +311,16 @@ export const ConnectionLines = memo(
             refY="3"
             orient="auto"
           >
+            <polygon points="0 0, 6 3, 0 6" fill="var(--flow-error)" />
+          </marker>
+          <marker
+            id="arrowhead-shortfall"
+            markerWidth="6"
+            markerHeight="6"
+            refX="5"
+            refY="3"
+            orient="auto"
+          >
             <polygon points="0 0, 6 3, 0 6" fill="var(--flow-warning)" />
           </marker>
         </defs>
@@ -362,16 +391,26 @@ const ConnectionPathWithPorts = memo(
     const rateMult = isPerMin ? 60 : 1;
     const rateLabel = isPerMin ? "/m" : "/s";
 
-    const isStarved = conn.demand > 0 && conn.rate < conn.demand - 0.001;
+    const targetFlow = target.results?.flows?.[conn.itemId];
+    const machineRequired = targetFlow?.capacity ?? 0;
+    const planRequired = conn.demand;
+
+    const isStarved =
+      machineRequired > 0 && conn.rate < machineRequired - 0.001;
+
+    const isShortfall = planRequired > conn.rate + 0.001;
 
     const actualStr = (conn.rate * rateMult).toFixed(1);
-    const demandStr = (conn.demand * rateMult).toFixed(1);
+    const planStr = (planRequired * rateMult).toFixed(1);
 
-    const label = isStarved
-      ? `${
-          items[conn.itemId]?.name || conn.itemId
-        } (${actualStr} / ${demandStr}${rateLabel})`
-      : `${items[conn.itemId]?.name || conn.itemId} (${actualStr}${rateLabel})`;
+    const label =
+      planRequired > machineRequired + 0.001
+        ? `${
+            items[conn.itemId]?.name || conn.itemId
+          } (${actualStr} / ${planStr}${rateLabel})`
+        : `${
+            items[conn.itemId]?.name || conn.itemId
+          } (${actualStr}${rateLabel})`;
 
     return (
       <ConnectionPath
@@ -384,6 +423,7 @@ const ConnectionPathWithPorts = memo(
         label={label}
         isDimmed={isDimmed}
         isStarved={isStarved}
+        isShortfall={isShortfall}
         version={version}
       />
     );

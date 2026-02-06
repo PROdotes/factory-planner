@@ -1023,10 +1023,19 @@ body {
 }
 
 .edge-path.starved {
+    stroke: var(--flow-error) !important;
+    stroke-opacity: 1 !important;
+    filter: drop-shadow(0 0 6px var(--flow-error)) !important;
+    animation: flowDashStarved 0.8s linear infinite !important;
+    stroke-width: 4px !important;
+    stroke-dasharray: 4 !important;
+}
+
+.edge-path.shortfall {
     stroke: var(--flow-warning) !important;
-    stroke-opacity: 0.9 !important;
-    filter: drop-shadow(0 0 6px var(--flow-warning-glow)) !important;
-    animation: flowDashStarved 1s linear infinite !important;
+    stroke-opacity: 0.5 !important;
+    stroke-dasharray: 4, 12 !important;
+    animation: flowDashShortfall 4s linear infinite !important;
 }
 
 @keyframes flowDash {
@@ -1042,6 +1051,16 @@ body {
 @keyframes flowDashStarved {
     from {
         stroke-dashoffset: 16;
+    }
+
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+@keyframes flowDashShortfall {
+    from {
+        stroke-dashoffset: 64;
     }
 
     to {
