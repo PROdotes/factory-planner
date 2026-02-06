@@ -135,10 +135,7 @@ export const BlockCard = memo(({ block, scale }: Props) => {
       recipe.category === "Gathering" ? block.sourceYield ?? 1.0 : 1.0;
     const ratePerMachine =
       ((mainOutput.amount * machine.speed) / recipe.craftingTime) * yieldMult;
-    const targetRate =
-      block.requested[mainOutput.itemId] ||
-      block.output[mainOutput.itemId] ||
-      0;
+    const targetRate = block.machineCount * ratePerMachine;
     requiredMachineCount = ratePerMachine > 0 ? targetRate / ratePerMachine : 0;
     targetRateUnitValue = isPerMin ? targetRate * 60 : targetRate;
   }
@@ -175,7 +172,7 @@ export const BlockCard = memo(({ block, scale }: Props) => {
       ? (machine.consumption * requiredMachineCount) / 1000000
       : 0;
 
-  // Footer Rates (Actual / Capacity)
+  // Footer Rates (Actual / Capacity or Actual / Demand for gatherers)
   const primaryFlow = mainOutput
     ? block.results?.flows?.[mainOutput.itemId]
     : null;
@@ -183,10 +180,25 @@ export const BlockCard = memo(({ block, scale }: Props) => {
     primaryFlow?.actual ??
     (mainOutput ? block.output[mainOutput.itemId] || 0 : 0);
   const footerCap = primaryFlow?.capacity ?? 0;
+  const footerDemand = primaryFlow?.demand ?? 0;
+
+  // For gatherers, show efficiency as actual/demand (global bottleneck view)
+  // For others, use block.satisfaction (local view)
+  const isGatherer = recipe?.category === "Gathering";
+  const footerDenom = isGatherer
+    ? footerDemand > 0
+      ? footerDemand
+      : footerCap
+    : footerCap;
+  const footerEfficiency = isGatherer
+    ? footerDemand > 0
+      ? footerActual / footerDemand
+      : 1
+    : block.satisfaction;
 
   // Commit functions
   const commitMachineCount = (val: number) => {
-    if (!isNaN(val) && val > 0) {
+    if (!isNaN(val) && val >= 0) {
       if (recipe && mainOutput && machine) {
         const yieldMult =
           recipe.category === "Gathering" ? block.sourceYield ?? 1.0 : 1.0;
@@ -202,7 +214,7 @@ export const BlockCard = memo(({ block, scale }: Props) => {
   };
 
   const commitOutputRate = (val: number) => {
-    if (!isNaN(val) && val > 0 && mainOutput) {
+    if (!isNaN(val) && val >= 0 && mainOutput) {
       const perSec = isPerMin ? val / 60 : val;
       if (recipe?.category === "Gathering") {
         // Link Rate -> Veins for miners
@@ -419,7 +431,6 @@ export const BlockCard = memo(({ block, scale }: Props) => {
                       }
                     }}
                     onWheel={(e) => {
-                      e.preventDefault();
                       e.stopPropagation();
                       const delta = e.shiftKey ? 10 : 1;
                       const current = block.sourceYield;
@@ -491,7 +502,6 @@ export const BlockCard = memo(({ block, scale }: Props) => {
                       }
                     }}
                     onWheel={(e) => {
-                      e.preventDefault();
                       e.stopPropagation();
                       const currentCount = autoSolveEnabled
                         ? requiredMachineCount
@@ -511,7 +521,7 @@ export const BlockCard = memo(({ block, scale }: Props) => {
                         if (next >= currentCount) next -= delta;
                         else next -= delta - 1;
                       }
-                      commitMachineCount(Math.max(1, next));
+                      commitMachineCount(next);
                     }}
                     title="Machine count (scroll or click)"
                   >
@@ -558,7 +568,6 @@ export const BlockCard = memo(({ block, scale }: Props) => {
                     }
                   }}
                   onWheel={(e) => {
-                    e.preventDefault();
                     e.stopPropagation();
                     const delta = e.shiftKey ? 10 : 1;
                     const current = targetRateUnitValue;
@@ -727,20 +736,20 @@ export const BlockCard = memo(({ block, scale }: Props) => {
           className="efficiency-bar"
           style={{
             background: `linear-gradient(to right, ${getBarColor(
-              block.satisfaction
-            )} ${block.satisfaction * 100}%, transparent ${
-              block.satisfaction * 100
+              footerEfficiency
+            )} ${footerEfficiency * 100}%, transparent ${
+              footerEfficiency * 100
             }%)`,
           }}
         />
         <span className="efficiency-pct">
-          {(block.satisfaction * 100).toFixed(0)}%
+          {(footerEfficiency * 100).toFixed(0)}%
         </span>
 
         {mainOutput && (
           <span className="footer-rates">
             {formatRate(footerActual, isPerMin)}/
-            {formatRate(footerCap, isPerMin)}
+            {formatRate(footerDenom, isPerMin)}
           </span>
         )}
 
