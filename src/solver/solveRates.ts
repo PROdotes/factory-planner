@@ -365,14 +365,13 @@ function forwardPass(
     if (node.type === "block") {
       const block = node as ProductionBlock;
 
-      // Check if this is a source block (no incoming edges with sourceYield)
-      const isSource =
-        idx.incomingAll.length === 0 && block.sourceYield !== undefined;
+      // 1. Resolve Recipe and Input State
+      const recipe = block.recipeId ? recipes[block.recipeId] : null;
+      const isSource = idx.incomingAll.length === 0;
 
-      if (isSource) {
-        // Source block: produces up to sourceYield capacity, limited by demand
+      // 2. CASE A: Source Block without recipe (Legacy/Tests)
+      if (isSource && !recipe && block.sourceYield !== undefined) {
         block.satisfaction = 1.0;
-        // Output the min of demand and sourceYield for each output item
         const outgoingDemand = aggregateEdges(idx.outgoingAll, "demand");
         for (const itemId of Object.keys(outgoingDemand)) {
           block.output[itemId] = Math.min(
@@ -381,12 +380,9 @@ function forwardPass(
           );
         }
         supplyToGive = block.output;
-      } else {
-        // Regular production block
-        if (!block.recipeId) continue;
-        const recipe = recipes[block.recipeId];
-        if (!recipe) continue;
-
+      }
+      // 3. CASE B: Standard Production (Miners or Assemblers with recipes)
+      else if (recipe) {
         const effectiveTime = getEffectiveTime(recipe, machines);
         if (!Number.isFinite(effectiveTime) || effectiveTime <= EPSILON) {
           block.satisfaction = 0;
@@ -395,45 +391,52 @@ function forwardPass(
           continue;
         }
 
-        // Get delivered supply and input capacities
+        const blockCapacities = getBlockCapacities(block, recipe, machines);
         const delivered = aggregateEdges(idx.incomingAll, "rate");
-        const inputCapacities = getInputCapacities(block, recipe, machines);
 
-        // Cap consumed supply by input capacity
-        const consumed: Record<string, number> = {};
-        for (const inp of recipe.inputs) {
-          const cap = inputCapacities[inp.itemId] ?? Infinity;
-          consumed[inp.itemId] = Math.min(delivered[inp.itemId] || 0, cap);
-        }
-        block.supply = consumed;
-        (block as any)._delivered = delivered; // Store for FlowResult
-
-        // Update incoming edge rates to reflect actual consumption
-        for (const [itemId, edges] of idx.incoming) {
-          const totalDelivered = edges.reduce((sum, e) => sum + e.rate, 0);
-          const totalConsumed = consumed[itemId] || 0;
-
-          if (totalDelivered > EPSILON && totalConsumed < totalDelivered) {
-            const scale = totalConsumed / totalDelivered;
-            for (const edge of edges) edge.rate *= scale;
+        if (isSource) {
+          // Sources (Miners) are always satisfied by the ground/infinite input
+          block.satisfaction = 1.0;
+          block.supply = {};
+        } else {
+          // Consumers: Cap consumed supply by input capacity
+          const consumed: Record<string, number> = {};
+          for (const inp of recipe.inputs) {
+            const cap = blockCapacities[inp.itemId] ?? Infinity;
+            consumed[inp.itemId] = Math.min(delivered[inp.itemId] || 0, cap);
           }
-        }
+          block.supply = consumed;
+          (block as any)._delivered = delivered;
 
-        // Satisfaction = minimum input fulfillment ratio (using consumed, not delivered)
-        let minSat = 1.0;
-        for (const inp of recipe.inputs) {
-          const req = block.demand[inp.itemId] || 0;
-          if (req > EPSILON) {
-            const sat = (consumed[inp.itemId] || 0) / req;
-            if (sat < minSat) minSat = sat;
+          // Update incoming edge rates to reflect actual consumption
+          for (const [itemId, edges] of idx.incoming) {
+            const totalDelivered = edges.reduce((sum, e) => sum + e.rate, 0);
+            const totalConsumed = consumed[itemId] || 0;
+            if (totalDelivered > EPSILON && totalConsumed < totalDelivered) {
+              const scale = totalConsumed / totalDelivered;
+              for (const edge of edges) edge.rate *= scale;
+            }
           }
-        }
-        block.satisfaction = minSat;
 
-        // Output = requested * satisfaction
+          // Satisfaction = minimum input fulfillment ratio
+          let minSat = 1.0;
+          for (const inp of recipe.inputs) {
+            const req = block.demand[inp.itemId] || 0;
+            if (req > EPSILON) {
+              const sat = (consumed[inp.itemId] || 0) / req;
+              if (sat < minSat) minSat = sat;
+            }
+          }
+          block.satisfaction = minSat;
+        }
+
+        // OUTPUT: (Requested * Satisfaction) CLAMPED by Physical Machine Capacity
+        // This is the core fix for the "Infinite Mine" bug.
         for (const itemId of Object.keys(node.requested || {})) {
-          block.output[itemId] =
-            (node.requested![itemId] || 0) * block.satisfaction;
+          const requestedValue = node.requested![itemId] || 0;
+          const goal = requestedValue * block.satisfaction;
+          const cap = blockCapacities[itemId] ?? Infinity;
+          block.output[itemId] = Math.min(goal, cap);
         }
         supplyToGive = block.output;
       }
@@ -522,7 +525,7 @@ function getEffectiveTime(
   return recipe.craftingTime / speed;
 }
 
-function getInputCapacities(
+function getBlockCapacities(
   block: ProductionBlock,
   recipe: Recipe,
   machines: Record<string, Machine> | undefined
@@ -533,8 +536,14 @@ function getInputCapacities(
     return capacities;
 
   const count = block.machineCount ?? 1;
+  const yieldMult =
+    recipe.category === "Gathering" ? block.sourceYield ?? 1.0 : 1.0;
+
   for (const inp of recipe.inputs) {
     capacities[inp.itemId] = (inp.amount / effectiveTime) * count;
+  }
+  for (const out of recipe.outputs) {
+    capacities[out.itemId] = (out.amount / effectiveTime) * count * yieldMult;
   }
   return capacities;
 }

@@ -99,13 +99,16 @@ export const BlockCard = memo(({ block, scale }: Props) => {
           itemId: id,
           name: items[id]?.name || id,
           actual: block.supply[id] || 0,
-          target: block.demand[id] || 0,
+          target:
+            block.results?.flows?.[id]?.capacity ?? (block.demand[id] || 0),
         }))
       : recipe?.inputs.map((i) => ({
           itemId: i.itemId,
           name: items[i.itemId]?.name || i.itemId,
           actual: block.supply[i.itemId] || 0,
-          target: block.demand[i.itemId] || 0,
+          target:
+            block.results?.flows?.[i.itemId]?.capacity ??
+            (block.demand[i.itemId] || 0),
         })) || [];
 
   const outputItems: IOItem[] =
@@ -113,7 +116,9 @@ export const BlockCard = memo(({ block, scale }: Props) => {
       itemId: o.itemId,
       name: items[o.itemId]?.name || o.itemId,
       actual: block.output[o.itemId] || 0,
-      target: block.requested[o.itemId] || 0,
+      target:
+        block.results?.flows?.[o.itemId]?.capacity ??
+        (block.requested[o.itemId] || 0),
     })) || [];
 
   const isZoomedIn = scale >= 0.9;
@@ -134,17 +139,10 @@ export const BlockCard = memo(({ block, scale }: Props) => {
   const footerCap = primaryFlow?.capacity ?? 0;
   const footerDemand = primaryFlow?.demand ?? 0;
 
-  const isGatherer = recipe?.category === "Gathering";
-  const footerDenom = isGatherer
-    ? footerDemand > 0
-      ? footerDemand
-      : footerCap
-    : footerCap;
-  const footerEfficiency = isGatherer
-    ? footerDemand > 0
-      ? footerActual / footerDemand
-      : 1
-    : block.satisfaction;
+  // FOOTER: Engineering Goal (Demand)
+  const footerDenom = footerDemand > 0 ? footerDemand : footerCap;
+  const footerEfficiency =
+    footerDemand > 0 ? footerActual / footerDenom : block.satisfaction;
 
   // Commit functions
   const commitMachineCount = (val: number) => {
