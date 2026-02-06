@@ -15,6 +15,7 @@ export interface FactoryBlock {
   id: string;
   name: string;
   type: "block" | "sink" | "logistics";
+  position: { x: number; y: number };
 
   // Solver results (ABC Pillar)
   results: {

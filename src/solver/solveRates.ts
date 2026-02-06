@@ -142,7 +142,9 @@ function finalizeResults(
 
     // For inputs: demand = delivered (available), actual = consumed
     // For outputs: demand = factory max (requested), actual = produced, sent = gated by downstream
-    const delivered = (node as any)._delivered || {};
+    const delivered =
+      (node as unknown as Record<string, Record<string, number>>)._delivered ||
+      {};
 
     for (const id of itemIds) {
       const isOutput =
@@ -421,7 +423,9 @@ function forwardPass(
             consumed[inp.itemId] = Math.min(delivered[inp.itemId] || 0, cap);
           }
           block.supply = consumed;
-          (block as any)._delivered = delivered;
+          (
+            block as unknown as Record<string, Record<string, number>>
+          )._delivered = delivered;
 
           // Update incoming edge rates to reflect actual consumption
           for (const [itemId, edges] of idx.incoming) {

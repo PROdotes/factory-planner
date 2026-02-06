@@ -47,6 +47,7 @@ export abstract class BlockBase {
    * Updates the local state from a solved snapshot.
    */
   syncState(data: FactoryBlock) {
+    this.position = { ...data.position };
     this.demand = { ...data.demand };
     this.supply = { ...data.supply };
     this.output = { ...data.output };

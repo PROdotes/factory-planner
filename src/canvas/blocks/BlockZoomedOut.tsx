@@ -19,7 +19,7 @@ export const BlockZoomedOut = memo(
       <div className="zoom-out-view">
         <div className="main-icon">
           {mainOutputId ? (
-            <ItemIcon itemId={mainOutputId} size={96} />
+            <ItemIcon itemId={mainOutputId} size={64} />
           ) : (
             <ItemIcon
               itemId={blockType === "sink" ? "storage-container" : "iron-ore"}

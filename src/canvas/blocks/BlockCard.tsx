@@ -101,6 +101,12 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
     }
   }
 
+  const isGenerator =
+    block instanceof ProductionBlock &&
+    machine &&
+    !recipe &&
+    !!machine.generation;
+
   // Collect I/O items
   // Input: actual = supply received, target = min(machineCapacity, demandForFactoryMax)
   // Output: actual = sent, target = min(machineCapacity, factoryMax)
@@ -161,12 +167,6 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
   // demand = factory max (total downstream capacity)
   const footerActual = primaryFlow?.sent ?? 0;
   const footerDenom = primaryFlow?.demand ?? 0; // Factory max, NOT actual production
-
-  const isGenerator =
-    block instanceof ProductionBlock &&
-    machine &&
-    !recipe &&
-    (machine as any).generation;
 
   const footerEfficiency =
     footerDenom > 0 ? footerActual / footerDenom : block.satisfaction;

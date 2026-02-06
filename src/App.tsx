@@ -17,6 +17,12 @@ import {
   RefreshCw,
   Target,
   Settings,
+  Download,
+  Upload,
+  Undo2,
+  Redo2,
+  Save,
+  Wand2,
 } from "lucide-react";
 import { useFactoryStore } from "./factory/factoryStore";
 import { ForgeList } from "./canvas/shell/ForgeList";
@@ -25,11 +31,21 @@ import { BottleneckAlerts } from "./canvas/shell/BottleneckAlerts";
 import { RateUnitToggle } from "./canvas/components/RateUnitToggle";
 import { ImplicitSearchPicker } from "./canvas/blocks/ImplicitSearchPicker";
 import { IconMapper } from "./canvas/shell/IconMapper";
-import { PowerSummary } from "./canvas/PowerSummary";
+import PowerSummary from "./canvas/PowerSummary";
 
 export function App() {
   const { loadData, isLoaded, error } = useGameDataStore();
-  const { runSolver, loadDemo } = useFactoryStore();
+  const {
+    runSolver,
+    loadDemo,
+    loadFromLocalStorage,
+    exportToJSON,
+    importFromJSON,
+    undo,
+    redo,
+    saveToLocalStorage,
+    autoLayout,
+  } = useFactoryStore();
   const {
     leftSidebarOpen,
     toggleLeftSidebar,
@@ -45,7 +61,35 @@ export function App() {
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+    // Auto-load session
+    if (localStorage.getItem("dsp_factory_save")) {
+      loadFromLocalStorage();
+    } else {
+      loadDemo();
+    }
+  }, [loadData, loadFromLocalStorage, loadDemo]);
+
+  // [Keyboard Shortcuts]
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === "z") {
+          e.preventDefault();
+          undo();
+        }
+        if (e.key === "y") {
+          e.preventDefault();
+          redo();
+        }
+        if (e.key === "s") {
+          e.preventDefault();
+          saveToLocalStorage();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [undo, redo, saveToLocalStorage]);
 
   // [Solver Watcher] - Ensure rates update when modes change
   useEffect(() => {
@@ -133,8 +177,69 @@ export function App() {
           <RateUnitToggle />
           <div className="nav-divider" />
 
-          <button className="toolbar-btn" onClick={loadDemo}>
-            <Play size={16} /> <span>Load Test Site</span>
+          <button className="toolbar-btn" onClick={undo} title="Undo (Ctrl+Z)">
+            <Undo2 size={16} />
+          </button>
+          <button className="toolbar-btn" onClick={redo} title="Redo (Ctrl+Y)">
+            <Redo2 size={16} />
+          </button>
+          <button
+            className="toolbar-btn"
+            onClick={saveToLocalStorage}
+            title="Save (Ctrl+S)"
+          >
+            <Save size={16} />
+          </button>
+
+          <div className="nav-divider" />
+
+          <button
+            className="toolbar-btn"
+            onClick={exportToJSON}
+            title="Export Layout (.json)"
+          >
+            <Download size={16} />
+          </button>
+
+          <label
+            className="toolbar-btn clickable"
+            title="Import Layout (.json)"
+          >
+            <Upload size={16} />
+            <input
+              type="file"
+              accept=".json"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onload = (ev) => {
+                    const content = ev.target?.result as string;
+                    importFromJSON(content);
+                  };
+                  reader.readAsText(file);
+                }
+              }}
+            />
+          </label>
+
+          <div className="nav-divider" />
+
+          <button
+            className="toolbar-btn"
+            onClick={loadDemo}
+            title="Reset to Demo Site"
+          >
+            <RefreshCw size={16} /> <span>Demo</span>
+          </button>
+
+          <button
+            className="toolbar-btn"
+            onClick={autoLayout}
+            title="Auto-Organize Layout"
+          >
+            <Wand2 size={16} /> <span>Organize</span>
           </button>
 
           <button

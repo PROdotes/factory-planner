@@ -12,6 +12,7 @@ import { FactoryGraph } from "./core/FactoryGraph";
 import { StorageBlock } from "./blocks/StorageBlock";
 import { ProductionBlock } from "./blocks/ProductionBlock";
 import { LogisticsBlock } from "./blocks/LogisticsBlock";
+import { serializeGraph, deserializeGraph } from "./graphSerializer";
 
 interface FactoryState {
   // The Single Source of Truth for the Factory
@@ -40,14 +41,38 @@ interface FactoryState {
   setMachineCount: (blockId: string, count: number) => void;
   runSolver: () => void;
   loadDemo: () => void;
+  autoLayout: () => void;
+
+  // Data Safety Actions
+  saveToLocalStorage: () => void;
+  loadFromLocalStorage: () => void;
+  exportToJSON: () => void;
+  importFromJSON: (json: string) => void;
+  undo: () => void;
+  redo: () => void;
 }
 
-let solverTimeout: any = null;
-const debouncedSolve = (get: any) => {
+let solverTimeout: ReturnType<typeof setTimeout> | null = null;
+const debouncedSolve = (get: () => FactoryState) => {
   if (solverTimeout) clearTimeout(solverTimeout);
   solverTimeout = setTimeout(() => {
     get().runSolver();
+    get().saveToLocalStorage();
   }, 300);
+};
+
+// Undo/Redo Stacks (Transient)
+let undoStack: string[] = [];
+let redoStack: string[] = [];
+
+const pushToUndo = (factory: FactoryGraph) => {
+  const snapshot = serializeGraph(factory);
+  // Only push if different from last
+  if (undoStack.length === 0 || undoStack[undoStack.length - 1] !== snapshot) {
+    undoStack.push(snapshot);
+    if (undoStack.length > 50) undoStack.shift();
+    redoStack = []; // Clear redo on new action
+  }
 };
 
 export const useFactoryStore = create<FactoryState>((set, get) => ({
@@ -57,6 +82,7 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
 
   addBlock: (name, x, y) => {
     const { factory } = get();
+    pushToUndo(factory);
     const block = factory.addBlock(name, x, y);
     set((state) => ({ version: state.version + 1 }));
     debouncedSolve(get);
@@ -65,6 +91,7 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
 
   addSink: (name, x, y) => {
     const { factory } = get();
+    pushToUndo(factory);
     const sink = factory.addSink(name, x, y);
     set((state) => ({ version: state.version + 1 }));
     debouncedSolve(get);
@@ -73,6 +100,7 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
 
   addLogistics: (subtype, x, y) => {
     const { factory } = get();
+    pushToUndo(factory);
     const block = factory.addLogistics(subtype, x, y);
     set((state) => ({ version: state.version + 1 }));
     debouncedSolve(get);
@@ -87,6 +115,7 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
 
   removeBlock: (id) => {
     const { factory, selectedBlockId } = get();
+    pushToUndo(factory);
     factory.removeBlock(id);
     set((state) => ({
       version: state.version + 1,
@@ -97,6 +126,7 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
 
   connect: (sourceId: string, targetId: string, itemId: string) => {
     const { factory } = get();
+    pushToUndo(factory);
     factory.connect(sourceId, targetId, itemId);
     set((state) => ({ version: state.version + 1 }));
     debouncedSolve(get);
@@ -107,6 +137,7 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
     const { recipes } = useGameDataStore.getState();
     const block = factory.blocks.get(blockId);
     if (block && block instanceof ProductionBlock) {
+      pushToUndo(factory);
       block.setRecipe(recipeId);
       // Auto-set machine from recipe
       if (recipeId) {
@@ -124,6 +155,7 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
     const { factory } = get();
     const block = factory.blocks.get(blockId);
     if (block && block instanceof ProductionBlock) {
+      pushToUndo(factory);
       block.setMachine(machineId);
       set((state) => ({ version: state.version + 1 }));
       debouncedSolve(get);
@@ -144,6 +176,8 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
     const block = factory.blocks.get(blockId);
     if (!block) return;
 
+    pushToUndo(factory);
+
     if (block instanceof StorageBlock) {
       block.setRequest(itemId, rate);
     } else if (block instanceof ProductionBlock) {
@@ -159,6 +193,7 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
     const { factory } = get();
     const block = factory.blocks.get(blockId);
     if (block) {
+      pushToUndo(factory);
       block.sourceYield = yieldValue;
       set((state) => ({ version: state.version + 1 }));
       debouncedSolve(get);
@@ -169,6 +204,7 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
     const { factory } = get();
     const block = factory.blocks.get(blockId);
     if (block instanceof ProductionBlock) {
+      pushToUndo(factory);
       block.machineCount = count;
       set((state) => ({ version: state.version + 1 }));
       debouncedSolve(get);
@@ -190,7 +226,9 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
     if (autoSolveEnabled) {
       Object.values(layoutDTO.blocks).forEach((block) => {
         if (block.type === "block") {
-          delete (block as any).machineCount;
+          // Temporarily remove constraints for auto-solve
+          (block as unknown as Record<string, unknown>).machineCount =
+            undefined;
         }
       });
     }
@@ -309,6 +347,132 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
     factory.connect(factory3.id, factory1.id, "electromagnetic-turbine");
 
     selectBlock(null);
-    //get().runSolver();
+    get().saveToLocalStorage();
+  },
+
+  saveToLocalStorage: () => {
+    const { factory } = get();
+    const json = serializeGraph(factory);
+    localStorage.setItem("dsp_factory_save", json);
+  },
+
+  loadFromLocalStorage: () => {
+    const { factory } = get();
+    const json = localStorage.getItem("dsp_factory_save");
+    if (json) {
+      deserializeGraph(json, factory);
+      set((state) => ({ version: state.version + 1 }));
+      get().runSolver();
+    }
+  },
+
+  exportToJSON: () => {
+    const { factory } = get();
+    const json = serializeGraph(factory);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `factory_${new Date().toISOString().split("T")[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+
+  importFromJSON: (json: string) => {
+    const { factory } = get();
+    pushToUndo(factory);
+    try {
+      deserializeGraph(json, factory);
+      set((state) => ({ version: state.version + 1 }));
+      get().runSolver();
+      get().saveToLocalStorage();
+    } catch (e) {
+      console.error("Import failed", e);
+    }
+  },
+
+  undo: () => {
+    const { factory } = get();
+    if (undoStack.length === 0) return;
+
+    const current = serializeGraph(factory);
+    redoStack.push(current);
+
+    const prev = undoStack.pop()!;
+    deserializeGraph(prev, factory);
+    set((state) => ({ version: state.version + 1 }));
+    get().runSolver();
+    get().saveToLocalStorage();
+  },
+
+  redo: () => {
+    const { factory } = get();
+    if (redoStack.length === 0) return;
+
+    const current = serializeGraph(factory);
+    undoStack.push(current);
+
+    const next = redoStack.pop()!;
+    deserializeGraph(next, factory);
+    set((state) => ({ version: state.version + 1 }));
+    get().runSolver();
+    get().saveToLocalStorage();
+  },
+
+  autoLayout: () => {
+    const { factory } = get();
+    const blocks = Array.from(factory.blocks.values());
+    if (blocks.length === 0) return;
+
+    pushToUndo(factory);
+
+    // 1. Iterative Ranking (Topological-ish)
+    // Every block starts at rank 0. If A -> B, then B.rank = max(B.rank, A.rank + 1)
+    const ranks = new Map<string, number>();
+    blocks.forEach((b) => ranks.set(b.id, 0));
+
+    // Multiple passes to propagate rank through the entire chain
+    // Limits passes to block count to avoid infinite loops on cycles
+    for (let i = 0; i < blocks.length; i++) {
+      let changed = false;
+      factory.connections.forEach((conn) => {
+        const rSrc = ranks.get(conn.sourceBlockId) ?? 0;
+        const rTgt = ranks.get(conn.targetBlockId) ?? 0;
+        if (rTgt <= rSrc) {
+          ranks.set(conn.targetBlockId, rSrc + 1);
+          changed = true;
+        }
+      });
+      if (!changed) break;
+    }
+
+    // 2. Group blocks by their assigned rank
+    const groups = new Map<number, typeof blocks>();
+    blocks.forEach((b) => {
+      const r = ranks.get(b.id) ?? 0;
+      if (!groups.has(r)) groups.set(r, []);
+      groups.get(r)!.push(b);
+    });
+
+    // 3. Final Placement
+    const COL_WIDTH = 400; // Horizontal gap
+    const ROW_HEIGHT = 280; // Vertical gap
+    const START_X = 100;
+    const START_Y = 200;
+
+    const sortedRankKeys = Array.from(groups.keys()).sort((a, b) => a - b);
+
+    sortedRankKeys.forEach((rank) => {
+      const group = groups.get(rank)!;
+      const x = START_X + rank * COL_WIDTH;
+      const totalColumnHeight = (group.length - 1) * ROW_HEIGHT;
+
+      group.forEach((block, index) => {
+        const y = START_Y + index * ROW_HEIGHT - totalColumnHeight / 2 + 300;
+        factory.moveBlock(block.id, x, y);
+      });
+    });
+
+    set((state) => ({ version: state.version + 1 }));
   },
 }));

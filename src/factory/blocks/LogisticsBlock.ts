@@ -25,6 +25,7 @@ export class LogisticsBlock extends BlockBase {
       id: this.id,
       name: this.name,
       type: "logistics",
+      position: { ...this.position },
       subtype: this.subtype,
       demand: { ...this.demand },
       supply: { ...this.supply },

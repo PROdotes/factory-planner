@@ -28,6 +28,7 @@ export class ProductionBlock extends BlockBase {
       id: this.id,
       type: "block",
       name: this.name,
+      position: { ...this.position },
       recipeId: this.recipeId || undefined,
       machineId: this.machineId || undefined,
       demand: { ...this.demand },

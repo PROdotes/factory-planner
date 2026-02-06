@@ -107,7 +107,7 @@ export const BlockControls = memo(
       onRateChange(Math.max(0, next));
     };
 
-    const isGenerator = (machine as any).generation > 0 && !recipe;
+    const isGenerator = !!machine.generation && !recipe;
 
     const yieldLabel = isGenerator
       ? "POWER"

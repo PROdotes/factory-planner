@@ -8,7 +8,9 @@ import { useFactoryStore } from "../factory/factoryStore";
 import { useGameDataStore } from "../gamedata/gamedataStore";
 import { computeFactoryAnalytics } from "../solver/factoryAnalytics";
 import { Zap, ChevronDown, ChevronRight, Building } from "lucide-react";
+import { Machine } from "../gamedata/gamedata.types";
 import "./PowerSummary.css";
+import { useUIStore } from "./uiStore";
 
 function formatPower(watts: number): string {
   if (watts >= 1e9) return `${(watts / 1e9).toFixed(2)} GW`;
@@ -17,10 +19,8 @@ function formatPower(watts: number): string {
   return `${watts.toFixed(0)} W`;
 }
 
-import { useUIStore } from "./uiStore";
-
 export function PowerSummary() {
-  const { factory, version } = useFactoryStore(); // Subscribe to version specific updates
+  const { factory, version } = useFactoryStore();
   const { recipes, machines, items, isLoaded } = useGameDataStore();
   const { windEfficiency, setWindEfficiency } = useUIStore();
   const [expanded, setExpanded] = useState(false);
@@ -35,12 +35,22 @@ export function PowerSummary() {
   const groups = useMemo(() => {
     if (!analytics) return { generation: [], consumption: [] };
 
-    const gen: any[] = [];
-    const con: any[] = [];
+    interface GroupItem {
+      machineId: string;
+      machine: Machine;
+      count: number;
+      totalPower: number;
+      isGen: boolean;
+    }
+
+    const gen: GroupItem[] = [];
+    const con: GroupItem[] = [];
 
     Object.entries(analytics.buildingCounts).forEach(([machineId, count]) => {
       const machine = machines[machineId];
-      let totalPower = count * machine.consumption;
+      if (!machine) return;
+
+      let totalPower = count * (machine.consumption || 0);
       let isGen = false;
 
       if (machine.generation && machine.generation > 0) {
@@ -50,7 +60,7 @@ export function PowerSummary() {
         isGen = true;
       }
 
-      const item = { machineId, machine, count, totalPower, isGen };
+      const item: GroupItem = { machineId, machine, count, totalPower, isGen };
       if (isGen) gen.push(item);
       else con.push(item);
     });
@@ -210,3 +220,5 @@ export function PowerSummary() {
     </div>
   );
 }
+
+export default PowerSummary;
