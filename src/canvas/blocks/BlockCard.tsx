@@ -115,10 +115,12 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
     recipe?.outputs.map((o) => ({
       itemId: o.itemId,
       name: items[o.itemId]?.name || o.itemId,
-      actual: block.output[o.itemId] || 0,
+      // sent = what actually left (gated by downstream), actual = what was produced
+      actual:
+        block.results?.flows?.[o.itemId]?.sent ?? (block.output[o.itemId] || 0),
       target:
-        block.results?.flows?.[o.itemId]?.capacity ??
-        (block.requested[o.itemId] || 0),
+        block.results?.flows?.[o.itemId]?.actual ??
+        (block.output[o.itemId] || 0),
     })) || [];
 
   const isZoomedIn = scale >= 0.9;
@@ -132,16 +134,12 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
   const primaryFlow = mainOutput
     ? block.results?.flows?.[mainOutput.itemId]
     : null;
-  const footerActual =
-    primaryFlow?.actual ??
-    (mainOutput ? block.output[mainOutput.itemId] || 0 : 0);
-  const footerCap = primaryFlow?.capacity ?? 0;
-  const footerDemand = primaryFlow?.demand ?? 0;
-
-  // FOOTER: Engineering Goal (Demand)
-  const footerDenom = footerDemand > 0 ? footerDemand : footerCap;
+  // sent = what actually left the block (gated by downstream)
+  // demand = factory max (total downstream capacity)
+  const footerActual = primaryFlow?.sent ?? 0;
+  const footerDenom = primaryFlow?.demand ?? 0; // Factory max, NOT actual production
   const footerEfficiency =
-    footerDemand > 0 ? footerActual / footerDenom : block.satisfaction;
+    footerDenom > 0 ? footerActual / footerDenom : block.satisfaction;
   const statusClass = getStatusClass(footerEfficiency);
 
   // Commit functions

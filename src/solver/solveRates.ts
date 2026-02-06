@@ -10,6 +10,7 @@ import {
   FactoryLayout,
   Connection,
   ProductionBlock,
+  FlowResult,
 } from "../factory/core/factory.types";
 import { Recipe, Machine } from "../gamedata/gamedata.types";
 
@@ -52,7 +53,7 @@ export function solveFlowRates(
     if (isConverged(graph.connections, prevDemand, prevRate)) break;
   }
 
-  finalizeResults(graph, recipes, machines);
+  finalizeResults(graph, recipes, machines, index);
   return graph;
 }
 
@@ -78,13 +79,11 @@ function initializeGraph(graph: FactoryLayout): void {
 function finalizeResults(
   graph: FactoryLayout,
   recipes: Record<string, Recipe>,
-  machines?: Record<string, Machine>
+  machines: Record<string, Machine> | undefined,
+  index: Map<string, NodeIndex>
 ): void {
   for (const node of Object.values(graph.blocks)) {
-    const flows: Record<
-      string,
-      { actual: number; demand: number; capacity: number }
-    > = {};
+    const flows: Record<string, FlowResult> = {};
     const itemIds = new Set<string>([
       ...Object.keys(node.demand),
       ...Object.keys(node.supply),
@@ -93,6 +92,26 @@ function finalizeResults(
     ]);
 
     const capacities: Record<string, number> = {};
+    const nodeIndex = index.get(node.id);
+
+    // Compute what actually flowed out (sum of edge rates after solver converged)
+    // This is the REAL output, constrained by both production AND downstream acceptance
+    const actualFlowOut: Record<string, number> = {};
+    if (nodeIndex) {
+      for (const [itemId, edges] of nodeIndex.outgoing) {
+        actualFlowOut[itemId] = edges.reduce((sum, e) => sum + e.rate, 0);
+        // DEBUG
+        if (node.name?.toLowerCase().includes("iron ingot")) {
+          console.log(
+            `[SOLVER DEBUG] ${node.name} actualFlowOut[${itemId}]:`,
+            actualFlowOut[itemId],
+            "edges:",
+            edges.map((e) => ({ rate: e.rate, demand: e.demand }))
+          );
+        }
+      }
+    }
+
     if (node.type === "block") {
       const block = node as ProductionBlock;
       if (block.recipeId) {
@@ -109,8 +128,10 @@ function finalizeResults(
             const yieldMult =
               recipe.category === "Gathering" ? block.sourceYield ?? 1.0 : 1.0;
             for (const out of recipe.outputs) {
-              capacities[out.itemId] =
+              const machineCapacity =
                 (out.amount / effectiveTime) * count * yieldMult;
+              // Capacity is simply what machines can produce
+              capacities[out.itemId] = machineCapacity;
             }
             for (const inp of recipe.inputs) {
               capacities[inp.itemId] = (inp.amount / effectiveTime) * count;
@@ -129,19 +150,38 @@ function finalizeResults(
     }
 
     // For inputs: demand = delivered (available), actual = consumed
-    // For outputs: demand = requested, actual = produced
+    // For outputs: demand = factory max (requested), actual = produced, sent = gated by downstream
     const delivered = (node as any)._delivered || {};
 
     for (const id of itemIds) {
       const isOutput =
         node.output?.[id] !== undefined ||
         (node.requested && node.requested[id] !== undefined);
+
+      const actualValue = isOutput
+        ? node.output?.[id] || 0
+        : node.supply?.[id] || 0;
+      // sent = what actually flowed out (from edge rates), not what we produced
+      const sentValue = isOutput
+        ? actualFlowOut[id] ?? actualValue
+        : actualValue;
+
+      // DEBUG
+      if (node.name?.toLowerCase().includes("iron ingot") && isOutput) {
+        console.log(`[SOLVER DEBUG] ${node.name} output ${id}:`, {
+          actualValue,
+          sentValue,
+          requested: node.requested?.[id],
+        });
+      }
+
       flows[id] = {
         demand: isOutput
           ? node.requested?.[id] || 0
           : delivered[id] || node.demand[id] || 0,
-        actual: isOutput ? node.output?.[id] || 0 : node.supply?.[id] || 0,
+        actual: actualValue,
         capacity: capacities[id] || 0,
+        sent: sentValue,
       };
     }
 
@@ -270,15 +310,8 @@ function backwardPass(
         }
       }
 
-      // Allow manual user overrides to take precedence if they are higher
-      const manualGoals = node.requested || {};
-      for (const itemId of Object.keys(manualGoals)) {
-        outputGoals[itemId] = Math.max(
-          outputGoals[itemId] || 0,
-          manualGoals[itemId]
-        );
-      }
-
+      // outputGoals is the FACTORY MAX - what downstream can physically consume
+      // User's manual request does NOT override this - it's used for input scaling only
       node.requested = outputGoals;
       if (!Number.isFinite(effectiveTime) || effectiveTime <= EPSILON) {
         block.demand = {};
