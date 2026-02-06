@@ -395,10 +395,12 @@ const ConnectionPathWithPorts = memo(
     const machineRequired = targetFlow?.capacity ?? 0;
     const planRequired = conn.demand;
 
-    const isStarved =
-      machineRequired > 0 && conn.rate < machineRequired - 0.001;
+    // We are only 'Starved' (Red) if we provide less than 99% of the Plan
+    // OR less than 99% of what the current machines can physically eat.
+    const bindingGoal = Math.min(machineRequired, planRequired);
+    const isStarved = machineRequired > 0 && conn.rate < bindingGoal * 0.99;
 
-    const isShortfall = planRequired > conn.rate + 0.001;
+    const isShortfall = !isStarved && conn.rate < planRequired * 0.99;
 
     const actualStr = (conn.rate * rateMult).toFixed(1);
     const planStr = (planRequired * rateMult).toFixed(1);
