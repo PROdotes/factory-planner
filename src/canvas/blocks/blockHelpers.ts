@@ -38,11 +38,20 @@ export function isBlockFailing(
   outputActual: number,
   outputGoal: number,
   outputCapacity: number,
-  isLogistics: boolean = false
+  isLogistics: boolean = false,
+  isGathering: boolean = false
 ): boolean {
   // Logistics blocks (Splitters/Mergers) are 'Failing' if they are starved.
   if (isLogistics) {
     return inputSatisfaction < 0.99;
+  }
+
+  // GATHERING Logic: Strict Capacity vs Goal
+  // Ideally, if a miner is configured to meet demand (Capacity >= Goal), it is "OK" (Blue).
+  // If it is under-configured (Capacity < Goal), it is "Failing" (Amber via CSS).
+  // We ignore 'Actual' for miners because 99% throughput shouldn't flag a configured miner as failing.
+  if (isGathering) {
+    return outputCapacity < outputGoal - 0.001;
   }
 
   // 1. Are we meeting the factory plan? If yes, we are Blue.

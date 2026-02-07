@@ -126,7 +126,8 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
     footerActual,
     footerDenom,
     machineCapacity,
-    block.type === "logistics"
+    block.type === "logistics",
+    recipe?.category === "Gathering"
   );
   const statusClass = isFailing ? "status-error" : "status-ok";
 
@@ -185,7 +186,7 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
         isSelected ? "selected" : ""
       } ${isDimmed ? "dimmed" : ""} ${statusClass} ${
         isLogistics ? "junction" : ""
-      }`}
+      } ${recipe?.category === "Gathering" ? "gathering" : ""}`}
       style={
         {
           transform: `translate(${position.x}px, ${position.y}px)`,

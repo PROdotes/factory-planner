@@ -738,7 +738,23 @@ body {
     box-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
 }
 
-/* Block Header */
+/* Gathering Blocks (Miners/Pumps) use Amber for Errors (Configuration Warning) */
+.block-card.gathering.status-error {
+    border-color: #fce584;
+    /* Amber */
+    box-shadow: 0 0 10px rgba(252, 229, 132, 0.2);
+}
+
+.block-card.gathering.status-error .selection-ring {
+    border-color: #fce584;
+}
+
+.block-card.gathering.status-error .status-dot {
+    background-color: #fce584;
+    box-shadow: 0 0 8px #fce584;
+}
+
+/* --- Block Header --- */
 .block-header {
     display: flex;
     align-items: center;

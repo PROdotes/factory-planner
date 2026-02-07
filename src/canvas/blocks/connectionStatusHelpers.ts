@@ -36,6 +36,7 @@ export function checkBlockFailing(
   const recipe = (block as any).recipeId
     ? recipes[(block as any).recipeId]
     : null;
+  const isGathering = recipe?.category === "Gathering";
   const mainItemId = recipe?.outputs[0]?.itemId;
   const primaryFlow = mainItemId ? block.results?.flows?.[mainItemId] : null;
 
@@ -44,7 +45,8 @@ export function checkBlockFailing(
     primaryFlow?.sent ?? 0,
     primaryFlow?.demand ?? 0,
     primaryFlow?.capacity ?? 0,
-    block.type === "logistics"
+    block.type === "logistics",
+    isGathering
   );
 }
 

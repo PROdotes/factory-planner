@@ -4,6 +4,7 @@ import {
   FactoryLayout,
   ProductionBlock,
   StorageBlock,
+  LogisticsBlock,
   Connection,
   FactoryBlock,
 } from "../factory/core/factory.types";
@@ -55,6 +56,24 @@ function makeSink(id: string, itemId: string, demand: number): StorageBlock {
     name: id,
     position: { x: 0, y: 0 },
     demand: { [itemId]: demand },
+    supply: {},
+    output: {},
+    satisfaction: 1.0,
+    results: { flows: {}, satisfaction: 1.0 },
+  };
+}
+
+function makeLogistics(
+  id: string,
+  subtype: "splitter" | "merger" | "knot"
+): LogisticsBlock {
+  return {
+    id,
+    type: "logistics",
+    name: id,
+    subtype,
+    position: { x: 0, y: 0 },
+    demand: {},
     supply: {},
     output: {},
     satisfaction: 1.0,
@@ -1081,6 +1100,472 @@ describe("rateSolver", () => {
       expect(outputFlow.demand).toBeCloseTo(100); // Requested by downstream
       expect(outputFlow.actual).toBeCloseTo(30); // Produced (limited by input)
       expect(outputFlow.capacity).toBeCloseTo(30); // Max output rate
+    });
+  });
+
+  // ── Splitter ───────────────────────────────────────────────────────
+
+  describe("splitter", () => {
+    it("should split supply evenly when downstream demands are equal", () => {
+      const graph: FactoryLayout = {
+        blocks: {
+          src: makeSource("src", "ore", 100),
+          splitter: makeLogistics("splitter", "splitter"),
+          snkA: makeSink("snkA", "ore", 50),
+          snkB: makeSink("snkB", "ore", 50),
+        },
+        connections: [
+          makeEdge("eIn", "src", "splitter", "ore"),
+          makeEdge("eA", "splitter", "snkA", "ore"),
+          makeEdge("eB", "splitter", "snkB", "ore"),
+        ],
+      };
+
+      const result = solveFlowRates(graph, {});
+
+      expect(edge(result, "eIn").rate).toBeCloseTo(100);
+      expect(edge(result, "eA").rate).toBeCloseTo(50);
+      expect(edge(result, "eB").rate).toBeCloseTo(50);
+      expect(result.blocks["splitter"].satisfaction).toBeCloseTo(1.0);
+    });
+
+    it("should split supply proportionally based on downstream demand", () => {
+      const graph: FactoryLayout = {
+        blocks: {
+          src: makeSource("src", "ore", 100),
+          splitter: makeLogistics("splitter", "splitter"),
+          snkA: makeSink("snkA", "ore", 75),
+          snkB: makeSink("snkB", "ore", 25),
+        },
+        connections: [
+          makeEdge("eIn", "src", "splitter", "ore"),
+          makeEdge("eA", "splitter", "snkA", "ore"),
+          makeEdge("eB", "splitter", "snkB", "ore"),
+        ],
+      };
+
+      const result = solveFlowRates(graph, {});
+
+      expect(edge(result, "eIn").rate).toBeCloseTo(100);
+      expect(edge(result, "eA").rate).toBeCloseTo(75);
+      expect(edge(result, "eB").rate).toBeCloseTo(25);
+    });
+
+    it("should handle undersupply by distributing evenly up to demand caps", () => {
+      // Source provides 50, but downstream wants 100 total (60 + 40)
+      // Solver uses water-filling algorithm: tries to give equal share, capped by demand
+      const graph: FactoryLayout = {
+        blocks: {
+          src: makeSource("src", "ore", 50),
+          splitter: makeLogistics("splitter", "splitter"),
+          snkA: makeSink("snkA", "ore", 60),
+          snkB: makeSink("snkB", "ore", 40),
+        },
+        connections: [
+          makeEdge("eIn", "src", "splitter", "ore"),
+          makeEdge("eA", "splitter", "snkA", "ore"),
+          makeEdge("eB", "splitter", "snkB", "ore"),
+        ],
+      };
+
+      const result = solveFlowRates(graph, {});
+
+      // Water-filling: 50 available, 2 edges
+      // First pass: try 25 each. snkB wants 40, snkA wants 60 → both can take 25
+      // snkA gets 25, snkB gets 25
+      expect(edge(result, "eIn").rate).toBeCloseTo(50);
+      expect(edge(result, "eA").rate).toBeCloseTo(25);
+      expect(edge(result, "eB").rate).toBeCloseTo(25);
+      expect(result.blocks["splitter"].satisfaction).toBeCloseTo(0.5);
+    });
+
+    it("should handle oversupply by capping at demand", () => {
+      // Source provides 200, but downstream only wants 60 total
+      const graph: FactoryLayout = {
+        blocks: {
+          src: makeSource("src", "ore", 200),
+          splitter: makeLogistics("splitter", "splitter"),
+          snkA: makeSink("snkA", "ore", 40),
+          snkB: makeSink("snkB", "ore", 20),
+        },
+        connections: [
+          makeEdge("eIn", "src", "splitter", "ore"),
+          makeEdge("eA", "splitter", "snkA", "ore"),
+          makeEdge("eB", "splitter", "snkB", "ore"),
+        ],
+      };
+
+      const result = solveFlowRates(graph, {});
+
+      // Each sink gets exactly what it demands
+      expect(edge(result, "eA").rate).toBeCloseTo(40);
+      expect(edge(result, "eB").rate).toBeCloseTo(20);
+      expect(result.blocks["splitter"].satisfaction).toBeCloseTo(1.0);
+    });
+
+    it("should split to three outputs correctly", () => {
+      const graph: FactoryLayout = {
+        blocks: {
+          src: makeSource("src", "ore", 90),
+          splitter: makeLogistics("splitter", "splitter"),
+          snkA: makeSink("snkA", "ore", 30),
+          snkB: makeSink("snkB", "ore", 30),
+          snkC: makeSink("snkC", "ore", 30),
+        },
+        connections: [
+          makeEdge("eIn", "src", "splitter", "ore"),
+          makeEdge("eA", "splitter", "snkA", "ore"),
+          makeEdge("eB", "splitter", "snkB", "ore"),
+          makeEdge("eC", "splitter", "snkC", "ore"),
+        ],
+      };
+
+      const result = solveFlowRates(graph, {});
+
+      expect(edge(result, "eA").rate).toBeCloseTo(30);
+      expect(edge(result, "eB").rate).toBeCloseTo(30);
+      expect(edge(result, "eC").rate).toBeCloseTo(30);
+    });
+  });
+
+  // ── Merger ─────────────────────────────────────────────────────────
+
+  describe("merger", () => {
+    it("should combine multiple inputs into single output", () => {
+      const graph: FactoryLayout = {
+        blocks: {
+          srcA: makeSource("srcA", "ore", 40),
+          srcB: makeSource("srcB", "ore", 60),
+          merger: makeLogistics("merger", "merger"),
+          snk: makeSink("snk", "ore", 100),
+        },
+        connections: [
+          makeEdge("eA", "srcA", "merger", "ore"),
+          makeEdge("eB", "srcB", "merger", "ore"),
+          makeEdge("eOut", "merger", "snk", "ore"),
+        ],
+      };
+
+      const result = solveFlowRates(graph, {});
+
+      expect(edge(result, "eA").rate).toBeCloseTo(40);
+      expect(edge(result, "eB").rate).toBeCloseTo(60);
+      expect(edge(result, "eOut").rate).toBeCloseTo(100);
+      expect(result.blocks["merger"].satisfaction).toBeCloseTo(1.0);
+    });
+
+    it("should handle undersupply from merged inputs", () => {
+      // Sources provide 30 + 20 = 50, sink wants 100
+      const graph: FactoryLayout = {
+        blocks: {
+          srcA: makeSource("srcA", "ore", 30),
+          srcB: makeSource("srcB", "ore", 20),
+          merger: makeLogistics("merger", "merger"),
+          snk: makeSink("snk", "ore", 100),
+        },
+        connections: [
+          makeEdge("eA", "srcA", "merger", "ore"),
+          makeEdge("eB", "srcB", "merger", "ore"),
+          makeEdge("eOut", "merger", "snk", "ore"),
+        ],
+      };
+
+      const result = solveFlowRates(graph, {});
+
+      expect(edge(result, "eA").rate).toBeCloseTo(30);
+      expect(edge(result, "eB").rate).toBeCloseTo(20);
+      expect(edge(result, "eOut").rate).toBeCloseTo(50);
+      expect(result.blocks["merger"].satisfaction).toBeCloseTo(0.5);
+    });
+
+    it("should cap at downstream demand when oversupplied", () => {
+      // Sources provide 80 + 70 = 150, sink only wants 100
+      const graph: FactoryLayout = {
+        blocks: {
+          srcA: makeSource("srcA", "ore", 80),
+          srcB: makeSource("srcB", "ore", 70),
+          merger: makeLogistics("merger", "merger"),
+          snk: makeSink("snk", "ore", 100),
+        },
+        connections: [
+          makeEdge("eA", "srcA", "merger", "ore"),
+          makeEdge("eB", "srcB", "merger", "ore"),
+          makeEdge("eOut", "merger", "snk", "ore"),
+        ],
+      };
+
+      const result = solveFlowRates(graph, {});
+
+      // Output capped at 100
+      expect(edge(result, "eOut").rate).toBeCloseTo(100);
+      // Inputs should be scaled down proportionally
+      const rateA = edge(result, "eA").rate;
+      const rateB = edge(result, "eB").rate;
+      expect(rateA + rateB).toBeCloseTo(100);
+    });
+
+    it("should merge three inputs correctly", () => {
+      const graph: FactoryLayout = {
+        blocks: {
+          srcA: makeSource("srcA", "ore", 20),
+          srcB: makeSource("srcB", "ore", 30),
+          srcC: makeSource("srcC", "ore", 50),
+          merger: makeLogistics("merger", "merger"),
+          snk: makeSink("snk", "ore", 100),
+        },
+        connections: [
+          makeEdge("eA", "srcA", "merger", "ore"),
+          makeEdge("eB", "srcB", "merger", "ore"),
+          makeEdge("eC", "srcC", "merger", "ore"),
+          makeEdge("eOut", "merger", "snk", "ore"),
+        ],
+      };
+
+      const result = solveFlowRates(graph, {});
+
+      expect(edge(result, "eA").rate).toBeCloseTo(20);
+      expect(edge(result, "eB").rate).toBeCloseTo(30);
+      expect(edge(result, "eC").rate).toBeCloseTo(50);
+      expect(edge(result, "eOut").rate).toBeCloseTo(100);
+    });
+  });
+
+  // ── Balancer (Knot) ────────────────────────────────────────────────
+
+  describe("balancer (knot)", () => {
+    it("should balance 2-to-2 with equal inputs and demands", () => {
+      // Classic balancer: 2 inputs, 2 outputs, equal flow
+      const graph: FactoryLayout = {
+        blocks: {
+          srcA: makeSource("srcA", "ore", 50),
+          srcB: makeSource("srcB", "ore", 50),
+          balancer: makeLogistics("balancer", "knot"),
+          snkA: makeSink("snkA", "ore", 50),
+          snkB: makeSink("snkB", "ore", 50),
+        },
+        connections: [
+          makeEdge("inA", "srcA", "balancer", "ore"),
+          makeEdge("inB", "srcB", "balancer", "ore"),
+          makeEdge("outA", "balancer", "snkA", "ore"),
+          makeEdge("outB", "balancer", "snkB", "ore"),
+        ],
+      };
+
+      const result = solveFlowRates(graph, {});
+
+      expect(edge(result, "inA").rate).toBeCloseTo(50);
+      expect(edge(result, "inB").rate).toBeCloseTo(50);
+      expect(edge(result, "outA").rate).toBeCloseTo(50);
+      expect(edge(result, "outB").rate).toBeCloseTo(50);
+      expect(result.blocks["balancer"].satisfaction).toBeCloseTo(1.0);
+    });
+
+    it("should balance unequal inputs to equal outputs", () => {
+      // One input has more, but outputs should be balanced
+      const graph: FactoryLayout = {
+        blocks: {
+          srcA: makeSource("srcA", "ore", 80),
+          srcB: makeSource("srcB", "ore", 20),
+          balancer: makeLogistics("balancer", "knot"),
+          snkA: makeSink("snkA", "ore", 50),
+          snkB: makeSink("snkB", "ore", 50),
+        },
+        connections: [
+          makeEdge("inA", "srcA", "balancer", "ore"),
+          makeEdge("inB", "srcB", "balancer", "ore"),
+          makeEdge("outA", "balancer", "snkA", "ore"),
+          makeEdge("outB", "balancer", "snkB", "ore"),
+        ],
+      };
+
+      const result = solveFlowRates(graph, {});
+
+      // Total input: 100, total output demand: 100
+      expect(edge(result, "outA").rate).toBeCloseTo(50);
+      expect(edge(result, "outB").rate).toBeCloseTo(50);
+    });
+
+    it("should handle undersupply in balancer", () => {
+      // Inputs provide 60 total, outputs want 100 total
+      const graph: FactoryLayout = {
+        blocks: {
+          srcA: makeSource("srcA", "ore", 40),
+          srcB: makeSource("srcB", "ore", 20),
+          balancer: makeLogistics("balancer", "knot"),
+          snkA: makeSink("snkA", "ore", 50),
+          snkB: makeSink("snkB", "ore", 50),
+        },
+        connections: [
+          makeEdge("inA", "srcA", "balancer", "ore"),
+          makeEdge("inB", "srcB", "balancer", "ore"),
+          makeEdge("outA", "balancer", "snkA", "ore"),
+          makeEdge("outB", "balancer", "snkB", "ore"),
+        ],
+      };
+
+      const result = solveFlowRates(graph, {});
+
+      // Total: 60, split evenly to both outputs (30 each)
+      expect(edge(result, "outA").rate).toBeCloseTo(30);
+      expect(edge(result, "outB").rate).toBeCloseTo(30);
+      expect(result.blocks["balancer"].satisfaction).toBeCloseTo(0.6);
+    });
+
+    it("should handle 3-to-3 balancer", () => {
+      const graph: FactoryLayout = {
+        blocks: {
+          srcA: makeSource("srcA", "ore", 30),
+          srcB: makeSource("srcB", "ore", 30),
+          srcC: makeSource("srcC", "ore", 30),
+          balancer: makeLogistics("balancer", "knot"),
+          snkA: makeSink("snkA", "ore", 30),
+          snkB: makeSink("snkB", "ore", 30),
+          snkC: makeSink("snkC", "ore", 30),
+        },
+        connections: [
+          makeEdge("inA", "srcA", "balancer", "ore"),
+          makeEdge("inB", "srcB", "balancer", "ore"),
+          makeEdge("inC", "srcC", "balancer", "ore"),
+          makeEdge("outA", "balancer", "snkA", "ore"),
+          makeEdge("outB", "balancer", "snkB", "ore"),
+          makeEdge("outC", "balancer", "snkC", "ore"),
+        ],
+      };
+
+      const result = solveFlowRates(graph, {});
+
+      expect(edge(result, "outA").rate).toBeCloseTo(30);
+      expect(edge(result, "outB").rate).toBeCloseTo(30);
+      expect(edge(result, "outC").rate).toBeCloseTo(30);
+    });
+
+    it("should handle asymmetric demand in balancer", () => {
+      // Outputs have different demands
+      const graph: FactoryLayout = {
+        blocks: {
+          srcA: makeSource("srcA", "ore", 50),
+          srcB: makeSource("srcB", "ore", 50),
+          balancer: makeLogistics("balancer", "knot"),
+          snkA: makeSink("snkA", "ore", 70),
+          snkB: makeSink("snkB", "ore", 30),
+        },
+        connections: [
+          makeEdge("inA", "srcA", "balancer", "ore"),
+          makeEdge("inB", "srcB", "balancer", "ore"),
+          makeEdge("outA", "balancer", "snkA", "ore"),
+          makeEdge("outB", "balancer", "snkB", "ore"),
+        ],
+      };
+
+      const result = solveFlowRates(graph, {});
+
+      // Total input: 100, should distribute according to demand ratios
+      expect(edge(result, "outA").rate).toBeCloseTo(70);
+      expect(edge(result, "outB").rate).toBeCloseTo(30);
+    });
+  });
+
+  // ── Chained Logistics ──────────────────────────────────────────────
+
+  describe("chained logistics", () => {
+    it("should handle splitter feeding into merger", () => {
+      // src → splitter → (2 paths) → merger → sink
+      const graph: FactoryLayout = {
+        blocks: {
+          src: makeSource("src", "ore", 100),
+          splitter: makeLogistics("splitter", "splitter"),
+          merger: makeLogistics("merger", "merger"),
+          snk: makeSink("snk", "ore", 100),
+        },
+        connections: [
+          makeEdge("e1", "src", "splitter", "ore"),
+          makeEdge("e2a", "splitter", "merger", "ore"),
+          makeEdge("e2b", "splitter", "merger", "ore"),
+          makeEdge("e3", "merger", "snk", "ore"),
+        ],
+      };
+
+      const result = solveFlowRates(graph, {});
+
+      expect(edge(result, "e1").rate).toBeCloseTo(100);
+      expect(edge(result, "e3").rate).toBeCloseTo(100);
+      // Both paths through splitter should carry flow
+      const rate2a = edge(result, "e2a").rate;
+      const rate2b = edge(result, "e2b").rate;
+      expect(rate2a + rate2b).toBeCloseTo(100);
+    });
+
+    it("should handle merger feeding into splitter", () => {
+      // (2 sources) → merger → splitter → (2 sinks)
+      const graph: FactoryLayout = {
+        blocks: {
+          srcA: makeSource("srcA", "ore", 40),
+          srcB: makeSource("srcB", "ore", 60),
+          merger: makeLogistics("merger", "merger"),
+          splitter: makeLogistics("splitter", "splitter"),
+          snkA: makeSink("snkA", "ore", 50),
+          snkB: makeSink("snkB", "ore", 50),
+        },
+        connections: [
+          makeEdge("inA", "srcA", "merger", "ore"),
+          makeEdge("inB", "srcB", "merger", "ore"),
+          makeEdge("mid", "merger", "splitter", "ore"),
+          makeEdge("outA", "splitter", "snkA", "ore"),
+          makeEdge("outB", "splitter", "snkB", "ore"),
+        ],
+      };
+
+      const result = solveFlowRates(graph, {});
+
+      expect(edge(result, "inA").rate).toBeCloseTo(40);
+      expect(edge(result, "inB").rate).toBeCloseTo(60);
+      expect(edge(result, "mid").rate).toBeCloseTo(100);
+      expect(edge(result, "outA").rate).toBeCloseTo(50);
+      expect(edge(result, "outB").rate).toBeCloseTo(50);
+    });
+
+    it("should handle logistics between production blocks", () => {
+      const recipes: Record<string, Recipe> = {
+        smelt: makeRecipe(
+          "smelt",
+          [{ itemId: "ore", amount: 2 }],
+          [{ itemId: "ingot", amount: 1 }],
+          1
+        ),
+      };
+
+      const blkA = makeBlock("blkA", "smelt") as ProductionBlock;
+      blkA.machineCount = 50;
+      const blkB = makeBlock("blkB", "smelt") as ProductionBlock;
+      blkB.machineCount = 50;
+
+      const graph: FactoryLayout = {
+        blocks: {
+          src: makeSource("src", "ore", 200),
+          splitter: makeLogistics("splitter", "splitter"),
+          blkA,
+          blkB,
+          merger: makeLogistics("merger", "merger"),
+          snk: makeSink("snk", "ingot", 100),
+        },
+        connections: [
+          makeEdge("e1", "src", "splitter", "ore"),
+          makeEdge("e2a", "splitter", "blkA", "ore"),
+          makeEdge("e2b", "splitter", "blkB", "ore"),
+          makeEdge("e3a", "blkA", "merger", "ingot"),
+          makeEdge("e3b", "blkB", "merger", "ingot"),
+          makeEdge("e4", "merger", "snk", "ingot"),
+        ],
+      };
+
+      const result = solveFlowRates(graph, recipes);
+
+      // Each smelter processes 100 ore → 50 ingots
+      expect(edge(result, "e2a").rate).toBeCloseTo(100);
+      expect(edge(result, "e2b").rate).toBeCloseTo(100);
+      expect(edge(result, "e3a").rate).toBeCloseTo(50);
+      expect(edge(result, "e3b").rate).toBeCloseTo(50);
+      expect(edge(result, "e4").rate).toBeCloseTo(100);
     });
   });
 });
