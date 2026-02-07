@@ -36,24 +36,39 @@
     }
 }
 
-/* The 'Tube' of the belt */
+/* The structural pipe/conveyor */
 .edge-shell {
-    stroke: rgba(255, 255, 255, 0.04);
+    stroke: rgba(255, 255, 255, 0.06);
+    stroke-linecap: round;
     pointer-events: none;
     fill: none;
-    stroke-linecap: round;
+    stroke-width: 12px;
 }
 
-/* The 'Items' on the belt */
+/* The primary flow rail */
+.edge-path {
+    transition: stroke-opacity 0.3s ease;
+}
+
 .edge-path.animating {
-    stroke-dasharray: 12 28;
-    /* Thicker 'blobs' further apart */
+    stroke-dasharray: 10 30;
     stroke-linecap: round;
     animation: belt-flow var(--flow-duration, 1s) linear infinite;
 }
 
+/* Secondary glowing highlight for 'Stage Presence' */
+.edge-path-inner {
+    stroke: rgba(255, 255, 255, 0.4);
+    stroke-width: 2px;
+    stroke-dasharray: 4 36;
+    stroke-dashoffset: 2;
+    animation: belt-flow var(--flow-duration, 1s) linear infinite;
+    pointer-events: none;
+}
+
 .edge-path.starved {
     stroke-dasharray: 4 6;
+    animation-duration: 3s;
 }
 
 * {
