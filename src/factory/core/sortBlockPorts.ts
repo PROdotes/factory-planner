@@ -2,7 +2,6 @@ import { FactoryGraph } from "./FactoryGraph";
 import { BlockBase } from "./BlockBase";
 import { ProductionBlock } from "../blocks/ProductionBlock";
 import { LogisticsBlock } from "../blocks/LogisticsBlock";
-import { StorageBlock } from "../blocks/StorageBlock";
 // We need access to Recipe definitions to know the "default" order
 import { useGameDataStore } from "../../gamedata/gamedataStore";
 
@@ -28,18 +27,21 @@ export function getSortedPorts(
   let inputItems: string[] = [];
   let outputItems: string[] = [];
 
-  if (block instanceof ProductionBlock) {
-    if (block.recipeId) {
-      const recipe = recipes[block.recipeId];
+  const isProduction = block.type === "production";
+
+  if (isProduction) {
+    const prod = block as ProductionBlock;
+    if (prod.recipeId) {
+      const recipe = recipes[prod.recipeId];
       if (recipe) {
         // Default order from recipe
         inputItems = recipe.inputs.map((i) => i.itemId);
         outputItems = recipe.outputs.map((i) => i.itemId);
       }
+    } else {
+      // Stationary (Sink/Storage)
+      inputItems = Object.keys(block.demand);
     }
-  } else if (block instanceof StorageBlock) {
-    inputItems = Object.keys(block.demand);
-    // Sinks have no outputs
   } else if (block instanceof LogisticsBlock) {
     // HOLISTIC: A Junction's items are defined by its connections.
     const itemIds = new Set<string>();

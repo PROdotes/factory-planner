@@ -62,7 +62,7 @@ export function runManualSolver(
   // Preserve user-set requested values for PRODUCTION blocks
   const savedRequested = new Map<string, Record<string, number>>();
   Object.values(layoutDTO.blocks).forEach((block) => {
-    if (block.type === "block") {
+    if (block.type === "production") {
       savedRequested.set(block.id, { ...(block.requested || {}) });
     }
   });
@@ -106,7 +106,7 @@ export function runAutoScale(
 
   // 2. Sync machineCount to match total required demand (requested)
   Object.values(layoutDTO.blocks).forEach((block) => {
-    if (block.type === "block") {
+    if (block.type === "production") {
       const b = block as any;
       if (!b.recipeId) return;
 
@@ -117,22 +117,27 @@ export function runAutoScale(
       if (!machine) return;
 
       const effectiveTime = recipe.craftingTime / (machine.speed || 1);
-      const yieldMult =
-        recipe.category === "Gathering" ? b.sourceYield ?? 1.0 : 1.0;
+      const isGatherer = recipe.category === "Gathering";
 
-      // Scaling based on the highest demand across all outputs
+      // Scaling: For Miners, we scale VEINS (sourceYield). For others, MACHINE COUNT.
       let maxScale = 0;
       recipe.outputs.forEach((out) => {
         const demand = b.requested?.[out.itemId] || 0;
-        const ratePerMachine = (out.amount / effectiveTime) * yieldMult;
-        if (ratePerMachine > 0) {
-          const scale = demand / ratePerMachine;
+        const ratePerUnit = out.amount / effectiveTime; // Base rate without multipliers
+        if (ratePerUnit > 0) {
+          const scale = demand / ratePerUnit;
           if (scale > maxScale) maxScale = scale;
         }
       });
 
-      // Update the actual block in the DTO
-      (block as any).machineCount = Math.ceil(maxScale - 0.001);
+      if (isGatherer) {
+        // Update Veins
+        (block as any).sourceYield = maxScale;
+        (block as any).machineCount = 1; // Default to 1 miner for the patch
+      } else {
+        // Update Machines
+        (block as any).machineCount = Math.ceil(maxScale - 0.001);
+      }
     }
   });
 

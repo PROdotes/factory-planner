@@ -34,12 +34,15 @@ export function useBlockCommit(
       if (isNaN(val) || val < 0) return;
 
       if (recipe && mainOutput && machine) {
-        const yieldMult =
-          recipe.category === "Gathering" ? block.sourceYield ?? 1.0 : 1.0;
-        const ratePerMachine =
-          ((mainOutput.amount * machine.speed) / recipe.craftingTime) *
-          yieldMult;
-        setRequest(block.id, mainOutput.itemId, val * ratePerMachine);
+        const isGatherer = recipe.category === "Gathering";
+        if (isGatherer) {
+          // Miners (Gathering): Machine count does not drive rate, Veins do.
+          // Don't update setRequest here.
+        } else {
+          const ratePerMachine =
+            (mainOutput.amount * machine.speed) / recipe.craftingTime;
+          setRequest(block.id, mainOutput.itemId, val * ratePerMachine);
+        }
       }
       // For generators, we just set the machine count directly
       setMachineCount(block.id, val);
@@ -62,25 +65,21 @@ export function useBlockCommit(
 
       const perSec = isPerMin ? val / 60 : val;
 
-      if (recipe?.category === "Gathering") {
-        if (machine) {
-          // Target Rate = Yield * MachineCount * RatePerVein
-          // So: Yield = Target Rate / (MachineCount * RatePerVein)
-          const currentCount = block.machineCount || 1;
-          const ratePerVein =
-            (mainOutput.amount * machine.speed) / recipe.craftingTime;
+      const isGatherer = recipe?.category === "Gathering";
 
-          if (ratePerVein > 0) {
-            setYield(block.id, perSec / (ratePerVein * currentCount));
-          }
+      if (isGatherer && machine) {
+        // Gathering Law: Target Rate = Veins * RatePerVein
+        // Veins = Target Rate / RatePerVein
+        const ratePerVein =
+          (mainOutput.amount * machine.speed) / recipe.craftingTime;
+        if (ratePerVein > 0) {
+          setYield(block.id, perSec / ratePerVein);
         }
         setRequest(block.id, mainOutput.itemId, perSec);
       } else if (recipe && machine) {
-        const yieldMult =
-          recipe.category === "Gathering" ? block.sourceYield ?? 1.0 : 1.0;
+        // Standard Machine Law: Target Rate = MachineCount * RatePerMachine
         const ratePerMachine =
-          ((mainOutput.amount * machine.speed) / recipe.craftingTime) *
-          yieldMult;
+          (mainOutput.amount * machine.speed) / recipe.craftingTime;
         if (ratePerMachine > 0) {
           setMachineCount(block.id, perSec / ratePerMachine);
           setRequest(block.id, mainOutput.itemId, perSec);
@@ -106,7 +105,8 @@ export function useBlockCommit(
       if (isNaN(val) || val < 0) return;
 
       setYield(block.id, val);
-      if (recipe?.category === "Gathering" && mainOutput && machine) {
+      const isGatherer = recipe?.category === "Gathering";
+      if (isGatherer && mainOutput && machine) {
         const ratePerVein =
           (mainOutput.amount * machine.speed) / recipe.craftingTime;
         setRequest(block.id, mainOutput.itemId, val * ratePerVein);

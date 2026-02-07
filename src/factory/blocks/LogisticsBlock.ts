@@ -1,22 +1,14 @@
 /**
  * ROLE: Domain Model (Logistics Block)
- * PURPOSE: Represents splitters, mergers, or simple line knots.
+ * PURPOSE: Represents a junction that can split/merge any number of inputs/outputs.
  */
 
 import { BlockBase } from "../core/BlockBase";
 import { LogisticsBlock as LogisticsDTO } from "../core/factory.types";
 
 export class LogisticsBlock extends BlockBase {
-  subtype: LogisticsDTO["subtype"];
-
-  constructor(
-    id: string,
-    subtype: LogisticsDTO["subtype"],
-    x: number,
-    y: number
-  ) {
+  constructor(id: string, x: number, y: number) {
     super(id, "logistics", x, y, "Junction");
-    this.subtype = subtype;
   }
 
   toDTO(): LogisticsDTO {
@@ -25,7 +17,6 @@ export class LogisticsBlock extends BlockBase {
       name: this.name,
       type: "logistics",
       position: { ...this.position },
-      subtype: this.subtype,
       demand: { ...this.demand },
       supply: { ...this.supply },
       output: { ...this.output },

@@ -35,13 +35,16 @@ export function calculateMachineMetrics(
     const mainOutput = recipe?.outputs[0];
 
     if (recipe && mainOutput) {
-      const yieldMult =
-        recipe.category === "Gathering" ? block.sourceYield ?? 1.0 : 1.0;
+      const isGatherer = recipe.category === "Gathering";
+      const yieldMult = block.sourceYield ?? 1.0;
+      const count = block.machineCount ?? 1.0;
+
       const ratePerMachine =
-        ((mainOutput.amount * machine.speed) / recipe.craftingTime) * yieldMult;
-      const targetRate = block.machineCount * ratePerMachine;
-      requiredMachineCount =
-        ratePerMachine > 0 ? targetRate / ratePerMachine : 0;
+        (mainOutput.amount * machine.speed) / recipe.craftingTime;
+      const multiplier = isGatherer ? yieldMult : count;
+      const targetRate = ratePerMachine * multiplier;
+
+      requiredMachineCount = count;
       targetRateUnitValue = isPerMin ? targetRate * 60 : targetRate;
     } else if (machine.generation) {
       // Generator block

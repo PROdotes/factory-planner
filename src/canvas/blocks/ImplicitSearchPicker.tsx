@@ -9,12 +9,12 @@ import { useUIStore } from "../uiStore";
 import { useGameDataStore } from "../../gamedata/gamedataStore";
 import { useFactoryStore } from "../../factory/factoryStore";
 import { ItemIcon } from "./ItemIcon";
-import { Upload, GitBranch, GitMerge, X } from "lucide-react";
+import { Upload, GitBranch, X } from "lucide-react";
 
 export function ImplicitSearchPicker() {
   const { implicitSearch, setImplicitSearch } = useUIStore();
   const { recipes, items } = useGameDataStore();
-  const { addBlock, setRecipe, addSink, addLogistics, connect, runSolver } =
+  const { addBlock, setRecipe, addLogistics, connect, runSolver } =
     useFactoryStore();
   const pickerRef = useRef<HTMLDivElement>(null);
 
@@ -75,8 +75,8 @@ export function ImplicitSearchPicker() {
     setImplicitSearch(null);
   };
 
-  const handleSelectLogistics = (type: "splitter" | "merger") => {
-    const newBlock = addLogistics(type, worldPos.x, worldPos.y);
+  const handleSelectLogistics = () => {
+    const newBlock = addLogistics(worldPos.x, worldPos.y);
 
     // Auto-connect
     if (side === "right") {
@@ -90,7 +90,7 @@ export function ImplicitSearchPicker() {
   };
 
   const handleSelectSink = () => {
-    const newBlock = addSink(`Storage (${itemName})`, worldPos.x, worldPos.y);
+    const newBlock = addBlock(`Storage (${itemName})`, worldPos.x, worldPos.y);
 
     // Auto-connect
     if (side === "right") {
@@ -127,19 +127,9 @@ export function ImplicitSearchPicker() {
         <div className="picker-section">
           <div className="section-title">Logistics & Storage</div>
           <div className="logistics-grid">
-            <button
-              className="picker-item-btn"
-              onClick={() => handleSelectLogistics("splitter")}
-            >
+            <button className="picker-item-btn" onClick={handleSelectLogistics}>
               <GitBranch size={16} />
-              <span>Splitter</span>
-            </button>
-            <button
-              className="picker-item-btn"
-              onClick={() => handleSelectLogistics("merger")}
-            >
-              <GitMerge size={16} />
-              <span>Merger</span>
+              <span>Junction</span>
             </button>
             <button className="picker-item-btn" onClick={handleSelectSink}>
               <Upload size={16} />

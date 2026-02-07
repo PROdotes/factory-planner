@@ -32,7 +32,8 @@ export function collectInputItems(
   recipe: Recipe | null,
   items: ItemMap
 ): IOItem[] {
-  if (block.type === "sink") {
+  const isStationary = block.type === "production" && !recipe;
+  if (isStationary) {
     return Object.keys(block.demand).map((id) => ({
       itemId: id,
       name: items[id]?.name || id,

@@ -7,7 +7,6 @@
 import { create } from "zustand";
 import { useGameDataStore } from "../gamedata/gamedataStore";
 import { FactoryGraph } from "./core/FactoryGraph";
-import { StorageBlock } from "./blocks/StorageBlock";
 import { ProductionBlock } from "./blocks/ProductionBlock";
 import { LogisticsBlock } from "./blocks/LogisticsBlock";
 import { serializeGraph, deserializeGraph } from "./graphSerializer";
@@ -29,12 +28,7 @@ interface FactoryState {
 
   // Actions
   addBlock: (name: string, x: number, y: number) => ProductionBlock;
-  addSink: (name: string, x: number, y: number) => StorageBlock;
-  addLogistics: (
-    subtype: "splitter" | "merger" | "knot",
-    x: number,
-    y: number
-  ) => LogisticsBlock;
+  addLogistics: (x: number, y: number) => LogisticsBlock;
   moveBlock: (id: string, x: number, y: number) => void;
   removeBlock: (id: string) => void;
 
@@ -80,19 +74,10 @@ export const useFactoryStore = create<FactoryState>((set, get) => {
       return block;
     },
 
-    addSink: (name, x, y) => {
+    addLogistics: (x, y) => {
       const { factory } = get();
       undoRedoManager.push(factory);
-      const sink = factory.addSink(name, x, y);
-      set((state) => ({ version: state.version + 1 }));
-      debouncedSolve();
-      return sink;
-    },
-
-    addLogistics: (subtype, x, y) => {
-      const { factory } = get();
-      undoRedoManager.push(factory);
-      const block = factory.addLogistics(subtype, x, y);
+      const block = factory.addLogistics(x, y);
       set((state) => ({ version: state.version + 1 }));
       debouncedSolve();
       return block;
@@ -216,11 +201,14 @@ export const useFactoryStore = create<FactoryState>((set, get) => {
 
       undoRedoManager.push(factory);
 
-      if (block instanceof StorageBlock) {
-        block.setRequest(itemId, rate);
-      } else if (block instanceof ProductionBlock) {
+      if (block instanceof ProductionBlock) {
         // Production blocks can have targeted output goals
-        block.requested[itemId] = rate;
+        // If no recipe is set, they act as Storage/Sinks via their demand map
+        if (!block.recipeId) {
+          block.demand[itemId] = rate;
+        } else {
+          block.requested[itemId] = rate;
+        }
       }
 
       set((state) => ({ version: state.version + 1 }));

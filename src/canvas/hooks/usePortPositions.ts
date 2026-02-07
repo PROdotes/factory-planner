@@ -81,15 +81,14 @@ export function usePortPositions(
     let inputItems: string[] = [];
     let outputItems: string[] = [];
 
-    if (block instanceof ProductionBlock) {
-      const recipeId = block.recipeId;
-      const recipe = recipeId ? recipes[recipeId] : null;
+    const isProduction = block.type === "production";
+    const recipeId = isProduction ? (block as ProductionBlock).recipeId : null;
+    const recipe = recipeId ? recipes[recipeId] : null;
 
-      if (recipe) {
-        inputItems = recipe.inputs.map((i) => i.itemId);
-        outputItems = recipe.outputs.map((i) => i.itemId);
-      }
-    } else if (block.type === "sink") {
+    if (isProduction && recipe) {
+      inputItems = recipe.inputs.map((i) => i.itemId);
+      outputItems = recipe.outputs.map((i) => i.itemId);
+    } else if (isProduction && !recipe) {
       inputItems = Object.keys(block.demand);
     } else if (block.type === "logistics") {
       // HOLISTIC: Check connections first

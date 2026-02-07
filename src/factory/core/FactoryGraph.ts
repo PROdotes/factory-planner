@@ -7,7 +7,6 @@
 import { BlockBase } from "./BlockBase";
 import { ProductionBlock } from "../blocks/ProductionBlock";
 import { LogisticsBlock } from "../blocks/LogisticsBlock";
-import { StorageBlock } from "../blocks/StorageBlock";
 import { FactoryLayout, Connection, FactoryBlock } from "./factory.types";
 
 export class FactoryGraph {
@@ -28,20 +27,9 @@ export class FactoryGraph {
     return block;
   }
 
-  addSink(name: string, x: number, y: number): StorageBlock {
+  addLogistics(x: number, y: number): LogisticsBlock {
     const id = crypto.randomUUID();
-    const sink = new StorageBlock(id, name, x, y);
-    this.blocks.set(id, sink);
-    return sink;
-  }
-
-  addLogistics(
-    subtype: "splitter" | "merger" | "knot",
-    x: number,
-    y: number
-  ): LogisticsBlock {
-    const id = crypto.randomUUID();
-    const block = new LogisticsBlock(id, subtype, x, y);
+    const block = new LogisticsBlock(id, x, y);
     this.blocks.set(id, block);
     return block;
   }

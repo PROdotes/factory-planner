@@ -20,7 +20,7 @@ export function ForgeList() {
   const { factory, version } = useFactoryStore();
   const { recipes, machines, isLoaded } = useGameDataStore();
   const { windEfficiency } = useUIStore();
-  const { addBlock, addSink, addLogistics, setRecipe } = useFactoryStore();
+  const { addBlock, addLogistics, setRecipe } = useFactoryStore();
 
   const analytics = useMemo(() => {
     if (!isLoaded) return null;
@@ -61,7 +61,7 @@ export function ForgeList() {
                 handleDragStart(e, { type: "sink", label: "Storage" })
               }
               onClick={() =>
-                addSink(
+                addBlock(
                   "New Storage",
                   window.innerWidth / 2,
                   window.innerHeight / 2
@@ -77,11 +77,7 @@ export function ForgeList() {
                 handleDragStart(e, { type: "junction", label: "Junction" })
               }
               onClick={() =>
-                addLogistics(
-                  "splitter",
-                  window.innerWidth / 2,
-                  window.innerHeight / 2
-                )
+                addLogistics(window.innerWidth / 2, window.innerHeight / 2)
               }
             >
               <GitBranch size={16} />

@@ -14,7 +14,7 @@ export interface FlowResult {
 export interface FactoryBlock {
   id: string;
   name: string;
-  type: "block" | "sink" | "logistics";
+  type: "production" | "logistics";
   position: { x: number; y: number };
 
   // Solver results (ABC Pillar)
@@ -35,19 +35,14 @@ export interface FactoryBlock {
 }
 
 export interface ProductionBlock extends FactoryBlock {
-  type: "block";
+  type: "production";
   recipeId?: string;
   machineId?: string;
   machineCount?: number;
 }
 
-export interface StorageBlock extends FactoryBlock {
-  type: "sink";
-}
-
 export interface LogisticsBlock extends FactoryBlock {
   type: "logistics";
-  subtype: "splitter" | "merger" | "knot";
 }
 
 export interface Connection {

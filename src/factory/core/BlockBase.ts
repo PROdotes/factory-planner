@@ -57,7 +57,8 @@ export abstract class BlockBase {
     this.output = { ...data.output };
     this.requested = { ...(data.requested || {}) };
     this.satisfaction = data.satisfaction;
-    this.sourceYield = data.sourceYield ?? (this.type === "block" ? 6.0 : 1.0);
+    this.sourceYield =
+      data.sourceYield ?? (this.type === "production" ? 6.0 : 1.0);
     this.inputOrder = data.inputOrder || [];
     this.outputOrder = data.outputOrder || [];
 

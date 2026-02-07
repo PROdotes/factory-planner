@@ -6,7 +6,6 @@
 import { FactoryGraph } from "./core/FactoryGraph";
 import { FactoryLayout } from "./core/factory.types";
 import { ProductionBlock } from "./blocks/ProductionBlock";
-import { StorageBlock } from "./blocks/StorageBlock";
 import { LogisticsBlock } from "./blocks/LogisticsBlock";
 
 export function serializeGraph(factory: FactoryGraph): string {
@@ -23,7 +22,12 @@ export function deserializeGraph(json: string, factory: FactoryGraph) {
 
   // 1. Rebuild Blocks
   Object.values(data.blocks).forEach((b) => {
-    if (b.type === "block") {
+    // Migration: Handle old 'block' and 'sink' types as the new 'production' type
+    if (
+      b.type === "production" ||
+      (b as any).type === "block" ||
+      (b as any).type === "sink"
+    ) {
       const prod = b as any;
       const block = new ProductionBlock(
         prod.id,
@@ -36,21 +40,10 @@ export function deserializeGraph(json: string, factory: FactoryGraph) {
       block.machineCount = prod.machineCount ?? 1;
       block.syncState(prod);
       factory.blocks.set(block.id, block);
-    } else if (b.type === "sink") {
-      const sinkData = b as any;
-      const block = new StorageBlock(
-        sinkData.id,
-        sinkData.name,
-        sinkData.position.x,
-        sinkData.position.y
-      );
-      block.syncState(sinkData);
-      factory.blocks.set(block.id, block);
     } else if (b.type === "logistics") {
       const logData = b as any;
       const block = new LogisticsBlock(
         logData.id,
-        logData.subtype,
         logData.position.x,
         logData.position.y
       );

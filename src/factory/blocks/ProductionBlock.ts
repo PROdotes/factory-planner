@@ -12,7 +12,7 @@ export class ProductionBlock extends BlockBase {
   machineCount: number = 1;
 
   constructor(id: string, name: string, x: number, y: number) {
-    super(id, "block", x, y, name);
+    super(id, "production", x, y, name);
   }
 
   setRecipe(recipeId: string | null) {
@@ -26,7 +26,7 @@ export class ProductionBlock extends BlockBase {
   toDTO(): ProductionDTO {
     return {
       id: this.id,
-      type: "block",
+      type: "production",
       name: this.name,
       position: { ...this.position },
       recipeId: this.recipeId || undefined,

@@ -8,7 +8,7 @@ import { useEffect, useRef } from "react";
 import { useFactoryStore } from "../../factory/factoryStore";
 
 export interface DragSpawnPayload {
-  type: "recipe" | "sink" | "splitter" | "merger" | "generator" | "junction";
+  type: "recipe" | "sink" | "generator" | "junction";
   recipeId?: string;
   machineId?: string;
   label: string;
@@ -27,7 +27,7 @@ declare global {
 export function useDragToSpawn(
   clientToWorld: (x: number, y: number) => { x: number; y: number }
 ) {
-  const { addBlock, addSink, addLogistics, setRecipe } = useFactoryStore();
+  const { addBlock, addLogistics, setRecipe } = useFactoryStore();
   const ghostRef = useRef<HTMLDivElement | null>(null);
   const activePayload = useRef<DragSpawnPayload | null>(null);
 
@@ -96,14 +96,9 @@ export function useDragToSpawn(
           const { setMachine } = useFactoryStore.getState();
           setMachine(block.id, p.machineId);
         } else if (p.type === "sink") {
-          addSink(p.label, world.x, world.y);
-        } else if (
-          p.type === "splitter" ||
-          p.type === "merger" ||
-          p.type === "junction"
-        ) {
-          const subtype = p.type === "junction" ? "splitter" : p.type;
-          addLogistics(subtype, world.x, world.y);
+          addBlock(p.label, world.x, world.y);
+        } else if (p.type === "junction") {
+          addLogistics(world.x, world.y);
         }
 
         activePayload.current = null;
@@ -116,5 +111,5 @@ export function useDragToSpawn(
     window.addEventListener("spawn-drag-start", startDrag as any);
     return () =>
       window.removeEventListener("spawn-drag-start", startDrag as any);
-  }, [addBlock, addSink, addLogistics, setRecipe, clientToWorld]);
+  }, [addBlock, addLogistics, setRecipe, clientToWorld]);
 }
