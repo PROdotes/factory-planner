@@ -64,10 +64,14 @@ export function useBlockCommit(
 
       if (recipe?.category === "Gathering") {
         if (machine) {
+          // Target Rate = Yield * MachineCount * RatePerVein
+          // So: Yield = Target Rate / (MachineCount * RatePerVein)
+          const currentCount = block.machineCount || 1;
           const ratePerVein =
             (mainOutput.amount * machine.speed) / recipe.craftingTime;
+
           if (ratePerVein > 0) {
-            setYield(block.id, perSec / ratePerVein);
+            setYield(block.id, perSec / (ratePerVein * currentCount));
           }
         }
         setRequest(block.id, mainOutput.itemId, perSec);

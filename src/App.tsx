@@ -140,123 +140,142 @@ export function App() {
         </div>
 
         <nav className="app-nav">
-          <button
-            className={`toolbar-btn ${leftSidebarOpen ? "primary" : ""}`}
-            onClick={toggleLeftSidebar}
-            title="Toggle Forge (Recipe Catalog)"
-          >
-            <Hammer size={18} />
-          </button>
-          <button
-            className={`toolbar-btn ${rightSidebarOpen ? "primary" : ""}`}
-            onClick={toggleRightSidebar}
-            title="Toggle Analytics Matrix"
-          >
-            <BarChart3 size={18} />
-          </button>
+          <div className="nav-group">
+            <span className="nav-group-label">Panels</span>
+            <button
+              className={`toolbar-btn ${leftSidebarOpen ? "primary" : ""}`}
+              onClick={toggleLeftSidebar}
+              title="Toggle Forge (Recipe Catalog)"
+            >
+              <Hammer size={18} /> <span>Forge</span>
+            </button>
+            <button
+              className={`toolbar-btn ${rightSidebarOpen ? "primary" : ""}`}
+              onClick={toggleRightSidebar}
+              title="Toggle Analytics Matrix"
+            >
+              <BarChart3 size={18} /> <span>Stats</span>
+            </button>
+          </div>
 
-          <button
-            className="toolbar-btn primary"
-            onClick={() => {
-              const { autoScale } = useFactoryStore.getState();
-              autoScale();
-            }}
-            title="Auto-Scale: Batch set machine counts to match demand"
-          >
-            <Play size={16} /> <span>Optimize Machines</span>
-          </button>
+          <div className="nav-group">
+            <span className="nav-group-label">Production</span>
+            <button
+              className="toolbar-btn primary"
+              onClick={() => {
+                const { autoScale } = useFactoryStore.getState();
+                autoScale();
+              }}
+              title="Auto-Scale: Batch set machine counts to match demand"
+            >
+              <Play size={16} /> <span>Optimize</span>
+            </button>
 
-          {focusedNodeId && (
+            {focusedNodeId && (
+              <button
+                className="toolbar-btn danger"
+                onClick={() => toggleFocus(null)}
+                title="Clear Focus Mode"
+              >
+                <Target size={16} /> <span>Clear Focus</span>
+              </button>
+            )}
+          </div>
+
+          <div className="nav-group">
+            <span className="nav-group-label">Settings</span>
+            <RateUnitToggle />
+          </div>
+
+          <div className="nav-group">
+            <span className="nav-group-label">History</span>
+            <button
+              className="toolbar-btn icon-only"
+              onClick={undo}
+              title="Undo (Ctrl+Z)"
+            >
+              <Undo2 size={16} />
+            </button>
+            <button
+              className="toolbar-btn icon-only"
+              onClick={redo}
+              title="Redo (Ctrl+Y)"
+            >
+              <Redo2 size={16} />
+            </button>
+            <button
+              className="toolbar-btn icon-only"
+              onClick={saveToLocalStorage}
+              title="Save (Ctrl+S)"
+            >
+              <Save size={16} />
+            </button>
+          </div>
+
+          <div className="nav-group">
+            <span className="nav-group-label">File</span>
+            <button
+              className="toolbar-btn icon-only"
+              onClick={exportToJSON}
+              title="Export Layout (.json)"
+            >
+              <Download size={16} />
+            </button>
+
+            <label
+              className="toolbar-btn icon-only clickable"
+              title="Import Layout (.json)"
+            >
+              <Upload size={16} />
+              <input
+                type="file"
+                accept=".json"
+                hidden
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      const content = ev.target?.result as string;
+                      importFromJSON(content);
+                    };
+                    reader.readAsText(file);
+                  }
+                }}
+              />
+            </label>
+          </div>
+
+          <div className="nav-group">
+            <span className="nav-group-label">Layout</span>
+            <button
+              className="toolbar-btn"
+              onClick={autoLayout}
+              title="Auto-Organize Layout"
+            >
+              <Wand2 size={16} /> <span>Organize</span>
+            </button>
+
             <button
               className="toolbar-btn danger"
-              onClick={() => toggleFocus(null)}
-              title="Clear Focus Mode"
-            >
-              <Target size={16} /> <span>Clear Focus</span>
-            </button>
-          )}
-
-          <div className="nav-divider" />
-          <RateUnitToggle />
-          <div className="nav-divider" />
-
-          <button className="toolbar-btn" onClick={undo} title="Undo (Ctrl+Z)">
-            <Undo2 size={16} />
-          </button>
-          <button className="toolbar-btn" onClick={redo} title="Redo (Ctrl+Y)">
-            <Redo2 size={16} />
-          </button>
-          <button
-            className="toolbar-btn"
-            onClick={saveToLocalStorage}
-            title="Save (Ctrl+S)"
-          >
-            <Save size={16} />
-          </button>
-
-          <div className="nav-divider" />
-
-          <button
-            className="toolbar-btn"
-            onClick={exportToJSON}
-            title="Export Layout (.json)"
-          >
-            <Download size={16} />
-          </button>
-
-          <label
-            className="toolbar-btn clickable"
-            title="Import Layout (.json)"
-          >
-            <Upload size={16} />
-            <input
-              type="file"
-              accept=".json"
-              hidden
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  const reader = new FileReader();
-                  reader.onload = (ev) => {
-                    const content = ev.target?.result as string;
-                    importFromJSON(content);
-                  };
-                  reader.readAsText(file);
+              onClick={() => {
+                if (confirm("Delete EVERYTHING?")) {
+                  clearFactory();
                 }
               }}
-            />
-          </label>
-
-          <div className="nav-divider" />
-
-          <button
-            className="toolbar-btn"
-            onClick={autoLayout}
-            title="Auto-Organize Layout"
-          >
-            <Wand2 size={16} /> <span>Organize</span>
-          </button>
-
-          <button
-            className="toolbar-btn danger"
-            onClick={() => {
-              if (confirm("Delete EVERYTHING?")) {
-                clearFactory();
-              }
-            }}
-            title="Clear All Blocks"
-          >
-            <Trash2 size={16} /> <span>Clear All</span>
-          </button>
-
-          <button
-            className={`toolbar-btn ${iconMapperOpen ? "primary" : ""}`}
-            onClick={() => setIconMapperOpen(true)}
-            title="Calibration: Icon Mapper"
-          >
-            <Settings size={18} />
-          </button>
+              title="Clear All Blocks"
+            >
+              <Trash2 size={16} /> <span>Clear All</span>
+            </button>
+          </div>
         </nav>
+        <button
+          className={`toolbar-btn ${iconMapperOpen ? "primary" : ""}`}
+          onClick={() => setIconMapperOpen(true)}
+          title="Calibration: Icon Mapper"
+        >
+          <Settings size={18} />
+        </button>
       </header>
 
       <main className="app-main">

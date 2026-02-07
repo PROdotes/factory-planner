@@ -919,6 +919,9 @@ body {
     display: block;
     margin: 0;
     padding: 0;
+    background: none;
+    border: none;
+    outline: none;
 }
 
 .field-label {
@@ -1127,6 +1130,42 @@ body {
 
 .toolbar-btn:hover {
     background: var(--border);
+}
+
+.nav-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 10px;
+    border: 1px solid var(--glass-border);
+}
+
+.nav-group-label {
+    font-size: 0.55rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin: 0 8px;
+    opacity: 0.4;
+    letter-spacing: 1px;
+}
+
+.toolbar-btn.primary {
+    background: rgba(212, 175, 55, 0.1);
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.toolbar-btn.primary:hover {
+    background: var(--accent);
+    color: #000;
+}
+
+.toolbar-btn span {
+    font-size: 0.75rem;
+    font-weight: 600;
 }
 
 .node-grid {

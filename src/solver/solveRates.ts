@@ -30,8 +30,7 @@ interface NodeIndex {
 export function solveFlowRates(
   graph: FactoryLayout,
   recipes: Record<string, Recipe>,
-  machines?: Record<string, Machine>,
-  unconstrained: boolean = false
+  machines?: Record<string, Machine>
 ): FactoryLayout {
   if (graph.connections.length === 0) return graph;
 
@@ -48,8 +47,8 @@ export function solveFlowRates(
       prevRate.set(edge.id, edge.rate);
     }
 
-    backwardPass(graph, recipes, machines, index, order, unconstrained);
-    forwardPass(graph, recipes, machines, index, order, unconstrained);
+    backwardPass(graph, recipes, machines, index, order);
+    forwardPass(graph, recipes, machines, index, order);
     if (isConverged(graph.connections, prevDemand, prevRate)) break;
   }
 
@@ -263,8 +262,7 @@ function backwardPass(
   recipes: Record<string, Recipe>,
   machines: Record<string, Machine> | undefined,
   index: Map<string, NodeIndex>,
-  order: string[],
-  unconstrained: boolean
+  order: string[]
 ): void {
   // Process sinks → sources (reverse topological)
   for (let i = order.length - 1; i >= 0; i--) {
@@ -293,17 +291,13 @@ function backwardPass(
             0
           );
         } else {
-          // B. Unconnected: Treat as Implicit Sink (Requested = Capacity if constrained)
-          const count = unconstrained
-            ? 1.0
-            : block.machineCount !== undefined
-            ? block.machineCount
-            : 1.0;
+          // B. Unconnected: Treat as Implicit Sink (Requested = Capacity)
+          const count =
+            block.machineCount !== undefined ? block.machineCount : 1.0;
           const yieldMult =
             recipe.category === "Gathering" ? block.sourceYield ?? 1.0 : 1.0;
-          outputGoals[itemId] = unconstrained
-            ? 0
-            : (out.amount / effectiveTime) * yieldMult * count;
+          outputGoals[itemId] =
+            (out.amount / effectiveTime) * yieldMult * count;
         }
       }
 
@@ -382,8 +376,7 @@ function forwardPass(
   recipes: Record<string, Recipe>,
   machines: Record<string, Machine> | undefined,
   index: Map<string, NodeIndex>,
-  order: string[],
-  unconstrained: boolean
+  order: string[]
 ): void {
   // Process sources → sinks (forward topological)
   for (const nodeId of order) {
@@ -472,9 +465,7 @@ function forwardPass(
         for (const itemId of Object.keys(node.requested || {})) {
           const requestedValue = node.requested![itemId] || 0;
           const goal = requestedValue * block.satisfaction;
-          const cap = unconstrained
-            ? Infinity
-            : blockCapacities[itemId] ?? Infinity;
+          const cap = blockCapacities[itemId] ?? Infinity;
           block.output[itemId] = Math.min(goal, cap);
         }
         supplyToGive = block.output;

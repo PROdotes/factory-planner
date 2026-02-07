@@ -101,39 +101,38 @@ export function runAutoScale(
 
   console.log("[SOLVER] Performing AUTO-SCALE...");
 
-  // 1. Run solver in Auto Mode by temporarily removing machine counts
+  // 1. Run a standard pass to ensure 'requested' demand is populated
+  solveFlowRates(layoutDTO, recipes, machines);
+
+  // 2. Sync machineCount to match total required demand (requested)
   Object.values(layoutDTO.blocks).forEach((block) => {
     if (block.type === "block") {
-      (block as any).machineCount = undefined;
-    }
-  });
+      const b = block as any;
+      if (!b.recipeId) return;
 
-  solveFlowRates(layoutDTO, recipes, machines, true);
+      const recipe = recipes[b.recipeId];
+      if (!recipe) return;
 
-  // 2. Sync machineCount to match required output
-  Object.values(layoutDTO.blocks).forEach((block) => {
-    if (block.type === "block") {
-      const recipeId = (block as any).recipeId;
-      if (recipeId) {
-        const recipe = recipes[recipeId];
-        const machine = recipe ? machines[recipe.machineId] : null;
-        const mainOutput = recipe?.outputs[0];
-        if (recipe && machine && mainOutput) {
-          const yieldMult =
-            recipe.category === "Gathering"
-              ? (block as any).sourceYield ?? 1.0
-              : 1.0;
-          const ratePerMachine =
-            ((mainOutput.amount * machine.speed) / recipe.craftingTime) *
-            yieldMult;
-          const requiredRate = block.requested?.[mainOutput.itemId] || 0;
-          if (ratePerMachine > 0) {
-            (block as any).machineCount = Math.ceil(
-              requiredRate / ratePerMachine - 0.001
-            );
-          }
+      const machine = machines[recipe.machineId];
+      if (!machine) return;
+
+      const effectiveTime = recipe.craftingTime / (machine.speed || 1);
+      const yieldMult =
+        recipe.category === "Gathering" ? b.sourceYield ?? 1.0 : 1.0;
+
+      // Scaling based on the highest demand across all outputs
+      let maxScale = 0;
+      recipe.outputs.forEach((out) => {
+        const demand = b.requested?.[out.itemId] || 0;
+        const ratePerMachine = (out.amount / effectiveTime) * yieldMult;
+        if (ratePerMachine > 0) {
+          const scale = demand / ratePerMachine;
+          if (scale > maxScale) maxScale = scale;
         }
-      }
+      });
+
+      // Update the actual block in the DTO
+      (block as any).machineCount = Math.ceil(maxScale - 0.001);
     }
   });
 
