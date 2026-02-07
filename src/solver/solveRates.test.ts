@@ -3,7 +3,6 @@ import { solveFlowRates } from "./solveRates";
 import {
   FactoryLayout,
   ProductionBlock,
-  StorageBlock,
   LogisticsBlock,
   Connection,
   FactoryBlock,
@@ -20,7 +19,7 @@ function makeSource(
   // Sources are now ProductionBlocks with mining recipes - use sourceYield to set capacity
   return {
     id,
-    type: "block",
+    type: "production",
     name: id,
     position: { x: 0, y: 0 },
     recipeId: `mining-${itemId}`,
@@ -37,7 +36,7 @@ function makeSource(
 function makeBlock(id: string, recipeId: string): ProductionBlock {
   return {
     id,
-    type: "block",
+    type: "production",
     name: id,
     position: { x: 0, y: 0 },
     recipeId,
@@ -49,10 +48,10 @@ function makeBlock(id: string, recipeId: string): ProductionBlock {
   } as ProductionBlock;
 }
 
-function makeSink(id: string, itemId: string, demand: number): StorageBlock {
+function makeSink(id: string, itemId: string, demand: number): ProductionBlock {
   return {
     id,
-    type: "sink",
+    type: "production",
     name: id,
     position: { x: 0, y: 0 },
     demand: { [itemId]: demand },
@@ -63,15 +62,11 @@ function makeSink(id: string, itemId: string, demand: number): StorageBlock {
   };
 }
 
-function makeLogistics(
-  id: string,
-  subtype: "splitter" | "merger" | "knot"
-): LogisticsBlock {
+function makeLogistics(id: string): LogisticsBlock {
   return {
     id,
     type: "logistics",
     name: id,
-    subtype,
     position: { x: 0, y: 0 },
     demand: {},
     supply: {},
@@ -1110,7 +1105,7 @@ describe("rateSolver", () => {
       const graph: FactoryLayout = {
         blocks: {
           src: makeSource("src", "ore", 100),
-          splitter: makeLogistics("splitter", "splitter"),
+          splitter: makeLogistics("splitter"),
           snkA: makeSink("snkA", "ore", 50),
           snkB: makeSink("snkB", "ore", 50),
         },
@@ -1133,7 +1128,7 @@ describe("rateSolver", () => {
       const graph: FactoryLayout = {
         blocks: {
           src: makeSource("src", "ore", 100),
-          splitter: makeLogistics("splitter", "splitter"),
+          splitter: makeLogistics("splitter"),
           snkA: makeSink("snkA", "ore", 75),
           snkB: makeSink("snkB", "ore", 25),
         },
@@ -1157,7 +1152,7 @@ describe("rateSolver", () => {
       const graph: FactoryLayout = {
         blocks: {
           src: makeSource("src", "ore", 50),
-          splitter: makeLogistics("splitter", "splitter"),
+          splitter: makeLogistics("splitter"),
           snkA: makeSink("snkA", "ore", 60),
           snkB: makeSink("snkB", "ore", 40),
         },
@@ -1184,7 +1179,7 @@ describe("rateSolver", () => {
       const graph: FactoryLayout = {
         blocks: {
           src: makeSource("src", "ore", 200),
-          splitter: makeLogistics("splitter", "splitter"),
+          splitter: makeLogistics("splitter"),
           snkA: makeSink("snkA", "ore", 40),
           snkB: makeSink("snkB", "ore", 20),
         },
@@ -1207,7 +1202,7 @@ describe("rateSolver", () => {
       const graph: FactoryLayout = {
         blocks: {
           src: makeSource("src", "ore", 90),
-          splitter: makeLogistics("splitter", "splitter"),
+          splitter: makeLogistics("splitter"),
           snkA: makeSink("snkA", "ore", 30),
           snkB: makeSink("snkB", "ore", 30),
           snkC: makeSink("snkC", "ore", 30),
@@ -1236,7 +1231,7 @@ describe("rateSolver", () => {
         blocks: {
           srcA: makeSource("srcA", "ore", 40),
           srcB: makeSource("srcB", "ore", 60),
-          merger: makeLogistics("merger", "merger"),
+          merger: makeLogistics("merger"),
           snk: makeSink("snk", "ore", 100),
         },
         connections: [
@@ -1260,7 +1255,7 @@ describe("rateSolver", () => {
         blocks: {
           srcA: makeSource("srcA", "ore", 30),
           srcB: makeSource("srcB", "ore", 20),
-          merger: makeLogistics("merger", "merger"),
+          merger: makeLogistics("merger"),
           snk: makeSink("snk", "ore", 100),
         },
         connections: [
@@ -1284,7 +1279,7 @@ describe("rateSolver", () => {
         blocks: {
           srcA: makeSource("srcA", "ore", 80),
           srcB: makeSource("srcB", "ore", 70),
-          merger: makeLogistics("merger", "merger"),
+          merger: makeLogistics("merger"),
           snk: makeSink("snk", "ore", 100),
         },
         connections: [
@@ -1310,7 +1305,7 @@ describe("rateSolver", () => {
           srcA: makeSource("srcA", "ore", 20),
           srcB: makeSource("srcB", "ore", 30),
           srcC: makeSource("srcC", "ore", 50),
-          merger: makeLogistics("merger", "merger"),
+          merger: makeLogistics("merger"),
           snk: makeSink("snk", "ore", 100),
         },
         connections: [
@@ -1339,7 +1334,7 @@ describe("rateSolver", () => {
         blocks: {
           srcA: makeSource("srcA", "ore", 50),
           srcB: makeSource("srcB", "ore", 50),
-          balancer: makeLogistics("balancer", "knot"),
+          balancer: makeLogistics("balancer"),
           snkA: makeSink("snkA", "ore", 50),
           snkB: makeSink("snkB", "ore", 50),
         },
@@ -1366,7 +1361,7 @@ describe("rateSolver", () => {
         blocks: {
           srcA: makeSource("srcA", "ore", 80),
           srcB: makeSource("srcB", "ore", 20),
-          balancer: makeLogistics("balancer", "knot"),
+          balancer: makeLogistics("balancer"),
           snkA: makeSink("snkA", "ore", 50),
           snkB: makeSink("snkB", "ore", 50),
         },
@@ -1391,7 +1386,7 @@ describe("rateSolver", () => {
         blocks: {
           srcA: makeSource("srcA", "ore", 40),
           srcB: makeSource("srcB", "ore", 20),
-          balancer: makeLogistics("balancer", "knot"),
+          balancer: makeLogistics("balancer"),
           snkA: makeSink("snkA", "ore", 50),
           snkB: makeSink("snkB", "ore", 50),
         },
@@ -1417,7 +1412,7 @@ describe("rateSolver", () => {
           srcA: makeSource("srcA", "ore", 30),
           srcB: makeSource("srcB", "ore", 30),
           srcC: makeSource("srcC", "ore", 30),
-          balancer: makeLogistics("balancer", "knot"),
+          balancer: makeLogistics("balancer"),
           snkA: makeSink("snkA", "ore", 30),
           snkB: makeSink("snkB", "ore", 30),
           snkC: makeSink("snkC", "ore", 30),
@@ -1445,7 +1440,7 @@ describe("rateSolver", () => {
         blocks: {
           srcA: makeSource("srcA", "ore", 50),
           srcB: makeSource("srcB", "ore", 50),
-          balancer: makeLogistics("balancer", "knot"),
+          balancer: makeLogistics("balancer"),
           snkA: makeSink("snkA", "ore", 70),
           snkB: makeSink("snkB", "ore", 30),
         },
@@ -1473,8 +1468,8 @@ describe("rateSolver", () => {
       const graph: FactoryLayout = {
         blocks: {
           src: makeSource("src", "ore", 100),
-          splitter: makeLogistics("splitter", "splitter"),
-          merger: makeLogistics("merger", "merger"),
+          splitter: makeLogistics("splitter"),
+          merger: makeLogistics("merger"),
           snk: makeSink("snk", "ore", 100),
         },
         connections: [
@@ -1501,8 +1496,8 @@ describe("rateSolver", () => {
         blocks: {
           srcA: makeSource("srcA", "ore", 40),
           srcB: makeSource("srcB", "ore", 60),
-          merger: makeLogistics("merger", "merger"),
-          splitter: makeLogistics("splitter", "splitter"),
+          merger: makeLogistics("merger"),
+          splitter: makeLogistics("splitter"),
           snkA: makeSink("snkA", "ore", 50),
           snkB: makeSink("snkB", "ore", 50),
         },
@@ -1542,10 +1537,10 @@ describe("rateSolver", () => {
       const graph: FactoryLayout = {
         blocks: {
           src: makeSource("src", "ore", 200),
-          splitter: makeLogistics("splitter", "splitter"),
+          splitter: makeLogistics("splitter"),
           blkA,
           blkB,
-          merger: makeLogistics("merger", "merger"),
+          merger: makeLogistics("merger"),
           snk: makeSink("snk", "ingot", 100),
         },
         connections: [
