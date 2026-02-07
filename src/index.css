@@ -608,10 +608,6 @@ body {
     box-shadow: 0 0 12px rgba(245, 158, 11, 0.25), 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
-.block-card.status-error {
-    border-color: var(--flow-error);
-    box-shadow: 0 0 12px rgba(239, 68, 68, 0.25), 0 4px 20px rgba(0, 0, 0, 0.4);
-}
 
 /* Logistics Junction */
 .block-card.junction {
@@ -1287,7 +1283,7 @@ body {
 
 .edge-path {
     stroke-dasharray: 8;
-    animation: flowDash 3s linear infinite;
+    animation: flowDash var(--flow-duration, 3s) linear infinite;
     transition: stroke 0.3s, stroke-opacity 0.3s, filter 0.3s;
 }
 
@@ -1295,7 +1291,7 @@ body {
     stroke: var(--flow-error) !important;
     stroke-opacity: 1 !important;
     filter: drop-shadow(0 0 6px var(--flow-error)) !important;
-    animation: flowDashStarved 0.8s linear infinite !important;
+    animation: flowDash var(--flow-duration, 1s) linear infinite !important;
     stroke-width: 4px !important;
     stroke-dasharray: 4 !important;
 }
@@ -1304,32 +1300,33 @@ body {
     stroke: var(--flow-warning) !important;
     stroke-opacity: 0.5 !important;
     stroke-dasharray: 4, 12 !important;
-    animation: flowDashShortfall 4s linear infinite !important;
+    animation: flowDash var(--flow-duration, 4s) linear infinite !important;
+}
+
+/* Status Pulsing */
+.block-card.status-error {
+    border-color: var(--flow-error);
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.25), 0 4px 20px rgba(0, 0, 0, 0.4);
+    animation: pulseError 2s ease-in-out infinite;
+}
+
+@keyframes pulseError {
+
+    0%,
+    100% {
+        box-shadow: 0 0 12px rgba(239, 68, 68, 0.2), 0 4px 20px rgba(0, 0, 0, 0.4);
+        border-color: var(--flow-error);
+    }
+
+    50% {
+        box-shadow: 0 0 25px rgba(239, 68, 68, 0.6), 0 4px 20px rgba(0, 0, 0, 0.4);
+        border-color: #ff4d4d;
+    }
 }
 
 @keyframes flowDash {
     from {
         stroke-dashoffset: 32;
-    }
-
-    to {
-        stroke-dashoffset: 0;
-    }
-}
-
-@keyframes flowDashStarved {
-    from {
-        stroke-dashoffset: 16;
-    }
-
-    to {
-        stroke-dashoffset: 0;
-    }
-}
-
-@keyframes flowDashShortfall {
-    from {
-        stroke-dashoffset: 64;
     }
 
     to {

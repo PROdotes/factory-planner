@@ -61,8 +61,10 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
     highlightSet.blocks.size > 0 && !highlightSet.blocks.has(block.id);
 
   const connectedInputItems = highlightSet.connectedInputs.get(block.id);
+  const connectedOutputItems = highlightSet.connectedOutputs.get(block.id);
   const isOutputHighlight = (itemId: string) =>
-    isSelected && highlightSet.outputItems.has(itemId);
+    (isSelected && highlightSet.outputItems.has(itemId)) ||
+    (connectedOutputItems?.has(itemId) ?? false);
   const isInputHighlight = (itemId: string) =>
     connectedInputItems?.has(itemId) ?? false;
 

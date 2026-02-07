@@ -100,7 +100,7 @@ export class FactoryGraph {
       this._deleteBlockSurgical(blockId);
 
       // Bridge the gap: Input Source -> Output Target
-      this.connect(
+      this._connectSurgical(
         inputConn.sourceBlockId,
         outputConn.targetBlockId,
         inputConn.itemId
@@ -139,134 +139,148 @@ export class FactoryGraph {
   }
 
   /**
+   * Internal helper: Adds a connection directly without triggering auto-splitter logic.
+   */
+  private _connectSurgical(sourceId: string, targetId: string, itemId: string) {
+    const connection: Connection = {
+      id: crypto.randomUUID(),
+      sourceBlockId: sourceId,
+      targetBlockId: targetId,
+      itemId,
+      beltId: "conveyor-belt-mk-i",
+      demand: 0,
+      rate: 0,
+    };
+    this.connections.push(connection);
+    return connection;
+  }
+
+  /**
    * Connects two blocks with a directional flow of an item.
    */
   connect(sourceId: string, targetId: string, itemId: string) {
-    if (!this.blocks.has(sourceId)) {
-      console.error(
-        `Connect Failed: Source Block '${sourceId}' does not exist.`
-      );
-      return;
-    }
-    if (!this.blocks.has(targetId)) {
-      console.error(
-        `Connect Failed: Target Block '${targetId}' does not exist.`
-      );
-      return;
-    }
+    if (!this.blocks.has(sourceId) || !this.blocks.has(targetId)) return;
+    if (sourceId === targetId) return;
 
-    // Prevent double-up: Check if this exact connection already exists
+    // Prevent double-up
     const exists = this.connections.some(
       (c) =>
         c.sourceBlockId === sourceId &&
         c.targetBlockId === targetId &&
         c.itemId === itemId
     );
-    if (exists) {
-      console.warn(
-        `[GRAPH] Skipping duplicate connection: ${sourceId} -> ${targetId} (${itemId})`
-      );
-      return;
-    }
+    if (exists) return;
 
-    console.log(
-      `[GRAPH] Adding connection: ${sourceId} -> ${targetId} (${itemId})`
-    );
+    const sourceBlock = this.blocks.get(sourceId)!;
+    const targetBlock = this.blocks.get(targetId)!;
 
-    // --- [AUTO-SPLITTER LOGIC] ---
-    // Check if this source-item pair already has an outgoing connection
-    const existingConnection = this.connections.find(
+    // --- [MANIFOLD PROPAGATION / AUTO-SPLITTER] ---
+    // Rule: We want to build a linear manifold (Chain) rather than a star.
+    // Logic: If Source is already BUSY with this Item, follow the line to the end or tip.
+    const existingOutputs = this.connections.filter(
       (c) => c.sourceBlockId === sourceId && c.itemId === itemId
     );
 
-    const sourceBlock = this.blocks.get(sourceId);
-    if (!sourceBlock) return; // Should have been caught earlier but safe to check
-
-    // If there is an existing connection, AND the source is not already a logistics block (splitter)
-    if (
-      existingConnection &&
-      sourceBlock?.type !== "logistics" &&
-      existingConnection.targetBlockId !== targetId
-    ) {
-      console.log("[GRAPH] Auto-Inserting Splitter due to overload...");
-
-      // 1. Identify the topology
-      const oldTargetId = existingConnection.targetBlockId;
-      const oldTargetBlock = this.blocks.get(oldTargetId);
-      const newTargetBlock = this.blocks.get(targetId);
-
-      if (!oldTargetBlock || !newTargetBlock) return;
-
-      // 2. Calculate Splitter Position (Midpoint-ish, but closer to source to avoid mess)
-      // Actually, let's put it fairly close to the source to simulate a "bus tap" or "manifold start"
-      const sx = sourceBlock.position.x;
-      const sy = sourceBlock.position.y;
-      const tx1 = oldTargetBlock.position.x;
-      const ty1 = oldTargetBlock.position.y;
-      const tx2 = newTargetBlock.position.x;
-      const ty2 = newTargetBlock.position.y;
-
-      // Weighted average: 60% Source, 20% T1, 20% T2
-      const splitX = sx * 0.6 + tx1 * 0.2 + tx2 * 0.2;
-      const splitY = sy * 0.6 + ty1 * 0.2 + ty2 * 0.2;
-
-      // 3. Create the Splitter (Logistics Block)
-      const splitterParams = this.addLogistics(splitX, splitY); // Returns { id, ... }
-      const splitterId = splitterParams.id; // Corrected access
-
-      // 4. Remove the old connection (Source -> OldTarget)
-      this.connections = this.connections.filter(
-        (c) => c.id !== existingConnection.id
+    if (existingOutputs.length > 0) {
+      // 1. Prioritize following an existing Logistics path (Continuing the chain)
+      const continuation = existingOutputs.find(
+        (c) => this.blocks.get(c.targetBlockId)?.type === "logistics"
       );
 
-      // 5. Wire up the T-Junction
-      // Source -> Splitter
-      this.connections.push({
-        id: crypto.randomUUID(),
-        sourceBlockId: sourceId,
-        targetBlockId: splitterId,
-        itemId,
-        beltId: "conveyor-belt-mk-i",
-        demand: 0,
-        rate: 0,
-      });
+      if (continuation) {
+        console.log(
+          `[GRAPH] Forwarding connection down the chain: ${sourceId} -> ${continuation.targetBlockId}`
+        );
+        this.connect(continuation.targetBlockId, targetId, itemId);
+        return;
+      }
 
-      // Splitter -> Old Target
-      this.connections.push({
-        id: crypto.randomUUID(),
-        sourceBlockId: splitterId,
-        targetBlockId: oldTargetId,
-        itemId,
-        beltId: "conveyor-belt-mk-i",
-        demand: 0,
-        rate: 0,
-      });
+      // 2. If no logistics continuation, but we are a Machine (not a junction)
+      // or a Junction that wants to start a new chain, we SPLIT the first machine line.
+      if (sourceBlock.type !== "logistics" || existingOutputs.length >= 1) {
+        // Identify the segment to split.
+        // If we have multiple machine outputs, pick the one closest to the target.
+        let segmentToSplit = existingOutputs[0];
+        if (existingOutputs.length > 1) {
+          segmentToSplit = existingOutputs.reduce((prev, curr) => {
+            const bPrev = this.blocks.get(prev.targetBlockId)!;
+            const bCurr = this.blocks.get(curr.targetBlockId)!;
+            const dPrev =
+              (bPrev.position.x - targetBlock.position.x) ** 2 +
+              (bPrev.position.y - targetBlock.position.y) ** 2;
+            const dCurr =
+              (bCurr.position.x - targetBlock.position.x) ** 2 +
+              (bCurr.position.y - targetBlock.position.y) ** 2;
+            return dCurr < dPrev ? curr : prev;
+          });
+        }
 
-      // Splitter -> New Target
-      this.connections.push({
-        id: crypto.randomUUID(),
-        sourceBlockId: splitterId,
-        targetBlockId: targetId,
-        itemId,
-        beltId: "conveyor-belt-mk-i",
-        demand: 0,
-        rate: 0,
-      });
+        const downstreamId = segmentToSplit.targetBlockId;
+        const downstreamBlock = this.blocks.get(downstreamId);
+        if (!downstreamBlock) return;
 
-      console.log(
-        `[GRAPH] Splitter injected at (${Math.round(splitX)}, ${Math.round(
-          splitY
-        )})`
-      );
-      return;
+        console.log(
+          `[GRAPH] Splitting terminal segment: ${sourceId} -> ${downstreamId}`
+        );
+
+        // Calculate Midpoint
+        const splitX =
+          (sourceBlock.position.x + downstreamBlock.position.x) / 2;
+        const splitY =
+          (sourceBlock.position.y + downstreamBlock.position.y) / 2;
+
+        // Create Splitter
+        const splitter = this.addLogistics(splitX, splitY);
+
+        // Remove old connection
+        this.connections = this.connections.filter(
+          (c) => c.id !== segmentToSplit.id
+        );
+
+        // Wire Source -> Splitter
+        this.connections.push({
+          id: crypto.randomUUID(),
+          sourceBlockId: sourceId,
+          targetBlockId: splitter.id,
+          itemId,
+          beltId: segmentToSplit.beltId || "conveyor-belt-mk-i",
+          demand: 0,
+          rate: 0,
+        });
+
+        // Wire Splitter -> Original Target
+        this.connections.push({
+          id: crypto.randomUUID(),
+          sourceBlockId: splitter.id,
+          targetBlockId: downstreamId,
+          itemId,
+          beltId: segmentToSplit.beltId || "conveyor-belt-mk-i",
+          demand: 0,
+          rate: 0,
+        });
+
+        // Wire Splitter -> New Target
+        this.connections.push({
+          id: crypto.randomUUID(),
+          sourceBlockId: splitter.id,
+          targetBlockId: targetId,
+          itemId,
+          beltId: "conveyor-belt-mk-i",
+          demand: 0,
+          rate: 0,
+        });
+
+        return;
+      }
     }
 
+    // Default Connection
     const connection: Connection = {
       id: crypto.randomUUID(),
       sourceBlockId: sourceId,
       targetBlockId: targetId,
       itemId,
-      beltId: "conveyor-belt-mk-i", // Default to Mk.1
+      beltId: "conveyor-belt-mk-i",
       demand: 0,
       rate: 0,
     };

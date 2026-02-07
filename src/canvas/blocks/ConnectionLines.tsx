@@ -4,7 +4,7 @@
  * RELATION: FLOW mode visualization.
  */
 
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { useFactoryStore } from "../../factory/factoryStore";
 import { useGameDataStore } from "../../gamedata/gamedataStore";
 import { useHighlightSet } from "../hooks/useHighlightSet";
@@ -43,6 +43,7 @@ interface ConnectionPathProps {
   version: number;
   onSelect: (id: string) => void;
   onBeltChange: (id: string, newBeltId: string) => void;
+  onDelete: (id: string) => void;
 }
 
 const ConnectionPath = memo(
@@ -67,7 +68,9 @@ const ConnectionPath = memo(
     version,
     onSelect,
     onBeltChange,
+    onDelete,
   }: ConnectionPathProps) => {
+    const [isHovered, setIsHovered] = useState(false);
     const pathRef = useRef<SVGPathElement>(null);
     const hitRef = useRef<SVGPathElement>(null);
     const labelRef = useRef<SVGGElement>(null);
@@ -189,11 +192,8 @@ const ConnectionPath = memo(
             onBeltChange(id, nextBelt);
           }
         }}
-        onDoubleClick={(e) => {
-          e.stopPropagation();
-          // Direct cycle on double click?
-          // Or single click if selected
-        }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
         style={{ pointerEvents: "auto", cursor: "pointer" }}
       >
         <path
@@ -252,6 +252,7 @@ const ConnectionPath = memo(
             style={{ overflow: "visible", pointerEvents: "none" }}
           >
             <div
+              className="edge-label-container"
               style={{
                 width: "fit-content",
                 minWidth: "max-content",
@@ -262,10 +263,10 @@ const ConnectionPath = memo(
                     ? "var(--flow-error)"
                     : isShortfall
                     ? "var(--flow-warning)"
-                    : "rgba(255,255,255,0.15)" // Slightly brighter border
+                    : "rgba(255,255,255,0.15)"
                 }`,
                 borderRadius: 8,
-                padding: "4px 10px", // Less horizontal padding visually relative to content
+                padding: "4px 10px",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
@@ -280,6 +281,7 @@ const ConnectionPath = memo(
                 gap: 2,
                 pointerEvents: "auto",
                 transform: "translateY(10px)",
+                position: "relative",
               }}
             >
               <div
@@ -308,6 +310,36 @@ const ConnectionPath = memo(
               >
                 {labelData.rateText}
               </div>
+
+              {/* Quick Delete Button */}
+              {isHovered && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(id);
+                  }}
+                  style={{
+                    position: "absolute",
+                    top: -8,
+                    right: -8,
+                    width: 20,
+                    height: 20,
+                    borderRadius: "50%",
+                    background: "var(--flow-error)",
+                    color: "white",
+                    border: "2px solid var(--bg-card)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "10px",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
+                    zIndex: 100,
+                  }}
+                >
+                  ✕
+                </button>
+              )}
             </div>
           </foreignObject>
         </g>
@@ -331,6 +363,7 @@ export const ConnectionLines = memo(
       runSolver,
       selectedConnectionId,
       selectConnection,
+      removeConnection,
     } = useFactoryStore();
     const { items } = useGameDataStore();
     const highlightSet = useHighlightSet();
@@ -374,6 +407,7 @@ export const ConnectionLines = memo(
               isDimmed={isDimmed}
               isSelected={conn.id === selectedConnectionId}
               onSelect={selectConnection}
+              onDelete={removeConnection}
               isPerMin={isPerMin}
               version={version}
             />
@@ -403,6 +437,7 @@ const ConnectionPathWithPorts = memo(
     isDimmed,
     isSelected,
     onSelect,
+    onDelete,
     isPerMin,
     version,
   }: {
@@ -413,6 +448,7 @@ const ConnectionPathWithPorts = memo(
     isDimmed: boolean;
     isSelected: boolean;
     onSelect: (id: string) => void;
+    onDelete: (id: string) => void;
     isPerMin: boolean;
     version: number;
   }) => {
@@ -464,6 +500,7 @@ const ConnectionPathWithPorts = memo(
         isSelected={isSelected}
         onSelect={onSelect}
         onBeltChange={setBelt}
+        onDelete={onDelete}
         rate={conn.rate}
         version={version}
       />

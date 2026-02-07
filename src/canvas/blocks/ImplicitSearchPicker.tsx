@@ -4,7 +4,7 @@
  * RELATION: Triggered by ConnectionLines on "Drop to Empty Space".
  */
 
-import { useMemo, useEffect, useRef } from "react";
+import { useMemo, useEffect, useRef, useState, useLayoutEffect } from "react";
 import { useUIStore } from "../uiStore";
 import { useGameDataStore } from "../../gamedata/gamedataStore";
 import { useFactoryStore } from "../../factory/factoryStore";
@@ -25,6 +25,14 @@ export function ImplicitSearchPicker() {
     factory,
   } = useFactoryStore();
   const pickerRef = useRef<HTMLDivElement>(null);
+  const [adjustedPos, setAdjustedPos] = useState({ x: 0, y: 0 });
+
+  // Reset adjusted pos when search changes
+  useEffect(() => {
+    if (implicitSearch) {
+      setAdjustedPos(implicitSearch.clientPos);
+    }
+  }, [implicitSearch]);
 
   // Filter recipes based on the dragged item
   const results = useMemo(() => {
@@ -53,56 +61,134 @@ export function ImplicitSearchPicker() {
     if (!implicitSearch) return [];
     const { blockId, itemId, side } = implicitSearch;
 
-    return Array.from(factory.blocks.values()).filter((block) => {
-      if (block.id === blockId) return false; // Don't connect to self
+    const filteredBlocks = Array.from(factory.blocks.values()).filter(
+      (block) => {
+        if (block.id === blockId) return false; // Don't connect to self
 
-      // Check if already connected
-      const isConnected = factory.connections.some(
-        (c) =>
-          c.itemId === itemId &&
-          ((side === "right" &&
-            c.sourceBlockId === blockId &&
-            c.targetBlockId === block.id) ||
-            (side === "left" &&
-              c.sourceBlockId === block.id &&
-              c.targetBlockId === blockId))
-      );
-      if (isConnected) return false;
+        // Check if already connected
+        const isConnected = factory.connections.some(
+          (c) =>
+            c.itemId === itemId &&
+            ((side === "right" &&
+              c.sourceBlockId === blockId &&
+              c.targetBlockId === block.id) ||
+              (side === "left" &&
+                c.sourceBlockId === block.id &&
+                c.targetBlockId === blockId))
+        );
+        if (isConnected) return false;
 
-      // Check compatibility
-      if (side === "right") {
-        // We are Outputting Item -> Look for Consumers
-        // 1. Production Block with matching input
-        if (block.type === "production") {
-          const recipe = (block as any).recipeId
-            ? recipes[(block as any).recipeId]
-            : null;
-          return recipe?.inputs.some((i) => i.itemId === itemId);
+        // Check compatibility
+        if (side === "right") {
+          // We are Outputting Item -> Look for Consumers
+          // 1. Production Block with matching input
+          if (block.type === "production") {
+            const recipe = (block as any).recipeId
+              ? recipes[(block as any).recipeId]
+              : null;
+            return recipe?.inputs.some((i) => i.itemId === itemId);
+          }
+          // 2. Logistics (Junctions accept anything IF not already carrying something else)
+          if (block.type === "logistics") {
+            const blockConnections = factory.connections.filter(
+              (c) =>
+                c.sourceBlockId === block.id || c.targetBlockId === block.id
+            );
+            if (blockConnections.length === 0) return true;
+            // Must match item
+            return blockConnections.every((c) => c.itemId === itemId);
+          }
+        } else {
+          // We need Input Item -> Look for Producers
+          // 1. Production Block with matching output
+          if (block.type === "production") {
+            const recipe = (block as any).recipeId
+              ? recipes[(block as any).recipeId]
+              : null;
+            return recipe?.outputs.some((o) => o.itemId === itemId);
+          }
+          // 2. Gatherer with matching output
+          if (block.type === "gatherer") {
+            const gatherer = (block as any).gathererId
+              ? gatherers[(block as any).gathererId]
+              : null;
+            return gatherer?.outputItemId === itemId;
+          }
+          // 3. Logistics (Junctions supply anything if fed)
+          if (block.type === "logistics") {
+            const blockConnections = factory.connections.filter(
+              (c) =>
+                c.sourceBlockId === block.id || c.targetBlockId === block.id
+            );
+            if (blockConnections.length === 0) return true;
+            return blockConnections.every((c) => c.itemId === itemId);
+          }
         }
-        // 2. Logistics (Junctions accept anything)
-        if (block.type === "logistics") return true;
-      } else {
-        // We need Input Item -> Look for Producers
-        // 1. Production Block with matching output
-        if (block.type === "production") {
-          const recipe = (block as any).recipeId
-            ? recipes[(block as any).recipeId]
-            : null;
-          return recipe?.outputs.some((o) => o.itemId === itemId);
-        }
-        // 2. Gatherer with matching output
-        if (block.type === "gatherer") {
-          const gatherer = (block as any).gathererId
-            ? gatherers[(block as any).gathererId]
-            : null;
-          return gatherer?.outputItemId === itemId;
-        }
-        // 3. Logistics (Junctions supply anything if fed)
-        if (block.type === "logistics") return true;
+        return false;
       }
-      return false;
+    );
+
+    // Sort by type (production > gatherer > logistics) and distance
+    const { worldPos } = implicitSearch;
+    return filteredBlocks.sort((a: any, b: any) => {
+      // Type Priority: Production (0) > Gatherer (1) > Logistics (2)
+      const typePriority = { production: 0, gatherer: 1, logistics: 2 };
+      const priorityA = typePriority[a.type as keyof typeof typePriority] ?? 99;
+      const priorityB = typePriority[b.type as keyof typeof typePriority] ?? 99;
+
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+
+      const distA =
+        (a.position.x - worldPos.x) ** 2 + (a.position.y - worldPos.y) ** 2;
+      const distB =
+        (b.position.x - worldPos.x) ** 2 + (b.position.y - worldPos.y) ** 2;
+      return distA - distB;
     });
   }, [implicitSearch, factory.blocks, factory.connections, recipes, gatherers]);
+
+  // Viewport Clamping (LayoutEffect + ResizeObserver)
+  useLayoutEffect(() => {
+    if (!implicitSearch || !pickerRef.current) return;
+
+    const { clientPos } = implicitSearch;
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+
+    const performClamp = () => {
+      if (!pickerRef.current) return;
+      const rect = pickerRef.current.getBoundingClientRect();
+
+      let x = clientPos.x;
+      let y = clientPos.y;
+
+      // Clamp Right
+      if (x + rect.width > viewportW - 20) {
+        x = viewportW - rect.width - 20;
+      }
+      // Clamp Bottom
+      if (y + rect.height > viewportH - 20) {
+        y = viewportH - rect.height - 60; // More aggressive lift
+      }
+      // Clamp Left/Top (safety)
+      if (x < 20) x = 20;
+      if (y < 20) y = 20;
+
+      setAdjustedPos({ x, y });
+    };
+
+    // 1. Initial Clamp
+    performClamp();
+
+    // 2. Observer for content size changes
+    const observer = new ResizeObserver(() => {
+      performClamp();
+    });
+    observer.observe(pickerRef.current);
+
+    return () => observer.disconnect();
+  }, [implicitSearch, results, matchingGatherers, existingConnections]);
 
   // Handle clicks outside to close
   useEffect(() => {
@@ -127,7 +213,7 @@ export function ImplicitSearchPicker() {
 
   if (!implicitSearch) return null;
 
-  const { blockId, itemId, side, worldPos, clientPos } = implicitSearch;
+  const { blockId, itemId, side, worldPos } = implicitSearch;
   const itemName = items[itemId]?.name || itemId;
 
   const handleSelectRecipe = (recipeId: string, recipeName: string) => {
@@ -186,8 +272,8 @@ export function ImplicitSearchPicker() {
       className="implicit-picker"
       ref={pickerRef}
       style={{
-        top: clientPos.y,
-        left: clientPos.x,
+        top: adjustedPos.y,
+        left: adjustedPos.x,
       }}
     >
       <div className="picker-header">
@@ -216,26 +302,82 @@ export function ImplicitSearchPicker() {
           <div className="picker-section">
             <div className="section-title">Connect to Existing</div>
             <div className="recipe-grid">
-              {existingConnections.map((block) => (
-                <button
-                  key={block.id}
-                  className="picker-recipe-btn existing-conn-btn"
-                  onClick={() => handleConnectExisting(block.id)}
-                  style={{
-                    border: "1px dashed var(--accent)",
-                    background: "rgba(241, 196, 15, 0.05)",
-                  }}
-                >
-                  <ArrowRightLeft size={16} className="icon-subtle" />
-                  <div className="btn-col">
-                    <span className="btn-title">{block.name}</span>
-                    <span className="btn-subtitle">
-                      {Math.round(block.position.x)},{" "}
-                      {Math.round(block.position.y)}
-                    </span>
-                  </div>
-                </button>
-              ))}
+              {existingConnections.map((block) => {
+                let icon = <ArrowRightLeft size={16} className="icon-subtle" />;
+                let title = block.name;
+                let subtitle = `${Math.round(block.position.x)}, ${Math.round(
+                  block.position.y
+                )}`;
+                let style = {
+                  border: "1px dashed var(--accent)",
+                  background: "rgba(241, 196, 15, 0.05)",
+                };
+
+                if (block.type === "production") {
+                  const recipeId = (block as any).recipeId;
+                  const recipe = recipeId ? recipes[recipeId] : null;
+                  if (recipe) {
+                    title = "Assembler";
+                    subtitle = `${recipe.name}`;
+                    // Show the item relevant to the connection
+                    const relevantItem =
+                      implicitSearch?.side === "right"
+                        ? recipe.inputs.find(
+                            (i) => i.itemId === implicitSearch?.itemId
+                          )?.itemId
+                        : recipe.outputs.find(
+                            (o) => o.itemId === implicitSearch?.itemId
+                          )?.itemId;
+
+                    if (relevantItem) {
+                      icon = <ItemIcon itemId={relevantItem} size={20} />;
+                    }
+                  }
+                } else if (block.type === "logistics") {
+                  icon = <GitBranch size={16} color="var(--flow-success)" />;
+                  title = "Junction";
+                  const connectionCount = factory.connections.filter(
+                    (c) =>
+                      c.sourceBlockId === block.id ||
+                      c.targetBlockId === block.id
+                  ).length;
+                  subtitle = `${Math.round(block.position.x)}, ${Math.round(
+                    block.position.y
+                  )} • ${connectionCount} Links`;
+                  style = {
+                    border: "1px dashed var(--flow-success)",
+                    background: "rgba(6, 182, 212, 0.05)",
+                  };
+                } else if (block.type === "gatherer") {
+                  const gathererId = (block as any).gathererId;
+                  const gatherer = gathererId ? gatherers[gathererId] : null;
+                  if (gatherer) {
+                    icon = (
+                      <ItemIcon itemId={gatherer.outputItemId} size={20} />
+                    );
+                  }
+                }
+
+                return (
+                  <button
+                    key={block.id}
+                    className="picker-recipe-btn existing-conn-btn"
+                    onClick={() => handleConnectExisting(block.id)}
+                    style={style}
+                  >
+                    {icon}
+                    <div className="btn-col">
+                      <span className="btn-title">{title}</span>
+                      <span
+                        className="btn-subtitle"
+                        style={{ fontSize: "0.7rem", opacity: 0.7 }}
+                      >
+                        {subtitle}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

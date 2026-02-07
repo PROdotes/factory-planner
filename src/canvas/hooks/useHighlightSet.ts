@@ -4,64 +4,128 @@
  * RELATION: Used by components to decide 'Am I Dimmed?'.
  */
 
-import { useMemo } from 'react';
-import { useFactoryStore } from '../../factory/factoryStore';
-import { useUIStore } from '../uiStore';
-import { useGameDataStore } from '../../gamedata/gamedataStore';
-import { getFocusSet, getNeighborSet } from '../../solver/graphTraversal';
-import { ProductionBlock } from '../../factory/blocks/ProductionBlock';
+import { useMemo } from "react";
+import { useFactoryStore } from "../../factory/factoryStore";
+import { useUIStore } from "../uiStore";
+import { useGameDataStore } from "../../gamedata/gamedataStore";
+import { getFocusSet, getNeighborSet } from "../../solver/graphTraversal";
+import { ProductionBlock } from "../../factory/blocks/ProductionBlock";
 
-export function useHighlightSet() {
-    const focusedId = useUIStore(s => s.focusedNodeId);
-    const selectedId = useFactoryStore(s => s.selectedBlockId);
-    const factory = useFactoryStore(s => s.factory);
-    const recipes = useGameDataStore(s => s.recipes);
+export interface HighlightSet {
+  blocks: Set<string>;
+  outputItems: Set<string>;
+  connectedInputs: Map<string, Set<string>>;
+  connectedOutputs: Map<string, Set<string>>;
+}
 
-    return useMemo(() => {
-        // 1. [Contextual Priority] - Selection Overrides
-        // If a machine is selected, show its local neighborhood (the "Shallow" drill-down).
-        if (selectedId) {
-            const block = factory.blocks.get(selectedId);
-            if (!block) return { blocks: new Set<string>(), outputItems: new Set<string>(), connectedInputs: new Map<string, Set<string>>() };
+export function useHighlightSet(): HighlightSet {
+  const focusedId = useUIStore((s) => s.focusedNodeId);
+  const selectedId = useFactoryStore((s) => s.selectedBlockId);
+  const factory = useFactoryStore((s) => s.factory);
+  const recipes = useGameDataStore((s) => s.recipes);
 
-            // Get outputs from the RECIPE (not connections)
-            const outputItems = new Set<string>();
-            if (block instanceof ProductionBlock && block.recipeId) {
-                const recipe = recipes[block.recipeId];
-                if (recipe) {
-                    recipe.outputs.forEach(out => outputItems.add(out.itemId));
-                }
-            }
+  return useMemo(() => {
+    const emptySet = (): HighlightSet => ({
+      blocks: new Set(),
+      outputItems: new Set(),
+      connectedInputs: new Map(),
+      connectedOutputs: new Map(),
+    });
 
-            // Track which items flow into which blocks via CONNECTIONS from this block
-            const connectedInputs = new Map<string, Set<string>>();
-            for (const conn of factory.connections) {
-                if (conn.sourceBlockId === selectedId) {
-                    if (!connectedInputs.has(conn.targetBlockId)) {
-                        connectedInputs.set(conn.targetBlockId, new Set());
-                    }
-                    connectedInputs.get(conn.targetBlockId)!.add(conn.itemId);
-                }
-            }
+    // 1. [Contextual Priority] - Selection Overrides
+    // If a machine is selected, show its local neighborhood (the "Shallow" drill-down).
+    if (selectedId) {
+      const block = factory.blocks.get(selectedId);
+      if (!block) return emptySet();
 
-            return {
-                blocks: getNeighborSet(selectedId, factory.toDTO()),
-                outputItems,
-                connectedInputs
-            };
+      // Get outputs from the RECIPE (not connections)
+      const outputItems = new Set<string>();
+      if (block instanceof ProductionBlock && block.recipeId) {
+        const recipe = recipes[block.recipeId];
+        if (recipe) {
+          recipe.outputs.forEach((out) => outputItems.add(out.itemId));
         }
+      }
 
-        // 2. [Big Picture Priority] - Deep Focus
-        // If nothing is selected but Deep Focus is Active, it defines the world.
-        if (focusedId) {
-            return {
-                blocks: getFocusSet(focusedId, factory.toDTO()),
-                outputItems: new Set<string>(),
-                connectedInputs: new Map<string, Set<string>>()
-            };
+      // Track logical flow across junctions to highlight machine ports
+      const connectedInputs = new Map<string, Set<string>>(); // targetBlockId -> Set<itemIds>
+      const connectedOutputs = new Map<string, Set<string>>(); // sourceBlockId -> Set<itemIds>
+
+      const traceForward = (startId: string, itemId: string) => {
+        const queue = [startId];
+        const visited = new Set<string>();
+        while (queue.length > 0) {
+          const cid = queue.shift()!;
+          if (visited.has(cid)) continue;
+          visited.add(cid);
+          factory.connections.forEach((c) => {
+            if (c.sourceBlockId === cid && c.itemId === itemId) {
+              const target = factory.blocks.get(c.targetBlockId);
+              if (target?.type === "logistics") queue.push(c.targetBlockId);
+              else {
+                if (!connectedInputs.has(c.targetBlockId))
+                  connectedInputs.set(c.targetBlockId, new Set());
+                connectedInputs.get(c.targetBlockId)!.add(itemId);
+              }
+            }
+          });
         }
+      };
 
-        // 3. [Default] - Maximum clarity (No dimming).
-        return { blocks: new Set<string>(), outputItems: new Set<string>(), connectedInputs: new Map<string, Set<string>>() };
-    }, [focusedId, selectedId, factory, recipes]);
+      const traceBackward = (startId: string, itemId: string) => {
+        const queue = [startId];
+        const visited = new Set<string>();
+        while (queue.length > 0) {
+          const cid = queue.shift()!;
+          if (visited.has(cid)) continue;
+          visited.add(cid);
+          factory.connections.forEach((c) => {
+            if (c.targetBlockId === cid && c.itemId === itemId) {
+              const source = factory.blocks.get(c.sourceBlockId);
+              if (source?.type === "logistics") queue.push(c.sourceBlockId);
+              else {
+                if (!connectedOutputs.has(c.sourceBlockId))
+                  connectedOutputs.set(c.sourceBlockId, new Set());
+                connectedOutputs.get(c.sourceBlockId)!.add(itemId);
+              }
+            }
+          });
+        }
+      };
+
+      // 1. Trace outgoing from selected block
+      const outgoingItems = new Set<string>();
+      factory.connections.forEach((c) => {
+        if (c.sourceBlockId === selectedId) outgoingItems.add(c.itemId);
+      });
+      outgoingItems.forEach((id) => traceForward(selectedId, id));
+
+      // 2. Trace incoming to selected block
+      const incomingItems = new Set<string>();
+      factory.connections.forEach((c) => {
+        if (c.targetBlockId === selectedId) incomingItems.add(c.itemId);
+      });
+      incomingItems.forEach((id) => traceBackward(selectedId, id));
+
+      return {
+        blocks: getNeighborSet(selectedId, factory.toDTO()),
+        outputItems, // The selected block's own icons
+        connectedInputs,
+        connectedOutputs,
+      };
+    }
+
+    // 2. [Big Picture Priority] - Deep Focus
+    if (focusedId) {
+      return {
+        blocks: getFocusSet(focusedId, factory.toDTO()),
+        outputItems: new Set(),
+        connectedInputs: new Map(),
+        connectedOutputs: new Map(),
+      };
+    }
+
+    // 3. [Default]
+    return emptySet();
+  }, [focusedId, selectedId, factory, recipes]);
 }
