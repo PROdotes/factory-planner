@@ -8,7 +8,7 @@
  * - Zoomed in (scale >= 0.9): Full controls and I/O debugging
  */
 
-import { memo } from "react";
+import { memo, useEffect } from "react";
 import { BlockBase } from "../../factory/core/BlockBase";
 import { ProductionBlock } from "../../factory/blocks/ProductionBlock";
 import { useGameDataStore } from "../../gamedata/gamedataStore";
@@ -66,7 +66,25 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
     scale
   );
 
-  const ports = usePortPositions(block);
+  // NEW: Live sort during drag
+  // If dragging, we use the TRANSITORY position (from useDragToMove) to calculate port order
+  const ports = usePortPositions(
+    block,
+    version,
+    isDragging ? position : undefined
+  );
+
+  // Sync: When ports reorder dynamically (drag or neighbor move), we must inform the virtual ConnectionLines layer
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("block-ports-update", {
+        detail: {
+          blockId: block.id,
+          ports,
+        },
+      })
+    );
+  }, [ports, block.id]);
 
   // Recipe and machine data
   const recipe =

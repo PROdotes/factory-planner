@@ -13,6 +13,7 @@ import { StorageBlock } from "./blocks/StorageBlock";
 import { ProductionBlock } from "./blocks/ProductionBlock";
 import { LogisticsBlock } from "./blocks/LogisticsBlock";
 import { serializeGraph, deserializeGraph } from "./graphSerializer";
+import { sortBlockPorts } from "./core/sortBlockPorts";
 
 interface FactoryState {
   // The Single Source of Truth for the Factory
@@ -110,7 +111,25 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
 
   moveBlock: (id, x, y) => {
     const { factory } = get();
+    pushToUndo(factory);
     factory.moveBlock(id, x, y);
+
+    const block = factory.blocks.get(id);
+    if (block) {
+      sortBlockPorts(block, factory);
+      // Update neighbors
+      factory.connections.forEach((c) => {
+        if (c.sourceBlockId === id) {
+          const tgt = factory.blocks.get(c.targetBlockId);
+          if (tgt) sortBlockPorts(tgt, factory);
+        }
+        if (c.targetBlockId === id) {
+          const src = factory.blocks.get(c.sourceBlockId);
+          if (src) sortBlockPorts(src, factory);
+        }
+      });
+    }
+
     set((state) => ({ version: state.version + 1 }));
   },
 
@@ -129,6 +148,13 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
     const { factory } = get();
     pushToUndo(factory);
     factory.connect(sourceId, targetId, itemId);
+
+    // Sort ports for both involved blocks
+    const src = factory.blocks.get(sourceId);
+    if (src) sortBlockPorts(src, factory);
+    const tgt = factory.blocks.get(targetId);
+    if (tgt) sortBlockPorts(tgt, factory);
+
     set((state) => ({ version: state.version + 1 }));
     debouncedSolve(get);
   },
@@ -147,6 +173,7 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
           block.setMachine(recipe.machineId);
         }
       }
+      sortBlockPorts(block, factory);
       set((state) => ({ version: state.version + 1 }));
       debouncedSolve(get);
     }
@@ -512,6 +539,9 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
         });
       }
     }
+
+    // 4. Update Sort Orders for everyone
+    blocks.forEach((b) => sortBlockPorts(b, factory));
 
     set((state) => ({ version: state.version + 1 }));
   },

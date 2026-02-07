@@ -49,6 +49,7 @@ interface ConnectionPathProps {
   sourcePortY: number;
   targetPortY: number;
   label: string;
+  itemId: string;
   isDimmed: boolean;
   isStarved: boolean;
   isShortfall: boolean;
@@ -65,6 +66,7 @@ const ConnectionPath = memo(
     sourcePortY,
     targetPortY,
     label,
+    itemId,
     isDimmed,
     isStarved,
     isShortfall,
@@ -75,6 +77,10 @@ const ConnectionPath = memo(
     const labelRef = useRef<SVGGElement>(null);
 
     const flowDuration = rate > 0 ? Math.max(0.1, 2 / rate) : 0;
+
+    // Ref for port offsets to escape closure staleness in transient events
+    const portsRef = useRef({ sourcePortY, targetPortY });
+    portsRef.current = { sourcePortY, targetPortY };
 
     // pos ref stores the BLOCK positions
     const pos = useRef({
@@ -91,8 +97,8 @@ const ConnectionPath = memo(
       bx2: number;
       by2: number;
     }) => ({
-      p1: portXY(p.bx1, p.by1, "right", sourcePortY),
-      p2: portXY(p.bx2, p.by2, "left", targetPortY),
+      p1: portXY(p.bx1, p.by1, "right", portsRef.current.sourcePortY),
+      p2: portXY(p.bx2, p.by2, "left", portsRef.current.targetPortY),
     });
 
     const flush = () => {
@@ -132,9 +138,30 @@ const ConnectionPath = memo(
           flush();
         }
       };
+
+      // NEW: Listen for dynamic port reordering during drag
+      const onPortsUpdate = (e: any) => {
+        const { blockId, ports } = e.detail;
+        if (blockId === sourceBlockId) {
+          // Find new Y offset for our source item
+          const newY = getPortOffset(ports, "right", itemId);
+          portsRef.current.sourcePortY = newY;
+          flush();
+        } else if (blockId === targetBlockId) {
+          // Find new Y offset for our target item
+          const newY = getPortOffset(ports, "left", itemId);
+          portsRef.current.targetPortY = newY;
+          flush();
+        }
+      };
+
       window.addEventListener("block-transient-move", onMove);
-      return () => window.removeEventListener("block-transient-move", onMove);
-    }, [sourceBlockId, targetBlockId]);
+      window.addEventListener("block-ports-update", onPortsUpdate);
+      return () => {
+        window.removeEventListener("block-transient-move", onMove);
+        window.removeEventListener("block-ports-update", onPortsUpdate);
+      };
+    }, [sourceBlockId, targetBlockId, itemId]);
 
     const { p1, p2 } = getPoints(pos.current);
     const mid = midpoint(p1.x, p1.y, p2.x, p2.y);
@@ -373,8 +400,8 @@ const ConnectionPathWithPorts = memo(
     isPerMin: boolean;
     version: number;
   }) => {
-    const sourcePorts = usePortPositions(source);
-    const targetPorts = usePortPositions(target);
+    const sourcePorts = usePortPositions(source, version);
+    const targetPorts = usePortPositions(target, version);
 
     const sourcePortY = getPortOffset(sourcePorts, "right", conn.itemId);
     const targetPortY = getPortOffset(targetPorts, "left", conn.itemId);
@@ -414,6 +441,7 @@ const ConnectionPathWithPorts = memo(
         sourcePortY={sourcePortY}
         targetPortY={targetPortY}
         label={label}
+        itemId={conn.itemId}
         isDimmed={isDimmed}
         isStarved={isStarved}
         isShortfall={isShortfall}
