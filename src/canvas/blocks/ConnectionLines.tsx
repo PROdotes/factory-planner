@@ -221,7 +221,13 @@ const ConnectionPath = memo(
           } ${isShortfall && !isStarved ? "shortfall" : ""} ${
             rate > 0 ? "animating" : ""
           } ${isSelected ? "selected" : ""}`}
-          stroke="var(--flow-success)"
+          stroke={
+            isStarved
+              ? "var(--flow-error)"
+              : isShortfall && !isStarved
+              ? "var(--flow-warning)"
+              : "var(--flow-success)"
+          }
           strokeWidth="6"
           strokeOpacity={
             isDimmed ? "0.1" : isStarved ? "1.0" : isShortfall ? "0.4" : "0.6"

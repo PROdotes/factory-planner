@@ -392,7 +392,11 @@ function forwardPass(
 
       // 1. Resolve Recipe and Input State
       const recipe = block.recipeId ? recipes[block.recipeId] : null;
-      const isSource = idx.incomingAll.length === 0;
+      // AUTHENTIC SOURCE: Only a real source if the RECIPE has no inputs (e.g. Miners)
+      // If it HAS inputs but no one is connected, it is NOT a source; it's a starved factory.
+      const isSource = recipe
+        ? recipe.inputs.length === 0
+        : idx.incomingAll.length === 0;
 
       // 2. CASE A: Source Block without recipe (Legacy/Tests)
       if (isSource && !recipe && block.sourceYield !== undefined) {
