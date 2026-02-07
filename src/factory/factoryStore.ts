@@ -42,6 +42,7 @@ interface FactoryState {
   runSolver: () => void;
   loadDemo: () => void;
   autoLayout: () => void;
+  clearFactory: () => void;
 
   // Data Safety Actions
   saveToLocalStorage: () => void;
@@ -513,5 +514,14 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
     }
 
     set((state) => ({ version: state.version + 1 }));
+  },
+
+  clearFactory: () => {
+    const { factory } = get();
+    pushToUndo(factory);
+    factory.blocks.clear();
+    factory.connections = [];
+    set({ version: Date.now(), selectedBlockId: null });
+    get().saveToLocalStorage();
   },
 }));

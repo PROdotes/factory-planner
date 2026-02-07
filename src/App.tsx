@@ -23,6 +23,7 @@ import {
   Redo2,
   Save,
   Wand2,
+  Trash2,
 } from "lucide-react";
 import { useFactoryStore } from "./factory/factoryStore";
 import { ForgeList } from "./canvas/shell/ForgeList";
@@ -45,6 +46,9 @@ export function App() {
     redo,
     saveToLocalStorage,
     autoLayout,
+    selectedBlockId,
+    removeBlock,
+    clearFactory,
   } = useFactoryStore();
   const {
     leftSidebarOpen,
@@ -72,6 +76,13 @@ export function App() {
   // [Keyboard Shortcuts]
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      )
+        return;
+
       if (e.ctrlKey || e.metaKey) {
         if (e.key === "z") {
           e.preventDefault();
@@ -85,11 +96,15 @@ export function App() {
           e.preventDefault();
           saveToLocalStorage();
         }
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        if (selectedBlockId) {
+          removeBlock(selectedBlockId);
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [undo, redo, saveToLocalStorage]);
+  }, [undo, redo, saveToLocalStorage, selectedBlockId, removeBlock]);
 
   // [Solver Watcher] - Ensure rates update when modes change
   useEffect(() => {
@@ -240,6 +255,18 @@ export function App() {
             title="Auto-Organize Layout"
           >
             <Wand2 size={16} /> <span>Organize</span>
+          </button>
+
+          <button
+            className="toolbar-btn danger"
+            onClick={() => {
+              if (confirm("Delete EVERYTHING?")) {
+                clearFactory();
+              }
+            }}
+            title="Clear All Blocks"
+          >
+            <Trash2 size={16} /> <span>Clear All</span>
           </button>
 
           <button
