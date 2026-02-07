@@ -96,6 +96,94 @@ export class FactoryGraph {
       `[GRAPH] Adding connection: ${sourceId} -> ${targetId} (${itemId})`
     );
 
+    // --- [AUTO-SPLITTER LOGIC] ---
+    // Check if this source-item pair already has an outgoing connection
+    const existingConnection = this.connections.find(
+      (c) => c.sourceBlockId === sourceId && c.itemId === itemId
+    );
+
+    const sourceBlock = this.blocks.get(sourceId);
+    if (!sourceBlock) return; // Should have been caught earlier but safe to check
+
+    // If there is an existing connection, AND the source is not already a logistics block (splitter)
+    if (
+      existingConnection &&
+      sourceBlock?.type !== "logistics" &&
+      existingConnection.targetBlockId !== targetId
+    ) {
+      console.log("[GRAPH] Auto-Inserting Splitter due to overload...");
+
+      // 1. Identify the topology
+      const oldTargetId = existingConnection.targetBlockId;
+      const oldTargetBlock = this.blocks.get(oldTargetId);
+      const newTargetBlock = this.blocks.get(targetId);
+
+      if (!oldTargetBlock || !newTargetBlock) return;
+
+      // 2. Calculate Splitter Position (Midpoint-ish, but closer to source to avoid mess)
+      // Actually, let's put it fairly close to the source to simulate a "bus tap" or "manifold start"
+      const sx = sourceBlock.position.x;
+      const sy = sourceBlock.position.y;
+      const tx1 = oldTargetBlock.position.x;
+      const ty1 = oldTargetBlock.position.y;
+      const tx2 = newTargetBlock.position.x;
+      const ty2 = newTargetBlock.position.y;
+
+      // Weighted average: 60% Source, 20% T1, 20% T2
+      const splitX = sx * 0.6 + tx1 * 0.2 + tx2 * 0.2;
+      const splitY = sy * 0.6 + ty1 * 0.2 + ty2 * 0.2;
+
+      // 3. Create the Splitter (Logistics Block)
+      const splitterParams = this.addLogistics(splitX, splitY); // Returns { id, ... }
+      const splitterId = splitterParams.id; // Corrected access
+
+      // 4. Remove the old connection (Source -> OldTarget)
+      this.connections = this.connections.filter(
+        (c) => c.id !== existingConnection.id
+      );
+
+      // 5. Wire up the T-Junction
+      // Source -> Splitter
+      this.connections.push({
+        id: crypto.randomUUID(),
+        sourceBlockId: sourceId,
+        targetBlockId: splitterId,
+        itemId,
+        beltId: "conveyor-belt-mk-i",
+        demand: 0,
+        rate: 0,
+      });
+
+      // Splitter -> Old Target
+      this.connections.push({
+        id: crypto.randomUUID(),
+        sourceBlockId: splitterId,
+        targetBlockId: oldTargetId,
+        itemId,
+        beltId: "conveyor-belt-mk-i",
+        demand: 0,
+        rate: 0,
+      });
+
+      // Splitter -> New Target
+      this.connections.push({
+        id: crypto.randomUUID(),
+        sourceBlockId: splitterId,
+        targetBlockId: targetId,
+        itemId,
+        beltId: "conveyor-belt-mk-i",
+        demand: 0,
+        rate: 0,
+      });
+
+      console.log(
+        `[GRAPH] Splitter injected at (${Math.round(splitX)}, ${Math.round(
+          splitY
+        )})`
+      );
+      return;
+    }
+
     const connection: Connection = {
       id: crypto.randomUUID(),
       sourceBlockId: sourceId,
