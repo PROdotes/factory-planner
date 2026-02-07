@@ -11,6 +11,7 @@ import { useHighlightSet } from "../hooks/useHighlightSet";
 import { useUIStore } from "../uiStore";
 import { FLOW_CONFIG } from "../LayoutConfig";
 import { usePortPositions, getPortOffset } from "../hooks/usePortPositions";
+import { isBlockFailing } from "./blockHelpers";
 
 // --- Geometry helpers ---
 
@@ -552,6 +553,7 @@ const ConnectionPathWithPorts = memo(
     isPerMin: boolean;
     version: number;
   }) => {
+    const { recipes } = useGameDataStore();
     const sourcePorts = usePortPositions(source, version);
     const targetPorts = usePortPositions(target, version);
 
@@ -565,12 +567,46 @@ const ConnectionPathWithPorts = memo(
     const machineRequired = targetFlow?.capacity ?? 0;
     const planRequired = conn.demand;
 
-    // We are only 'Starved' (Red) if we provide less than 99% of the Plan
-    // OR less than 99% of what the current machines can physically eat.
-    const bindingGoal = Math.min(machineRequired, planRequired);
-    const isStarved = machineRequired > 0 && conn.rate < bindingGoal * 0.99;
+    // BELT COLOR LOGIC: User's 'Chain of Blame' Model
+    const checkFailing = (block: any) => {
+      const recipe = block.recipeId ? recipes[block.recipeId] : null;
+      const mainItemId = recipe?.outputs[0]?.itemId;
+      const primaryFlow = mainItemId
+        ? block.results?.flows?.[mainItemId]
+        : null;
+      return isBlockFailing(
+        block.satisfaction,
+        primaryFlow?.sent ?? 0,
+        primaryFlow?.demand ?? 0,
+        primaryFlow?.capacity ?? 0
+      );
+    };
 
-    const isShortfall = !isStarved && conn.rate < planRequired * 0.99;
+    const sourceIsFailing = checkFailing(source);
+    const targetIsFailing = checkFailing(target);
+
+    // Rule:
+    // (B) -> (R) = Orange (The Culprit starts here)
+    // (R) -> (R) = Red (The Chain of Pain)
+    // (X) -> (B) = Blue (Healthy)
+    let isStarved = false; // Red
+    let isShortfall = false; // Orange
+
+    if (targetIsFailing) {
+      if (sourceIsFailing) {
+        isStarved = true; // Propagation (R -> R)
+      } else {
+        isShortfall = true; // Transition (B -> R)
+      }
+    } else if (sourceIsFailing) {
+      isStarved = true; // Red if feeding a blue machine too little (Source Limit)
+    }
+
+    // 100% Fulfillment OVERRIDE: If this belt is 100% as planned, always Blue/Cyan
+    if (conn.rate >= planRequired - 0.001) {
+      isStarved = false;
+      isShortfall = false;
+    }
 
     const actualStr = (conn.rate * rateMult).toFixed(1);
     const planStr = (planRequired * rateMult).toFixed(1);

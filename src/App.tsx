@@ -38,7 +38,6 @@ export function App() {
   const { loadData, isLoaded, error } = useGameDataStore();
   const {
     runSolver,
-    loadDemo,
     loadFromLocalStorage,
     exportToJSON,
     importFromJSON,
@@ -66,10 +65,8 @@ export function App() {
     // Auto-load session
     if (localStorage.getItem("dsp_factory_save")) {
       loadFromLocalStorage();
-    } else {
-      loadDemo();
     }
-  }, [loadData, loadFromLocalStorage, loadDemo]);
+  }, [loadData, loadFromLocalStorage]);
 
   // [Keyboard Shortcuts]
   useEffect(() => {
@@ -247,14 +244,6 @@ export function App() {
           </label>
 
           <div className="nav-divider" />
-
-          <button
-            className="toolbar-btn"
-            onClick={loadDemo}
-            title="Reset to Demo Site"
-          >
-            <RefreshCw size={16} /> <span>Demo</span>
-          </button>
 
           <button
             className="toolbar-btn"

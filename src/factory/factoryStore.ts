@@ -44,7 +44,6 @@ interface FactoryState {
   setYield: (blockId: string, yieldValue: number) => void;
   setMachineCount: (blockId: string, count: number) => void;
   runSolver: () => void;
-  loadDemo: () => void;
   autoLayout: () => void;
   clearFactory: () => void;
 
@@ -360,62 +359,6 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
 
     // Forces React to see the change even if object references in maps are stable
     set({ version: Date.now() });
-  },
-
-  loadDemo: () => {
-    const { factory, selectBlock } = get();
-    factory.blocks.clear();
-    factory.connections = [];
-
-    const factory1 = factory.addBlock("Belt 2", 1250, 200);
-    factory1.setRecipe("conveyor-belt-mk-ii");
-    const factory2 = factory.addBlock("Belt 1", 950, 100);
-    factory2.setRecipe("conveyor-belt-mk-i");
-    const factory3 = factory.addBlock("Electromagnetic Turbine", 1250, 500);
-    factory3.setRecipe("electromagnetic-turbine");
-    const factory4 = factory.addBlock("iron ingot", 350, 100);
-    factory4.setRecipe("iron-ingot");
-    const factory5 = factory.addBlock("gear", 650, 100);
-    factory5.setRecipe("gear");
-    const factory6 = factory.addBlock("electric motor", 950, 400);
-    factory6.setRecipe("electric-motor");
-    const factory7 = factory.addBlock("magnetic coil", 650, 400);
-    factory7.setRecipe("magnetic-coil");
-    const factory8 = factory.addBlock("magnet", 350, 300);
-    factory8.setRecipe("magnet");
-    const factory9 = factory.addBlock("copper ingot", 350, 500);
-    factory9.setRecipe("copper-ingot");
-    const factory10 = factory.addBlock("THE END", 0, 0);
-    factory10.setRecipe("universe-matrix");
-
-    const mine1 = factory.addBlock("Iron Mine", 50, 200);
-    mine1.setRecipe("mining-iron-ore");
-    mine1.sourceYield = 6; // 6 veins
-    mine1.requested["iron-ore"] = 3.0; // 6 veins × 0.5/s = 3/s
-
-    const mine2 = factory.addBlock("Copper Mine", 50, 500);
-    mine2.setRecipe("mining-copper-ore");
-    mine2.sourceYield = 6;
-    mine2.requested["copper-ore"] = 3.0;
-
-    factory.connect(mine1.id, factory4.id, "iron-ore");
-    factory.connect(mine2.id, factory9.id, "copper-ore");
-    factory.connect(factory4.id, factory5.id, "iron-ingot");
-    factory.connect(mine1.id, factory8.id, "iron-ore");
-    factory.connect(factory8.id, factory7.id, "magnet");
-    factory.connect(factory9.id, factory7.id, "copper-ingot");
-    factory.connect(factory4.id, factory2.id, "iron-ingot");
-    factory.connect(factory5.id, factory2.id, "gear");
-    factory.connect(factory7.id, factory6.id, "magnetic-coil");
-    factory.connect(factory2.id, factory1.id, "conveyor-belt-mk-i");
-    factory.connect(factory7.id, factory3.id, "magnetic-coil");
-    factory.connect(factory4.id, factory6.id, "iron-ingot");
-    factory.connect(factory5.id, factory6.id, "gear");
-    factory.connect(factory6.id, factory3.id, "electric-motor");
-    factory.connect(factory3.id, factory1.id, "electromagnetic-turbine");
-
-    selectBlock(null);
-    get().saveToLocalStorage();
   },
 
   saveToLocalStorage: () => {

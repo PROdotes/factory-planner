@@ -18,7 +18,7 @@ import { useUIStore } from "../uiStore";
 import { useHighlightSet } from "../hooks/useHighlightSet";
 import { FLOW_CONFIG, getBlockHeight } from "../LayoutConfig";
 import { usePortPositions } from "../hooks/usePortPositions";
-import { getStatusClass } from "./blockHelpers";
+import { isBlockFailing } from "./blockHelpers";
 import { BlockHeader } from "./BlockHeader";
 import { BlockFooter } from "./BlockFooter";
 import { BlockPorts } from "./BlockPorts";
@@ -187,9 +187,17 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
   const footerActual = primaryFlow?.sent ?? 0;
   const footerDenom = primaryFlow?.demand ?? 0; // Factory max, NOT actual production
 
+  const machineCapacity = primaryFlow?.capacity ?? 0;
+  const isFailing = isBlockFailing(
+    block.satisfaction,
+    footerActual,
+    footerDenom,
+    machineCapacity
+  );
+  const statusClass = isFailing ? "status-error" : "status-ok";
+
   const footerEfficiency =
     footerDenom > 0 ? footerActual / footerDenom : block.satisfaction;
-  const statusClass = getStatusClass(footerEfficiency);
 
   const rateLabel = isGenerator ? "" : isPerMin ? "/m" : "/s";
 
