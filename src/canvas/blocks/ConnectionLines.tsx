@@ -52,6 +52,7 @@ interface ConnectionPathProps {
   isDimmed: boolean;
   isStarved: boolean;
   isShortfall: boolean;
+  rate: number;
   version: number;
 }
 
@@ -67,10 +68,13 @@ const ConnectionPath = memo(
     isDimmed,
     isStarved,
     isShortfall,
+    rate,
     version,
   }: ConnectionPathProps) => {
     const pathRef = useRef<SVGPathElement>(null);
     const labelRef = useRef<SVGGElement>(null);
+
+    const flowDuration = rate > 0 ? Math.max(0.1, 2 / rate) : 0;
 
     // pos ref stores the BLOCK positions
     const pos = useRef({
@@ -146,29 +150,28 @@ const ConnectionPath = memo(
           d={bezier(p1.x, p1.y, p2.x, p2.y)}
           className={`edge-path ${isDimmed ? "dimmed" : ""} ${
             isStarved ? "starved" : ""
-          } ${isShortfall && !isStarved ? "shortfall" : ""}`}
+          } ${isShortfall && !isStarved ? "shortfall" : ""} ${
+            rate > 0 ? "animating" : ""
+          }`}
           stroke="var(--flow-success)"
-          strokeWidth="3"
+          strokeWidth="6"
           strokeOpacity={
             isDimmed ? "0.1" : isStarved ? "1.0" : isShortfall ? "0.4" : "0.6"
           }
           fill="none"
-          markerEnd={
-            isStarved
-              ? "url(#arrowhead-starved)"
-              : isShortfall
-              ? "url(#arrowhead-shortfall)"
-              : "url(#arrowhead)"
+          style={
+            {
+              filter: isDimmed
+                ? "none"
+                : isStarved
+                ? "drop-shadow(0 0 6px var(--flow-error))"
+                : isShortfall
+                ? "none"
+                : "drop-shadow(0 0 5px var(--flow-success-glow))",
+              // @ts-ignore
+              "--flow-duration": `${flowDuration}s`,
+            } as any
           }
-          style={{
-            filter: isDimmed
-              ? "none"
-              : isStarved
-              ? "drop-shadow(0 0 6px var(--flow-error))"
-              : isShortfall
-              ? "none"
-              : "drop-shadow(0 0 4px var(--flow-success-glow))",
-          }}
           data-v={version}
         />
         <g
@@ -414,6 +417,7 @@ const ConnectionPathWithPorts = memo(
         isDimmed={isDimmed}
         isStarved={isStarved}
         isShortfall={isShortfall}
+        rate={conn.rate}
         version={version}
       />
     );

@@ -7,9 +7,10 @@
 
 :root {
     --bg-dark: #0a0b10;
-    --bg-card: rgba(20, 22, 32, 0.8);
-    --accent: #2e7bff;
-    --accent-glow: rgba(46, 123, 255, 0.3);
+    --bg-card: rgba(16, 18, 26, 0.4);
+    /* More transparent to let belts pop */
+    --accent: #f1c40f;
+    --accent-glow: rgba(241, 196, 15, 0.3);
     --text-main: #e2e8f0;
     --text-dim: #94a3b8;
     --border: rgba(255, 255, 255, 0.1);
@@ -23,6 +24,36 @@
     --flow-warning-glow: rgba(245, 158, 11, 0.3);
     --flow-error: #ef4444;
     --flow-demand: #f59e0b;
+}
+
+@keyframes belt-flow {
+    from {
+        stroke-dashoffset: 40;
+    }
+
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+/* The 'Tube' of the belt */
+.edge-shell {
+    stroke: rgba(255, 255, 255, 0.04);
+    pointer-events: none;
+    fill: none;
+    stroke-linecap: round;
+}
+
+/* The 'Items' on the belt */
+.edge-path.animating {
+    stroke-dasharray: 12 28;
+    /* Thicker 'blobs' further apart */
+    stroke-linecap: round;
+    animation: belt-flow var(--flow-duration, 1s) linear infinite;
+}
+
+.edge-path.starved {
+    stroke-dasharray: 4 6;
 }
 
 * {

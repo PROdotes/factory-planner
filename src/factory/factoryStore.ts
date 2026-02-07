@@ -454,24 +454,63 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
       groups.get(r)!.push(b);
     });
 
-    // 3. Final Placement
-    const COL_WIDTH = 400; // Horizontal gap
-    const ROW_HEIGHT = 280; // Vertical gap
+    // 3. Final Placement with Iterative Relaxation (Advanced Untangling)
+    const COL_WIDTH = 500; // More space for belt visibility
+    const ROW_HEIGHT = 320; // More vertical separation
     const START_X = 100;
     const START_Y = 200;
 
     const sortedRankKeys = Array.from(groups.keys()).sort((a, b) => a - b);
 
+    // Initial naive placement
     sortedRankKeys.forEach((rank) => {
       const group = groups.get(rank)!;
       const x = START_X + rank * COL_WIDTH;
       const totalColumnHeight = (group.length - 1) * ROW_HEIGHT;
-
       group.forEach((block, index) => {
-        const y = START_Y + index * ROW_HEIGHT - totalColumnHeight / 2 + 300;
-        factory.moveBlock(block.id, x, y);
+        block.position.x = x;
+        block.position.y =
+          START_Y + index * ROW_HEIGHT - totalColumnHeight / 2 + 300;
       });
     });
+
+    // Relaxation Pass (Vertical Tugging)
+    // Blocks move toward the average Y of their neighbors to untangle crossings
+    for (let pass = 0; pass < 12; pass++) {
+      for (const rank of sortedRankKeys) {
+        const group = groups.get(rank)!;
+        group.forEach((block) => {
+          const neighbors: number[] = [];
+          // Parents (Upstream)
+          factory.connections.forEach((c) => {
+            if (c.targetBlockId === block.id) {
+              const src = factory.blocks.get(c.sourceBlockId);
+              if (src) neighbors.push(src.position.y);
+            }
+            if (c.sourceBlockId === block.id) {
+              const tgt = factory.blocks.get(c.targetBlockId);
+              if (tgt) neighbors.push(tgt.position.y);
+            }
+          });
+
+          if (neighbors.length > 0) {
+            const avgY =
+              neighbors.reduce((s, y) => s + y, 0) / neighbors.length;
+            // Move partially toward neighbors (damping)
+            block.position.y += (avgY - block.position.y) * 0.3;
+          }
+        });
+
+        // After tugging, ensure blocks in the same column maintain ROW_HEIGHT spacing
+        group.sort((a, b) => a.position.y - b.position.y);
+        const totalHeight = (group.length - 1) * ROW_HEIGHT;
+        const colCenterY = START_Y + 300;
+        group.forEach((block, index) => {
+          const targetY = colCenterY + index * ROW_HEIGHT - totalHeight / 2;
+          block.position.y = targetY; // Snap to grid slot but in the new Tug-determined order
+        });
+      }
+    }
 
     set((state) => ({ version: state.version + 1 }));
   },
