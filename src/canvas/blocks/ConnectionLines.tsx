@@ -31,10 +31,13 @@ function portXY(
   blockX: number,
   blockY: number,
   side: "left" | "right",
-  portY: number
+  portY: number,
+  type?: string
 ) {
+  const width =
+    type === "logistics" ? FLOW_CONFIG.JUNCTION_SIZE : FLOW_CONFIG.BLOCK_WIDTH;
   return {
-    x: side === "left" ? blockX : blockX + FLOW_CONFIG.BLOCK_WIDTH,
+    x: side === "left" ? blockX : blockX + width,
     y: blockY + portY,
   };
 }
@@ -42,8 +45,11 @@ function portXY(
 // --- ConnectionPath: draws a single bezier between two absolute points ---
 
 interface ConnectionPathProps {
+  id: string;
   sourceBlockId: string;
+  sourceBlockType: string;
   targetBlockId: string;
+  targetBlockType: string;
   sourcePos: { x: number; y: number };
   targetPos: { x: number; y: number };
   sourcePortY: number;
@@ -53,14 +59,19 @@ interface ConnectionPathProps {
   isDimmed: boolean;
   isStarved: boolean;
   isShortfall: boolean;
+  isSelected: boolean;
   rate: number;
   version: number;
+  onSelect: (id: string) => void;
 }
 
 const ConnectionPath = memo(
   ({
+    id,
     sourceBlockId,
+    sourceBlockType,
     targetBlockId,
+    targetBlockType,
     sourcePos,
     targetPos,
     sourcePortY,
@@ -70,10 +81,13 @@ const ConnectionPath = memo(
     isDimmed,
     isStarved,
     isShortfall,
+    isSelected,
     rate,
     version,
+    onSelect,
   }: ConnectionPathProps) => {
     const pathRef = useRef<SVGPathElement>(null);
+    const hitRef = useRef<SVGPathElement>(null);
     const labelRef = useRef<SVGGElement>(null);
 
     const flowDuration = rate > 0 ? Math.max(0.1, 2 / rate) : 0;
@@ -97,15 +111,29 @@ const ConnectionPath = memo(
       bx2: number;
       by2: number;
     }) => ({
-      p1: portXY(p.bx1, p.by1, "right", portsRef.current.sourcePortY),
-      p2: portXY(p.bx2, p.by2, "left", portsRef.current.targetPortY),
+      p1: portXY(
+        p.bx1,
+        p.by1,
+        "right",
+        portsRef.current.sourcePortY,
+        sourceBlockType
+      ),
+      p2: portXY(
+        p.bx2,
+        p.by2,
+        "left",
+        portsRef.current.targetPortY,
+        targetBlockType
+      ),
     });
 
     const flush = () => {
-      if (!pathRef.current || !labelRef.current) return;
+      if (!pathRef.current || !labelRef.current || !hitRef.current) return;
       const { p1, p2 } = getPoints(pos.current);
+      const d = bezier(p1.x, p1.y, p2.x, p2.y);
 
-      pathRef.current.setAttribute("d", bezier(p1.x, p1.y, p2.x, p2.y));
+      pathRef.current.setAttribute("d", d);
+      hitRef.current.setAttribute("d", d);
       const mid = midpoint(p1.x, p1.y, p2.x, p2.y);
       labelRef.current.setAttribute(
         "transform",
@@ -165,21 +193,34 @@ const ConnectionPath = memo(
 
     const { p1, p2 } = getPoints(pos.current);
     const mid = midpoint(p1.x, p1.y, p2.x, p2.y);
+    const d = bezier(p1.x, p1.y, p2.x, p2.y);
 
     return (
       <g
         className={`${isDimmed ? "dimmed" : ""} ${isStarved ? "starved" : ""} ${
           isShortfall && !isStarved ? "shortfall" : ""
-        }`}
+        } ${isSelected ? "selected" : ""}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect(id);
+        }}
+        style={{ pointerEvents: "auto", cursor: "pointer" }}
       >
         <path
+          ref={hitRef}
+          d={d}
+          stroke="transparent"
+          strokeWidth="20"
+          fill="none"
+        />
+        <path
           ref={pathRef}
-          d={bezier(p1.x, p1.y, p2.x, p2.y)}
+          d={d}
           className={`edge-path ${isDimmed ? "dimmed" : ""} ${
             isStarved ? "starved" : ""
           } ${isShortfall && !isStarved ? "shortfall" : ""} ${
             rate > 0 ? "animating" : ""
-          }`}
+          } ${isSelected ? "selected" : ""}`}
           stroke="var(--flow-success)"
           strokeWidth="6"
           strokeOpacity={
@@ -194,6 +235,8 @@ const ConnectionPath = memo(
                 ? "drop-shadow(0 0 6px var(--flow-error))"
                 : isShortfall
                 ? "none"
+                : isSelected
+                ? "drop-shadow(0 0 10px var(--accent))"
                 : "drop-shadow(0 0 5px var(--flow-success-glow))",
               // @ts-ignore
               "--flow-duration": `${flowDuration}s`,
@@ -204,7 +247,7 @@ const ConnectionPath = memo(
         <g
           ref={labelRef}
           transform={`translate(${mid.x}, ${mid.y})`}
-          style={{ opacity: isDimmed ? 0 : 1 }}
+          style={{ opacity: isDimmed ? 0 : 1, pointerEvents: "none" }}
         >
           <rect
             x="-60"
@@ -227,7 +270,6 @@ const ConnectionPath = memo(
             fontSize="11"
             fontWeight="600"
             textAnchor="middle"
-            style={{ pointerEvents: "none" }}
           >
             {label}
           </text>
@@ -245,7 +287,14 @@ export const ConnectionLines = memo(
   }: {
     clientToWorld: (x: number, y: number) => { x: number; y: number };
   }) => {
-    const { factory, version, connect, runSolver } = useFactoryStore();
+    const {
+      factory,
+      version,
+      connect,
+      runSolver,
+      selectedConnectionId,
+      selectConnection,
+    } = useFactoryStore();
     const { items } = useGameDataStore();
     const highlightSet = useHighlightSet();
     const { rateUnit } = useUIStore();
@@ -264,6 +313,7 @@ export const ConnectionLines = memo(
       const onStart = (e: any) => {
         const { x, y, blockId, itemId, side } = e.detail;
         activeDrag.current = { blockId, itemId, side };
+        (window as any).activePortDrag = activeDrag.current;
 
         const start = clientToWorld(x, y);
         setGhostEdge({ x1: start.x, y1: start.y, x2: start.x, y2: start.y });
@@ -279,18 +329,20 @@ export const ConnectionLines = memo(
           window.removeEventListener("mousemove", onMove);
           window.removeEventListener("mouseup", onUp as any);
 
-          // If activeDrag is still set, it means we didn't land on a valid port (onEnd clears it)
-          if (activeDrag.current) {
-            const pt = clientToWorld(upEv.clientX, upEv.clientY);
-            useUIStore.getState().setImplicitSearch({
-              ...activeDrag.current,
-              worldPos: pt,
-              clientPos: { x: upEv.clientX, y: upEv.clientY },
-            });
-            activeDrag.current = null;
-          }
-
-          setGhostEdge(null);
+          // RACE PROTECTION: Delay the cleanup slightly so 'onEnd' can finish
+          setTimeout(() => {
+            if (activeDrag.current) {
+              const pt = clientToWorld(upEv.clientX, upEv.clientY);
+              useUIStore.getState().setImplicitSearch({
+                ...activeDrag.current,
+                worldPos: pt,
+                clientPos: { x: upEv.clientX, y: upEv.clientY },
+              });
+              activeDrag.current = null;
+              (window as any).activePortDrag = null;
+            }
+            setGhostEdge(null);
+          }, 10);
         };
 
         window.addEventListener("mousemove", onMove);
@@ -298,27 +350,115 @@ export const ConnectionLines = memo(
       };
 
       const onEnd = (e: any) => {
-        if (!activeDrag.current) return;
+        if (!activeDrag.current) {
+          console.log("[CONNECTION] Ignoring drop: No active drag.");
+          return;
+        }
         const src = activeDrag.current;
         const tgt = e.detail;
 
-        // Validation: Items must match!
-        if (src.itemId !== tgt.itemId) {
+        console.log("[CONNECTION] Resolving drop:", { src, tgt });
+
+        // Validation: Items must match! (Allow 'unknown' to adopt the other side's item)
+        const effectiveItemId =
+          src.itemId !== "unknown" ? src.itemId : tgt.itemId;
+
+        if (
+          src.itemId !== "unknown" &&
+          tgt.itemId !== "unknown" &&
+          src.itemId !== tgt.itemId
+        ) {
           console.warn(
-            `[CONNECTION] Mismatched items: ${src.itemId} vs ${tgt.itemId}`
+            `[CONNECTION] ABORT: Mismatched items: ${src.itemId} vs ${tgt.itemId}`
           );
           activeDrag.current = null;
+          (window as any).activePortDrag = null;
           return;
         }
 
-        if (src.side === "right" && tgt.side === "left") {
-          connect(src.blockId, tgt.blockId, src.itemId);
-          runSolver();
-        } else if (src.side === "left" && tgt.side === "right") {
-          connect(tgt.blockId, src.blockId, src.itemId);
-          runSolver();
+        if (effectiveItemId === "unknown") {
+          console.warn("[CONNECTION] ABORT: Still unknown item on both sides.");
+          activeDrag.current = null;
+          (window as any).activePortDrag = null;
+          return;
         }
+
+        // HOLISTIC: Bi-Directional Junction Resolve
+        let canConnect = false;
+        let finalSrcBlockId = src.blockId;
+        let finalTgtBlockId = tgt.blockId;
+
+        // CASE 1: Both are Junctions
+        if (src.side === "Junction" && tgt.side === "Junction") {
+          if (src.itemId !== "unknown") {
+            // Src has item, it must be the source
+            finalSrcBlockId = src.blockId;
+            finalTgtBlockId = tgt.blockId;
+            canConnect = true;
+          } else if (tgt.itemId !== "unknown") {
+            // Tgt has the item, it must be the source
+            finalSrcBlockId = tgt.blockId;
+            finalTgtBlockId = src.blockId;
+            canConnect = true;
+          } else {
+            // Both unknown - Abort
+            console.warn("[CONNECTION] Cannot link two empty junctions.");
+          }
+        }
+        // CASE 2: Dragging FROM a Junction to a machine
+        else if (src.side === "Junction") {
+          if (tgt.side === "left") {
+            // Dragging to an INPUT -> Junction is SOURCE
+            finalSrcBlockId = src.blockId;
+            finalTgtBlockId = tgt.blockId;
+            canConnect = true;
+          } else if (tgt.side === "right") {
+            // Dragging to an OUTPUT -> Junction is TARGET
+            finalSrcBlockId = tgt.blockId;
+            finalTgtBlockId = src.blockId;
+            canConnect = true;
+          }
+        }
+        // CASE 3: Dragging FROM a machine TO a Junction
+        else if (tgt.side === "Junction") {
+          if (src.side === "right") {
+            // From OUTPUT to Junction -> Junction is TARGET
+            finalSrcBlockId = src.blockId;
+            finalTgtBlockId = tgt.blockId;
+            canConnect = true;
+          } else if (src.side === "left") {
+            // From INPUT to Junction -> Junction is SOURCE
+            finalSrcBlockId = tgt.blockId;
+            finalTgtBlockId = src.blockId;
+            canConnect = true;
+          }
+        }
+        // CASE 4: Standard Machine-to-Machine
+        else if (src.side === "right" && tgt.side === "left") {
+          canConnect = true;
+        } else if (src.side === "left" && tgt.side === "right") {
+          finalSrcBlockId = tgt.blockId;
+          finalTgtBlockId = src.blockId;
+          canConnect = true;
+        }
+
+        if (canConnect) {
+          console.log("[CONNECTION] FINAL ACTION:", {
+            src: finalSrcBlockId,
+            tgt: finalTgtBlockId,
+            item: effectiveItemId,
+          });
+          connect(finalSrcBlockId, finalTgtBlockId, effectiveItemId);
+          runSolver();
+        } else {
+          console.warn("[CONNECTION] ABORT: No valid directional role.", {
+            srcSide: src.side,
+            tgtSide: tgt.side,
+          });
+        }
+
         activeDrag.current = null;
+        (window as any).activePortDrag = null;
       };
 
       window.addEventListener("port-drag-start", onStart as any);
@@ -361,6 +501,8 @@ export const ConnectionLines = memo(
               target={target}
               items={items}
               isDimmed={isDimmed}
+              isSelected={conn.id === selectedConnectionId}
+              onSelect={selectConnection}
               isPerMin={isPerMin}
               version={version}
             />
@@ -389,6 +531,8 @@ const ConnectionPathWithPorts = memo(
     target,
     items,
     isDimmed,
+    isSelected,
+    onSelect,
     isPerMin,
     version,
   }: {
@@ -397,6 +541,8 @@ const ConnectionPathWithPorts = memo(
     target: any;
     items: any;
     isDimmed: boolean;
+    isSelected: boolean;
+    onSelect: (id: string) => void;
     isPerMin: boolean;
     version: number;
   }) => {
@@ -434,8 +580,11 @@ const ConnectionPathWithPorts = memo(
 
     return (
       <ConnectionPath
+        id={conn.id}
         sourceBlockId={conn.sourceBlockId}
+        sourceBlockType={source.type}
         targetBlockId={conn.targetBlockId}
+        targetBlockType={target.type}
         sourcePos={source.position}
         targetPos={target.position}
         sourcePortY={sourcePortY}
@@ -445,6 +594,8 @@ const ConnectionPathWithPorts = memo(
         isDimmed={isDimmed}
         isStarved={isStarved}
         isShortfall={isShortfall}
+        isSelected={isSelected}
+        onSelect={onSelect}
         rate={conn.rate}
         version={version}
       />

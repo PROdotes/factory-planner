@@ -41,11 +41,23 @@ export function getSortedPorts(
     inputItems = Object.keys(block.demand);
     // Sinks have no outputs
   } else if (block instanceof LogisticsBlock) {
-    // Logistics usually handle 1 item type, but technically can have demand/supply for it
-    const itemIds = Object.keys(block.demand);
-    if (itemIds.length > 0) {
-      inputItems = [...itemIds];
-      outputItems = [...itemIds];
+    // HOLISTIC: A Junction's items are defined by its connections.
+    const itemIds = new Set<string>();
+    factory.connections.forEach((c) => {
+      if (c.sourceBlockId === block.id || c.targetBlockId === block.id) {
+        if (c.itemId !== "unknown") itemIds.add(c.itemId);
+      }
+    });
+
+    if (itemIds.size > 0) {
+      inputItems = Array.from(itemIds);
+      outputItems = Array.from(itemIds);
+    } else {
+      // Fallback for blank junctions
+      const fallback =
+        Object.keys(block.demand).find((k) => k !== "unknown") || "unknown";
+      inputItems = [fallback];
+      outputItems = [fallback];
     }
   }
 

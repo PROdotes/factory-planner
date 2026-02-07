@@ -46,8 +46,6 @@ export function App() {
     redo,
     saveToLocalStorage,
     autoLayout,
-    selectedBlockId,
-    removeBlock,
     clearFactory,
   } = useFactoryStore();
   const {
@@ -97,14 +95,23 @@ export function App() {
           saveToLocalStorage();
         }
       } else if (e.key === "Delete" || e.key === "Backspace") {
+        const {
+          selectedBlockId,
+          selectedConnectionId,
+          removeBlock,
+          removeConnection,
+        } = useFactoryStore.getState();
+
         if (selectedBlockId) {
           removeBlock(selectedBlockId);
+        } else if (selectedConnectionId) {
+          removeConnection(selectedConnectionId);
         }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [undo, redo, saveToLocalStorage, selectedBlockId, removeBlock]);
+  }, [undo, redo, saveToLocalStorage]);
 
   // [Solver Watcher] - Ensure rates update when modes change
   useEffect(() => {

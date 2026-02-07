@@ -25,6 +25,7 @@ import { BlockPorts } from "./BlockPorts";
 import { BlockControls } from "./BlockControls";
 import { BlockIORows, IOItem } from "./BlockIORows";
 import { BlockZoomedOut } from "./BlockZoomedOut";
+import { ItemIcon } from "./ItemIcon";
 
 interface Props {
   block: BlockBase;
@@ -259,17 +260,63 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
     }
   };
 
-  const cardHeight = getBlockHeight(inputItems.length, outputItems.length);
+  const isLogistics = block.type === "logistics";
+  const cardHeight = isLogistics
+    ? FLOW_CONFIG.JUNCTION_SIZE
+    : getBlockHeight(inputItems.length, outputItems.length);
+  const cardWidth = isLogistics
+    ? FLOW_CONFIG.JUNCTION_SIZE
+    : FLOW_CONFIG.BLOCK_WIDTH;
+
+  // Smart Port logic for Junctions: Automatically choose the correct "side" based on the incoming connection
+  const handleMouseUp = (e: React.MouseEvent) => {
+    // Check if we are currently dragging a port (from ConnectionLines ref effectively)
+    // We'll use a custom event to check or just dispatch and let ConnectionLines decide
+    const activeDrag = (window as any).activePortDrag;
+    if (!activeDrag) {
+      if (!isLogistics) return;
+    }
+
+    // Logic: If we are landing a wire, we need to pick a side.
+    let side: string = isLogistics ? "Junction" : "left"; // Default to input
+
+    if (activeDrag) {
+      // Intelligently pick side if not a junction
+      if (!isLogistics) {
+        // If we dragged an OUTPUT, we land on an INPUT
+        if (activeDrag.side === "right" || activeDrag.side === "Junction") {
+          side = "left";
+        } else {
+          side = "right";
+        }
+      }
+    }
+
+    const itemId =
+      Object.keys(block.demand).find((k) => k !== "unknown") || "unknown";
+
+    window.dispatchEvent(
+      new CustomEvent("port-drag-end", {
+        detail: {
+          blockId: block.id,
+          itemId,
+          side,
+        },
+      })
+    );
+  };
 
   return (
     <div
       className={`block-card ${block.type} ${isDragging ? "dragging" : ""} ${
         isSelected ? "selected" : ""
-      } ${isDimmed ? "dimmed" : ""} ${statusClass}`}
+      } ${isDimmed ? "dimmed" : ""} ${statusClass} ${
+        isLogistics ? "junction" : ""
+      }`}
       style={
         {
           transform: `translate(${position.x}px, ${position.y}px)`,
-          width: `${FLOW_CONFIG.BLOCK_WIDTH}px`,
+          width: `${cardWidth}px`,
           height: `${cardHeight}px`,
           zIndex: isDragging ? 1000 : isSelected ? 500 : 1,
           ["--port-spacing" as string]: `${FLOW_CONFIG.PORT_VERTICAL_SPACING}px`,
@@ -279,6 +326,7 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
         } as React.CSSProperties
       }
       onMouseDown={handlers.onMouseDown}
+      onMouseUp={handleMouseUp}
       onClick={(e) => {
         e.stopPropagation();
         if (!wasDragged) selectBlock(block.id);
@@ -288,74 +336,126 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
         toggleFocus(block.id);
       }}
     >
-      <BlockPorts
-        blockId={block.id}
-        ports={ports}
-        isOutputHighlight={isOutputHighlight}
-        isInputHighlight={isInputHighlight}
-      />
+      {!isLogistics && (
+        <BlockPorts
+          blockId={block.id}
+          ports={ports}
+          isOutputHighlight={isOutputHighlight}
+          isInputHighlight={isInputHighlight}
+        />
+      )}
 
-      <BlockHeader
-        blockId={block.id}
-        name={block.name}
-        statusClass={statusClass}
-        version={version}
-        wasDragged={wasDragged}
-        onDelete={() => removeBlock(block.id)}
-        onNameChange={(name) => updateBlockName(block.id, name)}
-      />
-
-      <div className="block-body">
-        {!isZoomedIn ? (
-          <BlockZoomedOut
-            mainOutputId={mainOutput?.itemId ?? null}
-            blockType={block.type}
-            machineCount={requiredMachineCount}
+      {isLogistics ? (
+        <div className="junction-core">
+          {/* HOLISTIC: The Rim for connection (stops propagation) */}
+          <div
+            className="junction-rim"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              const itemId =
+                Object.keys(block.demand).find((k) => k !== "unknown") ||
+                "unknown";
+              window.dispatchEvent(
+                new CustomEvent("port-drag-start", {
+                  detail: {
+                    x: e.clientX,
+                    y: e.clientY,
+                    blockId: block.id,
+                    itemId,
+                    side: "Junction",
+                  },
+                })
+              );
+            }}
           />
-        ) : (
-          <div className="zoom-in-view">
-            {block instanceof ProductionBlock &&
-              machine &&
-              (recipe || isGenerator) && (
-                <BlockControls
-                  block={block}
-                  recipe={recipe || undefined}
-                  machine={machine}
-                  rateLabel={rateLabel}
-                  displayRate={
-                    isGenerator
-                      ? formatPowerRate(targetRateUnitValue)
-                      : undefined
-                  }
-                  requiredMachineCount={requiredMachineCount}
-                  targetRateUnitValue={targetRateUnitValue}
-                  autoSolveEnabled={autoSolveEnabled}
-                  wasDragged={wasDragged}
-                  onMachineCountChange={commitMachineCount}
-                  onRateChange={commitOutputRate}
-                  onYieldChange={commitYield}
-                />
-              )}
 
-            <BlockIORows
-              inputItems={inputItems}
-              outputItems={outputItems}
-              isPerMinute={isPerMin}
+          {/* HOLISTIC: The Move Handle (allows propagation to bubble to BlockCard) */}
+          <div className="junction-move-handle">
+            <ItemIcon
+              itemId={
+                ports.find((p) => p.itemId !== "unknown")?.itemId ||
+                Object.keys(block.demand).find((k) => k !== "unknown") ||
+                ""
+              }
+              size={24}
+            />
+          </div>
+
+          {/* Invisible ports centered for routing */}
+          <div className="internal-ports" style={{ display: "none" }}>
+            <BlockPorts
+              blockId={block.id}
+              ports={ports}
               isOutputHighlight={isOutputHighlight}
               isInputHighlight={isInputHighlight}
             />
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <>
+          <BlockHeader
+            blockId={block.id}
+            name={block.name}
+            statusClass={statusClass}
+            version={version}
+            wasDragged={wasDragged}
+            onDelete={() => removeBlock(block.id)}
+            onNameChange={(name) => updateBlockName(block.id, name)}
+          />
 
-      <BlockFooter
-        efficiency={footerEfficiency}
-        actualRate={footerActual}
-        targetRate={footerDenom}
-        powerMW={workingPowerMW}
-        isPerMinute={isPerMin}
-        hasMainOutput={!!mainOutput}
-      />
+          <div className="block-body">
+            {!isZoomedIn ? (
+              <BlockZoomedOut
+                mainOutputId={mainOutput?.itemId ?? null}
+                blockType={block.type}
+                machineCount={requiredMachineCount}
+              />
+            ) : (
+              <div className="zoom-in-view">
+                {block instanceof ProductionBlock &&
+                  machine &&
+                  (recipe || isGenerator) && (
+                    <BlockControls
+                      block={block}
+                      recipe={recipe || undefined}
+                      machine={machine}
+                      rateLabel={rateLabel}
+                      displayRate={
+                        isGenerator
+                          ? formatPowerRate(targetRateUnitValue)
+                          : undefined
+                      }
+                      requiredMachineCount={requiredMachineCount}
+                      targetRateUnitValue={targetRateUnitValue}
+                      autoSolveEnabled={autoSolveEnabled}
+                      wasDragged={wasDragged}
+                      onMachineCountChange={commitMachineCount}
+                      onRateChange={commitOutputRate}
+                      onYieldChange={commitYield}
+                    />
+                  )}
+
+                <BlockIORows
+                  inputItems={inputItems}
+                  outputItems={outputItems}
+                  isPerMinute={isPerMin}
+                  isOutputHighlight={isOutputHighlight}
+                  isInputHighlight={isInputHighlight}
+                />
+              </div>
+            )}
+          </div>
+
+          <BlockFooter
+            efficiency={footerEfficiency}
+            actualRate={footerActual}
+            targetRate={footerDenom}
+            powerMW={workingPowerMW}
+            isPerMinute={isPerMin}
+            hasMainOutput={!!mainOutput}
+          />
+        </>
+      )}
     </div>
   );
 });

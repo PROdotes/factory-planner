@@ -10,7 +10,7 @@ import { useGameDataStore } from "../../gamedata/gamedataStore";
 import { computeFactoryAnalytics } from "../../solver/factoryAnalytics";
 import { useMemo } from "react";
 import { ItemIcon } from "../blocks/ItemIcon";
-import { Search, Upload, GitBranch, GitMerge, Zap } from "lucide-react";
+import { Search, Upload, GitBranch, Zap } from "lucide-react";
 import { DragSpawnPayload } from "../hooks/useDragToSpawn";
 import { useUIStore } from "../uiStore";
 
@@ -74,7 +74,7 @@ export function ForgeList() {
             <button
               className="forge-item-btn"
               onMouseDown={(e) =>
-                handleDragStart(e, { type: "splitter", label: "Splitter" })
+                handleDragStart(e, { type: "junction", label: "Junction" })
               }
               onClick={() =>
                 addLogistics(
@@ -85,23 +85,7 @@ export function ForgeList() {
               }
             >
               <GitBranch size={16} />
-              <span>Splitter</span>
-            </button>
-            <button
-              className="forge-item-btn"
-              onMouseDown={(e) =>
-                handleDragStart(e, { type: "merger", label: "Merger" })
-              }
-              onClick={() =>
-                addLogistics(
-                  "merger",
-                  window.innerWidth / 2,
-                  window.innerHeight / 2
-                )
-              }
-            >
-              <GitMerge size={16} />
-              <span>Merger</span>
+              <span>Junction</span>
             </button>
           </div>
         </section>

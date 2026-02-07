@@ -8,7 +8,7 @@ import { useEffect, useRef } from "react";
 import { useFactoryStore } from "../../factory/factoryStore";
 
 export interface DragSpawnPayload {
-  type: "recipe" | "sink" | "splitter" | "merger" | "generator";
+  type: "recipe" | "sink" | "splitter" | "merger" | "generator" | "junction";
   recipeId?: string;
   machineId?: string;
   label: string;
@@ -97,8 +97,13 @@ export function useDragToSpawn(
           setMachine(block.id, p.machineId);
         } else if (p.type === "sink") {
           addSink(p.label, world.x, world.y);
-        } else if (p.type === "splitter" || p.type === "merger") {
-          addLogistics(p.type, world.x, world.y);
+        } else if (
+          p.type === "splitter" ||
+          p.type === "merger" ||
+          p.type === "junction"
+        ) {
+          const subtype = p.type === "junction" ? "splitter" : p.type;
+          addLogistics(subtype, world.x, world.y);
         }
 
         activePayload.current = null;

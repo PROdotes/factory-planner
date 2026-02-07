@@ -15,8 +15,7 @@ export class LogisticsBlock extends BlockBase {
     x: number,
     y: number
   ) {
-    const name = subtype.charAt(0).toUpperCase() + subtype.slice(1);
-    super(id, "logistics", x, y, name);
+    super(id, "logistics", x, y, "Junction");
     this.subtype = subtype;
   }
 

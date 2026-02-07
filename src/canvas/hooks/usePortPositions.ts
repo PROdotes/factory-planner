@@ -92,8 +92,17 @@ export function usePortPositions(
     } else if (block.type === "sink") {
       inputItems = Object.keys(block.demand);
     } else if (block.type === "logistics") {
-      const items = Object.keys(block.demand);
-      const itemId = items[0] || "unknown";
+      // HOLISTIC: Check connections first
+      const connectedItem = factory.connections.find(
+        (c) =>
+          (c.sourceBlockId === block.id || c.targetBlockId === block.id) &&
+          c.itemId !== "unknown"
+      )?.itemId;
+
+      const itemId =
+        connectedItem ||
+        Object.keys(block.demand).find((id) => id !== "unknown") ||
+        "unknown";
       inputItems = [itemId];
       outputItems = [itemId];
     }
@@ -126,23 +135,30 @@ export function usePortPositions(
 
     // Right side (Outputs) consistently on top
     finalOutputItems.forEach((itemId, i) => {
+      const y =
+        block.type === "logistics"
+          ? FLOW_CONFIG.JUNCTION_SIZE / 2
+          : PORT_CONTENT_START + i * PORT_VERTICAL_SPACING + rowCenterOffset;
       ports.push({
         side: "right",
         itemId,
-        y: PORT_CONTENT_START + i * PORT_VERTICAL_SPACING + rowCenterOffset,
+        y,
       });
     });
 
     // Left side (Inputs) start AFTER the last output row
     finalInputItems.forEach((itemId, i) => {
       const rowOffset = i + finalOutputItems.length;
+      const y =
+        block.type === "logistics"
+          ? FLOW_CONFIG.JUNCTION_SIZE / 2
+          : PORT_CONTENT_START +
+            rowOffset * PORT_VERTICAL_SPACING +
+            rowCenterOffset;
       ports.push({
         side: "left",
         itemId,
-        y:
-          PORT_CONTENT_START +
-          rowOffset * PORT_VERTICAL_SPACING +
-          rowCenterOffset,
+        y,
       });
     });
 

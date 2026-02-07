@@ -56,6 +56,12 @@
     animation: belt-flow var(--flow-duration, 1s) linear infinite;
 }
 
+.edge-path.selected {
+    stroke-opacity: 1 !important;
+    stroke-width: 8px;
+    filter: drop-shadow(0 0 12px var(--accent)) !important;
+}
+
 /* Secondary glowing highlight for 'Stage Presence' */
 .edge-path-inner {
     stroke: rgba(255, 255, 255, 0.4);
@@ -563,6 +569,78 @@ body {
 .block-card.status-error {
     border-color: var(--flow-error);
     box-shadow: 0 0 12px rgba(239, 68, 68, 0.25), 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Logistics Junction */
+.block-card.junction {
+    border-radius: 50%;
+    border-width: 2px;
+    cursor: grab;
+}
+
+.block-card.junction:active {
+    cursor: grabbing;
+}
+
+.block-card.junction .junction-core {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    pointer-events: none;
+}
+
+.block-card.junction .junction-rim {
+    position: absolute;
+    /* Large invisible hitbox */
+    top: -12px;
+    left: -12px;
+    right: -12px;
+    bottom: -12px;
+    border-radius: 50%;
+    /* The visual 'rim' is drawn via border, but we use a large transparent area for hits */
+    border: 12px solid transparent;
+    cursor: crosshair;
+    pointer-events: auto;
+    z-index: 2;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.block-card.junction .junction-rim:hover {
+    /* Grow the visual circle slightly and show a glow */
+    border-color: rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.05);
+    transform: scale(1.1);
+}
+
+.block-card.junction .junction-move-handle {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    z-index: 10;
+    cursor: grab;
+}
+
+.block-card.junction .junction-move-handle:active {
+    cursor: grabbing;
+}
+
+.block-card.junction.status-ok {
+    box-shadow: 0 0 15px var(--flow-success-glow);
+}
+
+.block-card.junction.status-warn {
+    box-shadow: 0 0 15px var(--flow-warning-glow);
+}
+
+.block-card.junction.status-error {
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
 }
 
 /* Side Ports */

@@ -20,6 +20,7 @@ interface FactoryState {
   factory: FactoryGraph;
   version: number; // Increment to force re-renders
   selectedBlockId: string | null;
+  selectedConnectionId: string | null;
 
   // Actions
   addBlock: (name: string, x: number, y: number) => ProductionBlock;
@@ -33,9 +34,11 @@ interface FactoryState {
   removeBlock: (id: string) => void;
 
   connect: (sourceId: string, targetId: string, itemId: string) => void;
+  removeConnection: (id: string) => void;
   setRecipe: (blockId: string, recipeId: string | null) => void;
   setMachine: (blockId: string, machineId: string | null) => void;
   selectBlock: (id: string | null) => void;
+  selectConnection: (id: string | null) => void;
   updateBlockName: (id: string, name: string) => void;
   setRequest: (blockId: string, itemId: string, rate: number) => void;
   setYield: (blockId: string, yieldValue: number) => void;
@@ -81,6 +84,7 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
   factory: new FactoryGraph(),
   version: 0,
   selectedBlockId: null,
+  selectedConnectionId: null,
 
   addBlock: (name, x, y) => {
     const { factory } = get();
@@ -148,6 +152,27 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
     const { factory } = get();
     pushToUndo(factory);
     factory.connect(sourceId, targetId, itemId);
+
+    // Logistics Support: Aggressive Item Adoption
+    [sourceId, targetId].forEach((id) => {
+      const b = factory.blocks.get(id);
+      if (b && b.type === "logistics") {
+        const itemKeys = Object.keys(b.demand);
+        const hasRealItem = itemKeys.some((k) => k !== "unknown");
+
+        // Adopt if literally empty OR if we only have 'unknown' and a REAL item arrived
+        if ((itemKeys.length === 0 || !hasRealItem) && itemId !== "unknown") {
+          b.demand = { [itemId]: 0 };
+          b.supply = { [itemId]: 0 };
+          b.output = { [itemId]: 0 };
+        } else if (itemKeys.length === 0) {
+          // Fallback: adopt the 'unknown' if that's all we have for now
+          b.demand[itemId] = 0;
+          b.supply[itemId] = 0;
+          b.output[itemId] = 0;
+        }
+      }
+    });
 
     // Sort ports for both involved blocks
     const src = factory.blocks.get(sourceId);
@@ -239,7 +264,22 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
     }
   },
 
-  selectBlock: (id) => set({ selectedBlockId: id }),
+  removeConnection: (id: string) => {
+    const { factory, selectedConnectionId } = get();
+    pushToUndo(factory);
+    factory.removeConnection(id);
+    set((state) => ({
+      version: state.version + 1,
+      selectedConnectionId:
+        selectedConnectionId === id ? null : selectedConnectionId,
+    }));
+    debouncedSolve(get);
+  },
+
+  selectBlock: (id) => set({ selectedBlockId: id, selectedConnectionId: null }),
+
+  selectConnection: (id) =>
+    set({ selectedConnectionId: id, selectedBlockId: null }),
 
   runSolver: () => {
     const { recipes, machines, isLoaded } = useGameDataStore.getState();
