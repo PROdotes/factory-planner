@@ -269,7 +269,7 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
     : FLOW_CONFIG.BLOCK_WIDTH;
 
   // Smart Port logic for Junctions: Automatically choose the correct "side" based on the incoming connection
-  const handleMouseUp = (e: React.MouseEvent) => {
+  const handleMouseUp = (_e: React.MouseEvent) => {
     // Check if we are currently dragging a port (from ConnectionLines ref effectively)
     // We'll use a custom event to check or just dispatch and let ConnectionLines decide
     const activeDrag = (window as any).activePortDrag;

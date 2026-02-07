@@ -63,10 +63,18 @@ function initializeGraph(graph: FactoryLayout): void {
   for (const node of Object.values(graph.blocks)) {
     node.supply = {};
     node.output = {};
+    node.requested = {}; // DERIVED: Clear lingering machine goals
+    node.satisfaction = 1.0; // HOPEFUL: Match baseline test expectations
+
+    // Clear hidden delivery metadata
+    if ((node as any)._delivered) delete (node as any)._delivered;
+
     node.results = { flows: {}, satisfaction: 1.0 };
+
+    // DERIVED DEMAND: Reset for blocks that pull based on connections.
+    // Sinks keep their node.demand (as it's user/test configured).
     if (node.type === "block" || node.type === "logistics") {
       node.demand = {};
-      node.satisfaction = 1.0;
     }
   }
   for (const edge of graph.connections) {

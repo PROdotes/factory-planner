@@ -494,13 +494,13 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
 
     pushToUndo(factory);
 
-    // 1. Iterative Ranking (Topological-ish)
+    // 1. Iterative Ranking (Topological Layering)
     // Every block starts at rank 0. If A -> B, then B.rank = max(B.rank, A.rank + 1)
     const ranks = new Map<string, number>();
     blocks.forEach((b) => ranks.set(b.id, 0));
 
-    // Multiple passes to propagate rank through the entire chain
-    // Limits passes to block count to avoid infinite loops on cycles
+    // Multiple passes to propagate rank
+    // Limit to block count to prevent infinite loops (cyclic graphs)
     for (let i = 0; i < blocks.length; i++) {
       let changed = false;
       factory.connections.forEach((conn) => {
@@ -514,7 +514,7 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
       if (!changed) break;
     }
 
-    // 2. Group blocks by their assigned rank
+    // 2. Group blocks by their assigned rank (Column)
     const groups = new Map<number, typeof blocks>();
     blocks.forEach((b) => {
       const r = ranks.get(b.id) ?? 0;
@@ -522,65 +522,99 @@ export const useFactoryStore = create<FactoryState>((set, get) => ({
       groups.get(r)!.push(b);
     });
 
-    // 3. Final Placement with Iterative Relaxation (Advanced Untangling)
-    const COL_WIDTH = 500; // More space for belt visibility
-    const ROW_HEIGHT = 320; // More vertical separation
+    const COL_WIDTH = 500;
+    const ROW_HEIGHT = 320;
     const START_X = 100;
-    const START_Y = 200;
 
-    const sortedRankKeys = Array.from(groups.keys()).sort((a, b) => a - b);
+    // Sort ranks to process left-to-right
+    const sortedRanks = Array.from(groups.keys()).sort((a, b) => a - b);
 
-    // Initial naive placement
-    sortedRankKeys.forEach((rank) => {
-      const group = groups.get(rank)!;
-      const x = START_X + rank * COL_WIDTH;
-      const totalColumnHeight = (group.length - 1) * ROW_HEIGHT;
-      group.forEach((block, index) => {
-        block.position.x = x;
-        block.position.y =
-          START_Y + index * ROW_HEIGHT - totalColumnHeight / 2 + 300;
-      });
+    // Helper: Map connecting Target -> Sources for quick lookup
+    const incomingMap = new Map<string, string[]>();
+    factory.connections.forEach((c) => {
+      if (!incomingMap.has(c.targetBlockId))
+        incomingMap.set(c.targetBlockId, []);
+      incomingMap.get(c.targetBlockId)!.push(c.sourceBlockId);
     });
 
-    // Relaxation Pass (Vertical Tugging)
-    // Blocks move toward the average Y of their neighbors to untangle crossings
-    for (let pass = 0; pass < 12; pass++) {
-      for (const rank of sortedRankKeys) {
-        const group = groups.get(rank)!;
-        group.forEach((block) => {
-          const neighbors: number[] = [];
-          // Parents (Upstream)
-          factory.connections.forEach((c) => {
-            if (c.targetBlockId === block.id) {
-              const src = factory.blocks.get(c.sourceBlockId);
-              if (src) neighbors.push(src.position.y);
-            }
-            if (c.sourceBlockId === block.id) {
-              const tgt = factory.blocks.get(c.targetBlockId);
-              if (tgt) neighbors.push(tgt.position.y);
-            }
-          });
+    // 3. Lane Logic Placement (Phase 17)
+    // Process columns left-to-right.
+    // For each column, determine vertical order by the average Y of sources.
 
-          if (neighbors.length > 0) {
-            const avgY =
-              neighbors.reduce((s, y) => s + y, 0) / neighbors.length;
-            // Move partially toward neighbors (damping)
-            block.position.y += (avgY - block.position.y) * 0.3;
+    sortedRanks.forEach((rank) => {
+      const group = groups.get(rank)!;
+      const x = START_X + rank * COL_WIDTH;
+
+      // Special handling for First Rank (Sources/User Start)
+      if (rank === 0) {
+        // Keep their relative Y order but stack them neatly centered
+        group.sort((a, b) => a.position.y - b.position.y);
+        const totalHeight = (group.length - 1) * ROW_HEIGHT;
+        const centerY = 500; // Fixed center for the start column
+        group.forEach((block, index) => {
+          block.position.x = x;
+          block.position.y = centerY + index * ROW_HEIGHT - totalHeight / 2;
+        });
+        return;
+      }
+
+      // For subsequent ranks: Calculate Ideal Y based on Upstream Sources
+      const ideals = new Map<string, number>();
+
+      group.forEach((block) => {
+        const sourceIds = incomingMap.get(block.id) || [];
+        let runningY = 0;
+        let count = 0;
+
+        sourceIds.forEach((srcId) => {
+          const srcBlock = factory.blocks.get(srcId);
+          if (srcBlock) {
+            runningY += srcBlock.position.y;
+            count++;
           }
         });
 
-        // After tugging, ensure blocks in the same column maintain ROW_HEIGHT spacing
-        group.sort((a, b) => a.position.y - b.position.y);
-        const totalHeight = (group.length - 1) * ROW_HEIGHT;
-        const colCenterY = START_Y + 300;
-        group.forEach((block, index) => {
-          const targetY = colCenterY + index * ROW_HEIGHT - totalHeight / 2;
-          block.position.y = targetY; // Snap to grid slot but in the new Tug-determined order
-        });
-      }
-    }
+        // If connected, follow sources. If orphan, default to center (500)
+        // or stay near previous layout? defaulting to 500 keeps it clean.
+        ideals.set(block.id, count > 0 ? runningY / count : 500);
+        block.position.x = x;
+      });
 
-    // 4. Update Sort Orders for everyone
+      // Sort by Ideal Y (The "Lane Logic")
+      // This ensures blocks with top-inputs float to top, bottom-inputs sink to bottom
+      group.sort((a, b) => ideals.get(a.id)! - ideals.get(b.id)!);
+
+      // Initial placement at Ideal Y
+      group.forEach((b) => (b.position.y = ideals.get(b.id)!));
+
+      // Collision Resolution (Smart Vertical Stacking)
+      // Push blocks apart to enforce ROW_HEIGHT while trying to stay near Ideal Y
+      let hasOverlap = true;
+      let iterations = 0;
+
+      while (hasOverlap && iterations < 10) {
+        hasOverlap = false;
+        // Downward sweep
+        for (let i = 0; i < group.length - 1; i++) {
+          const upper = group[i];
+          const lower = group[i + 1];
+
+          if (lower.position.y < upper.position.y + ROW_HEIGHT) {
+            // Overlap detected. Push them apart symmetrically.
+            const center = (upper.position.y + lower.position.y) / 2;
+            const dist = ROW_HEIGHT / 2 + 1; // +1 buffer
+
+            // Weighted push? No, symmetric is stable.
+            upper.position.y = center - dist;
+            lower.position.y = center + dist;
+            hasOverlap = true;
+          }
+        }
+        iterations++;
+      }
+    });
+
+    // 4. Update Sort Orders for ports
     blocks.forEach((b) => sortBlockPorts(b, factory));
 
     set((state) => ({ version: state.version + 1 }));
