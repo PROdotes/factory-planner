@@ -11,10 +11,20 @@ interface Props {
   mainOutputId: string | null;
   blockType: string;
   machineCount: number;
+  sourceYield?: number;
+  isGatherer?: boolean;
 }
 
 export const BlockZoomedOut = memo(
-  ({ mainOutputId, blockType, machineCount }: Props) => {
+  ({
+    mainOutputId,
+    blockType,
+    machineCount,
+    sourceYield,
+    isGatherer,
+  }: Props) => {
+    const displayValue = isGatherer ? sourceYield ?? 0 : machineCount;
+
     return (
       <div className="zoom-out-view">
         <div className="main-icon">
@@ -27,8 +37,8 @@ export const BlockZoomedOut = memo(
             />
           )}
         </div>
-        {machineCount > 0 && (
-          <div className="machine-badge">×{Math.ceil(machineCount)}</div>
+        {displayValue > 0 && (
+          <div className="machine-badge">{`×${Math.ceil(displayValue)}`}</div>
         )}
       </div>
     );

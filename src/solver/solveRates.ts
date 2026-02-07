@@ -119,19 +119,8 @@ function finalizeResults(
         for (const inp of recipe.inputs) itemIds.add(inp.itemId);
         for (const out of recipe.outputs) itemIds.add(out.itemId);
 
-        const effectiveTime = getEffectiveTime(recipe, machines);
-        if (Number.isFinite(effectiveTime) && effectiveTime > 0) {
-          const count = block.machineCount ?? 1;
-          const yieldMult =
-            recipe.category === "Gathering" ? block.sourceYield ?? 1.0 : 1.0;
-          for (const out of recipe.outputs) {
-            capacities[out.itemId] =
-              (out.amount / effectiveTime) * count * yieldMult;
-          }
-          for (const inp of recipe.inputs) {
-            capacities[inp.itemId] = (inp.amount / effectiveTime) * count;
-          }
-        }
+        const blockCapacities = getBlockCapacities(block, recipe, machines);
+        Object.assign(capacities, blockCapacities);
       } else {
         // Stationary Node (Sink/Storage)
         for (const id of Object.keys(node.demand)) {

@@ -281,6 +281,8 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
                 mainOutputId={mainOutput?.itemId ?? null}
                 blockType={block.type}
                 machineCount={requiredMachineCount}
+                sourceYield={block.sourceYield}
+                isGatherer={recipe?.category === "Gathering"}
               />
             ) : (
               <div className="zoom-in-view">
