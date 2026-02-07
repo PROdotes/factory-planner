@@ -50,11 +50,18 @@ export class FactoryGraph {
   }
 
   removeBlock(id: string) {
-    this.blocks.delete(id);
-    // Clean up connections
-    this.connections = this.connections.filter(
-      (c) => c.sourceBlockId !== id && c.targetBlockId !== id
+    // 1. Identify connections that will be removed
+    const connectionsToRemove = this.connections.filter(
+      (c) => c.sourceBlockId === id || c.targetBlockId === id
     );
+
+    // 2. Explicitly remove each connection to trigger simplification logic
+    connectionsToRemove.forEach((c) => {
+      this.removeConnection(c.id);
+    });
+
+    // 3. Remove the block itself
+    this.blocks.delete(id);
   }
 
   removeConnection(id: string) {
@@ -89,18 +96,17 @@ export class FactoryGraph {
       const inputConn = inputs[0];
       const outputConn = outputs[0];
 
-      // Remove the splitter and its connections
-      this.removeBlock(blockId); // This also cleans up connections in removeBlock
+      // SURGICAL REMOVAL: Do not trigger recursive checks
+      this._deleteBlockSurgical(blockId);
 
       // Bridge the gap: Input Source -> Output Target
-      // Re-use the input's item ID and belt ID (or whichever makes sense)
       this.connect(
         inputConn.sourceBlockId,
         outputConn.targetBlockId,
         inputConn.itemId
       );
 
-      // Update the new connection's belt ID if needed (connect() defaults to mk1)
+      // Update the new connection's belt ID
       const newConn = this.connections.find(
         (c) =>
           c.sourceBlockId === inputConn.sourceBlockId &&
@@ -114,13 +120,22 @@ export class FactoryGraph {
     }
 
     // Case 2: Orphaned Logistics (0 IN, 0 OUT)
-    // If it has NO connections, maybe remove it? Or leave it for manual placement?
-    // User requested: "remove a splitter if it has no connection"
     if (inputs.length === 0 && outputs.length === 0) {
       console.log(`[GRAPH] Removing orphaned splitter: ${blockId}`);
-      this.removeBlock(blockId);
+      this._deleteBlockSurgical(blockId);
       return;
     }
+  }
+
+  /**
+   * Internal helper: Removes a block and its connections purely from data.
+   * Does NOT trigger neighbors or simplification logic.
+   */
+  private _deleteBlockSurgical(blockId: string) {
+    this.blocks.delete(blockId);
+    this.connections = this.connections.filter(
+      (c) => c.sourceBlockId !== blockId && c.targetBlockId !== blockId
+    );
   }
 
   /**
