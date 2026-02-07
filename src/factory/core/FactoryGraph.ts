@@ -58,7 +58,69 @@ export class FactoryGraph {
   }
 
   removeConnection(id: string) {
+    const conn = this.connections.find((c) => c.id === id);
+    if (!conn) return;
+
+    const sourceId = conn.sourceBlockId;
+    const targetId = conn.targetBlockId;
+
+    // Remove the connection
     this.connections = this.connections.filter((c) => c.id !== id);
+
+    // Check for simplification on both ends
+    this.simplifyLogistics(sourceId);
+    this.simplifyLogistics(targetId);
+  }
+
+  /**
+   * Checks if a logistics block is redundant (1 input, 1 output) and removes it, bridging the gap.
+   */
+  private simplifyLogistics(blockId: string) {
+    const block = this.blocks.get(blockId);
+    if (!block || block.type !== "logistics") return;
+
+    // Find all connections touching this block
+    const inputs = this.connections.filter((c) => c.targetBlockId === blockId);
+    const outputs = this.connections.filter((c) => c.sourceBlockId === blockId);
+
+    // Case 1: Redundant Pass-through (1 IN, 1 OUT)
+    if (inputs.length === 1 && outputs.length === 1) {
+      console.log(`[GRAPH] Simplifying redundant splitter: ${blockId}`);
+      const inputConn = inputs[0];
+      const outputConn = outputs[0];
+
+      // Remove the splitter and its connections
+      this.removeBlock(blockId); // This also cleans up connections in removeBlock
+
+      // Bridge the gap: Input Source -> Output Target
+      // Re-use the input's item ID and belt ID (or whichever makes sense)
+      this.connect(
+        inputConn.sourceBlockId,
+        outputConn.targetBlockId,
+        inputConn.itemId
+      );
+
+      // Update the new connection's belt ID if needed (connect() defaults to mk1)
+      const newConn = this.connections.find(
+        (c) =>
+          c.sourceBlockId === inputConn.sourceBlockId &&
+          c.targetBlockId === outputConn.targetBlockId
+      );
+      if (newConn && inputConn.beltId) {
+        newConn.beltId = inputConn.beltId;
+      }
+
+      return;
+    }
+
+    // Case 2: Orphaned Logistics (0 IN, 0 OUT)
+    // If it has NO connections, maybe remove it? Or leave it for manual placement?
+    // User requested: "remove a splitter if it has no connection"
+    if (inputs.length === 0 && outputs.length === 0) {
+      console.log(`[GRAPH] Removing orphaned splitter: ${blockId}`);
+      this.removeBlock(blockId);
+      return;
+    }
   }
 
   /**
