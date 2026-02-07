@@ -887,7 +887,7 @@ describe("rateSolver", () => {
       // FlowResult for input: actual=60 (consumed), demand=60 (delivered), capacity=60
       const inputFlow = result.blocks["blk"].results.flows["ore"];
       expect(inputFlow.actual).toBeCloseTo(60);
-      expect(inputFlow.demand).toBeCloseTo(60); // Delivered is capped by physical capacity
+      expect(inputFlow.demand).toBeCloseTo(180); // Delivered (full upstream supply)
       expect(inputFlow.capacity).toBeCloseTo(60);
     });
 
@@ -1072,7 +1072,7 @@ describe("rateSolver", () => {
 
       // Input FlowResult: demand=delivered, actual=consumed, capacity=max input
       const inputFlow = result.blocks["blk"].results.flows["ore"];
-      expect(inputFlow.demand).toBeCloseTo(60); // Delivered (capped by physical capacity)
+      expect(inputFlow.demand).toBeCloseTo(180); // Delivered (full upstream supply)
       expect(inputFlow.actual).toBeCloseTo(60); // Consumed (capped by capacity)
       expect(inputFlow.capacity).toBeCloseTo(60); // Max input rate
 

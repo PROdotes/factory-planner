@@ -499,74 +499,64 @@ function forwardPass(
       continue; // sinks have no outgoing edges
     }
 
-    // Distribute supply to outgoing edges based on PHYSICAL capacity, not solver demand
-    // This ensures overflow goes to blocks that can physically consume it
-    for (const [itemId, edges] of idx.outgoing) {
-      const available = supplyToGive[itemId] || 0;
+    // Distribute supply to outgoing edges: Standard Splitter Logic (Even Split)
+    // 1. Calculate total demand/capacity of downstream
+    // 2. Distribute available supply evenly, capping at individual edge demand
+    for (const [itemId, edges] of idx.outgoing.entries()) {
+      let available = supplyToGive[itemId] || 0;
+      if (available <= EPSILON) {
+        for (const edge of edges) edge.rate = 0;
+        continue;
+      }
 
-      // Compute physical input capacity for each downstream block
-      // Use the MINIMUM of machine capacity and edge demand (factory max propagated)
-      const edgeCapacities: number[] = edges.map((edge) => {
-        const targetBlock = graph.blocks[edge.targetBlockId];
-        if (targetBlock?.type === "block") {
-          const targetProd = targetBlock as ProductionBlock;
-          if (targetProd.recipeId) {
-            const targetRecipe = recipes[targetProd.recipeId];
-            if (targetRecipe) {
-              const targetEffectiveTime = getEffectiveTime(
-                targetRecipe,
-                machines
-              );
-              if (
-                Number.isFinite(targetEffectiveTime) &&
-                targetEffectiveTime > 0
-              ) {
-                const targetCount = targetProd.machineCount ?? 1;
-                const inputDef = targetRecipe.inputs.find(
-                  (i) => i.itemId === itemId
-                );
-                if (inputDef) {
-                  const machineCapacity =
-                    (inputDef.amount / targetEffectiveTime) * targetCount;
-                  // Cap by edge demand (which reflects factory max from backward pass)
-                  return Math.min(machineCapacity, edge.demand);
-                }
-              }
-            }
-          }
-        } else if (targetBlock?.type === "sink") {
-          return targetBlock.demand[itemId] || Infinity;
-        } else if (targetBlock?.type === "logistics") {
-          // Logistics can pass through anything
-          return Infinity;
-        }
-        return edge.demand; // Fallback to solver demand
+      // Calculate the maximum each edge wants/can take
+      const edgeLimits = edges.map((edge) => {
+        const target = graph.blocks[edge.targetBlockId];
+        // For sinks, use their explicit demand
+        if (target?.type === "sink") return target.demand[itemId] ?? Infinity;
+        // For logistics/others, respect the solver's calculated demand (which propagates upstream limits)
+        return edge.demand > EPSILON ? edge.demand : Infinity;
       });
 
-      const totalCapacity = edgeCapacities.reduce(
-        (s, c) => s + (Number.isFinite(c) ? c : 0),
-        0
-      );
+      // Iterative distribution to handle caps (water-filling algorithm)
+      // We want to give everyone an equal share of the 'remaining' supply,
+      // but capped by their individual limit.
+      let remainingEdges = edges.map((_, i) => i);
+      let distribution = new Array(edges.length).fill(0);
 
-      if (totalCapacity > EPSILON) {
-        // Distribute up to each edge's capacity, proportionally if not enough
-        let remaining = available;
-        for (let i = 0; i < edges.length; i++) {
-          const cap = edgeCapacities[i];
-          if (available <= totalCapacity) {
-            // Not enough to fill all - distribute proportionally by capacity
-            edges[i].rate = available * (cap / totalCapacity);
-          } else {
-            // More than enough - each gets up to their capacity
-            edges[i].rate = Math.min(cap, remaining);
-            remaining -= edges[i].rate;
+      while (remainingEdges.length > 0 && available > EPSILON) {
+        const share = available / remainingEdges.length;
+        let nextRemaining: number[] = [];
+        let gaveSomething = false;
+
+        for (const i of remainingEdges) {
+          const alreadyGiven = distribution[i];
+          const cap = edgeLimits[i];
+          const canTake = cap - alreadyGiven;
+
+          if (canTake <= EPSILON) {
+            // This edge is full
+            continue;
           }
+
+          const give = Math.min(share, canTake);
+          distribution[i] += give;
+          available -= give;
+
+          if (distribution[i] < cap - EPSILON) {
+            // Still has room, keep in pool
+            nextRemaining.push(i);
+          }
+          gaveSomething = true;
         }
-      } else {
-        const share = available / edges.length;
-        for (const edge of edges) {
-          edge.rate = share;
-        }
+
+        if (!gaveSomething) break; // Everyone full or no supply left
+        remainingEdges = nextRemaining;
+      }
+
+      // Assign final rates
+      for (let i = 0; i < edges.length; i++) {
+        edges[i].rate = distribution[i];
       }
     }
   }

@@ -140,55 +140,65 @@ export function App() {
         </div>
 
         <nav className="app-nav">
+          {/* View Toggles */}
           <div className="nav-group">
-            <span className="nav-group-label">Panels</span>
             <button
-              className={`toolbar-btn ${leftSidebarOpen ? "primary" : ""}`}
+              className={`toolbar-btn ${leftSidebarOpen ? "active" : ""}`}
               onClick={toggleLeftSidebar}
-              title="Toggle Forge (Recipe Catalog)"
+              title="Recipe Browser - Add production blocks to your factory"
             >
-              <Hammer size={18} /> <span>Forge</span>
+              <Hammer size={16} /> <span>Recipes</span>
             </button>
             <button
-              className={`toolbar-btn ${rightSidebarOpen ? "primary" : ""}`}
+              className={`toolbar-btn ${rightSidebarOpen ? "active" : ""}`}
               onClick={toggleRightSidebar}
-              title="Toggle Analytics Matrix"
+              title="Analytics - View bottlenecks and resource balance"
             >
-              <BarChart3 size={18} /> <span>Stats</span>
+              <BarChart3 size={16} /> <span>Analytics</span>
             </button>
           </div>
 
+          <div className="nav-divider" />
+
+          {/* Main Actions */}
           <div className="nav-group">
-            <span className="nav-group-label">Production</span>
             <button
-              className="toolbar-btn primary"
+              className="toolbar-btn accent"
               onClick={() => {
                 const { autoScale } = useFactoryStore.getState();
                 autoScale();
               }}
-              title="Auto-Scale: Batch set machine counts to match demand"
+              title="Auto-scale all machines to meet production targets"
             >
-              <Play size={16} /> <span>Optimize</span>
+              <Play size={16} /> <span>Balance</span>
             </button>
-
+            <button
+              className="toolbar-btn"
+              onClick={autoLayout}
+              title="Auto-arrange blocks in a clean layout"
+            >
+              <Wand2 size={16} /> <span>Arrange</span>
+            </button>
             {focusedNodeId && (
               <button
-                className="toolbar-btn danger"
+                className="toolbar-btn warning"
                 onClick={() => toggleFocus(null)}
-                title="Clear Focus Mode"
+                title="Exit focus mode - show all blocks"
               >
-                <Target size={16} /> <span>Clear Focus</span>
+                <Target size={16} /> <span>Exit Focus</span>
               </button>
             )}
           </div>
 
-          <div className="nav-group">
-            <span className="nav-group-label">Settings</span>
-            <RateUnitToggle />
-          </div>
+          <div className="nav-divider" />
 
-          <div className="nav-group">
-            <span className="nav-group-label">History</span>
+          {/* Rate Display */}
+          <RateUnitToggle />
+
+          <div className="nav-divider" />
+
+          {/* Quick Actions */}
+          <div className="nav-group compact">
             <button
               className="toolbar-btn icon-only"
               onClick={undo}
@@ -206,25 +216,23 @@ export function App() {
             <button
               className="toolbar-btn icon-only"
               onClick={saveToLocalStorage}
-              title="Save (Ctrl+S)"
+              title="Save to browser (Ctrl+S)"
             >
               <Save size={16} />
             </button>
           </div>
 
-          <div className="nav-group">
-            <span className="nav-group-label">File</span>
+          <div className="nav-group compact">
             <button
               className="toolbar-btn icon-only"
               onClick={exportToJSON}
-              title="Export Layout (.json)"
+              title="Export factory as JSON file"
             >
               <Download size={16} />
             </button>
-
             <label
-              className="toolbar-btn icon-only clickable"
-              title="Import Layout (.json)"
+              className="toolbar-btn icon-only"
+              title="Import factory from JSON file"
             >
               <Upload size={16} />
               <input
@@ -246,36 +254,32 @@ export function App() {
             </label>
           </div>
 
-          <div className="nav-group">
-            <span className="nav-group-label">Layout</span>
-            <button
-              className="toolbar-btn"
-              onClick={autoLayout}
-              title="Auto-Organize Layout"
-            >
-              <Wand2 size={16} /> <span>Organize</span>
-            </button>
+          <div className="nav-divider" />
 
+          {/* Settings & Danger Zone */}
+          <div className="nav-group compact">
             <button
-              className="toolbar-btn danger"
+              className={`toolbar-btn icon-only ${
+                iconMapperOpen ? "active" : ""
+              }`}
+              onClick={() => setIconMapperOpen(true)}
+              title="Settings - Configure icon mappings"
+            >
+              <Settings size={16} />
+            </button>
+            <button
+              className="toolbar-btn icon-only danger"
               onClick={() => {
-                if (confirm("Delete EVERYTHING?")) {
+                if (confirm("Clear entire factory? This cannot be undone.")) {
                   clearFactory();
                 }
               }}
-              title="Clear All Blocks"
+              title="Clear all - Delete entire factory"
             >
-              <Trash2 size={16} /> <span>Clear All</span>
+              <Trash2 size={16} />
             </button>
           </div>
         </nav>
-        <button
-          className={`toolbar-btn ${iconMapperOpen ? "primary" : ""}`}
-          onClick={() => setIconMapperOpen(true)}
-          title="Calibration: Icon Mapper"
-        >
-          <Settings size={18} />
-        </button>
       </header>
 
       <main className="app-main">
