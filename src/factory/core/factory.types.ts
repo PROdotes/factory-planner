@@ -30,6 +30,8 @@ export interface FactoryBlock {
   requested?: Record<string, number>;
   satisfaction: number;
   sourceYield?: number;
+  inputOrder?: string[];
+  outputOrder?: string[];
 }
 
 export interface ProductionBlock extends FactoryBlock {

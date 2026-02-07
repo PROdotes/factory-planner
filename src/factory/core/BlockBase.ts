@@ -20,6 +20,10 @@ export abstract class BlockBase {
   satisfaction: number = 1.0;
   sourceYield: number = 6.0; // Default to 6 for miners compatibility
 
+  // Port Stability
+  inputOrder: string[] = [];
+  outputOrder: string[] = [];
+
   results: {
     flows: Record<string, FlowResult>;
     satisfaction: number;
@@ -54,6 +58,8 @@ export abstract class BlockBase {
     this.requested = { ...(data.requested || {}) };
     this.satisfaction = data.satisfaction;
     this.sourceYield = data.sourceYield ?? (this.type === "block" ? 6.0 : 1.0);
+    this.inputOrder = data.inputOrder || [];
+    this.outputOrder = data.outputOrder || [];
 
     if (data.results) {
       this.results = {
