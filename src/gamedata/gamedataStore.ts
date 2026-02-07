@@ -6,7 +6,7 @@
 
 import { create } from "zustand";
 import { z } from "zod";
-import { Recipe, Machine } from "./gamedata.types";
+import { Recipe, Machine, Gatherer } from "./gamedata.types";
 
 // Zod schemas for validation
 const RecipePortSchema = z.object({
@@ -38,6 +38,15 @@ const GeneratorSchema = z.object({
   generation: z.number(),
 });
 
+const GathererSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  machineId: z.string(),
+  outputItemId: z.string(),
+  outputAmount: z.number(),
+  extractionRate: z.number(),
+});
+
 const ItemSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -53,6 +62,7 @@ const GameDataSchema = z.object({
   recipes: z.array(RecipeSchema),
   machines: z.array(MachineSchema),
   generators: z.array(GeneratorSchema).optional().default([]),
+  gatherers: z.array(GathererSchema).optional().default([]),
 });
 
 interface GameState {
@@ -60,6 +70,7 @@ interface GameState {
   recipes: Record<string, Recipe>;
   machines: Record<string, Machine>;
   generators: Record<string, any>; // genId -> data
+  gatherers: Record<string, Gatherer>;
   isLoaded: boolean;
   error: string | null;
   loadData: () => Promise<void>;
@@ -70,6 +81,7 @@ export const useGameDataStore = create<GameState>((set) => ({
   recipes: {},
   machines: {},
   generators: {},
+  gatherers: {},
   isLoaded: false,
   error: null,
 
@@ -86,10 +98,12 @@ export const useGameDataStore = create<GameState>((set) => ({
       const recipes: Record<string, Recipe> = {};
       const machines: Record<string, Machine> = {};
       const generators: Record<string, any> = {};
+      const gatherers: Record<string, Gatherer> = {};
 
       validatedData.items.forEach((i) => (items[i.id] = i));
       validatedData.recipes.forEach((r) => (recipes[r.id] = r));
       validatedData.machines.forEach((m) => (machines[m.id] = m));
+      validatedData.gatherers.forEach((g) => (gatherers[g.id] = g));
 
       // Populate generators and merge into machines for solver compatibility
       validatedData.generators.forEach((gen) => {
@@ -108,6 +122,7 @@ export const useGameDataStore = create<GameState>((set) => ({
         recipes,
         machines,
         generators,
+        gatherers,
         isLoaded: true,
         error: null,
       });

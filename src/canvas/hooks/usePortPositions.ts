@@ -24,7 +24,7 @@ export function usePortPositions(
   version: number,
   overridePosition?: { x: number; y: number }
 ) {
-  const { recipes } = useGameDataStore();
+  const { recipes, gatherers } = useGameDataStore();
   const { factory } = useFactoryStore();
 
   // NEW: Track transient positions of neighbors to live-sort OUR ports when THEY move
@@ -104,6 +104,11 @@ export function usePortPositions(
         "unknown";
       inputItems = [itemId];
       outputItems = [itemId];
+    } else if (block.type === "gatherer") {
+      const gathererId = (block as any).gathererId;
+      if (gathererId && gatherers[gathererId]) {
+        outputItems = [gatherers[gathererId].outputItemId];
+      }
     }
 
     let finalInputItems = inputItems;

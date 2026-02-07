@@ -6,12 +6,14 @@
 
 import { memo, useState, useRef, useEffect } from "react";
 import { ProductionBlock } from "../../factory/blocks/ProductionBlock";
-import { Recipe, Machine } from "../../gamedata/gamedata.types";
+import { GathererBlock } from "../../factory/blocks/GathererBlock";
+import { Recipe, Machine, Gatherer } from "../../gamedata/gamedata.types";
 import { ItemIcon } from "./ItemIcon";
 
 interface Props {
-  block: ProductionBlock;
+  block: ProductionBlock | GathererBlock;
   recipe?: Recipe;
+  gatherer?: Gatherer;
   machine: Machine;
   rateLabel: string;
   displayRate?: string;
@@ -26,6 +28,7 @@ export const BlockControls = memo(
   ({
     block,
     recipe,
+    gatherer,
     machine,
     rateLabel,
     displayRate,
@@ -53,7 +56,7 @@ export const BlockControls = memo(
       if (isEditingYield) yieldInputRef.current?.focus();
     }, [isEditingCount, isEditingRate, isEditingYield]);
 
-    const isGatherer = recipe?.category === "Gathering";
+    const isGatherer = block instanceof GathererBlock;
 
     const currentMachineCount = block.machineCount;
 
@@ -91,7 +94,7 @@ export const BlockControls = memo(
     };
 
     const handleRateWheel = (e: React.WheelEvent) => {
-      if (!recipe) return; // Cannot scroll rate for generators
+      if (!recipe && !gatherer) return; // Cannot scroll rate for generators
       e.stopPropagation();
       const delta = e.shiftKey ? 10 : 1;
       const next =
@@ -105,15 +108,13 @@ export const BlockControls = memo(
 
     const yieldLabel = isGenerator
       ? "POWER"
-      : recipe?.machineId.includes("pump") ||
-        recipe?.machineId.includes("extractor")
+      : gatherer?.id.includes("pump") || gatherer?.id.includes("extractor")
       ? "YIELD %"
       : "VEINS";
 
     const yieldTitle = isGenerator
       ? "Power Output (MW)"
-      : recipe?.machineId.includes("pump") ||
-        recipe?.machineId.includes("extractor")
+      : gatherer?.id.includes("pump") || gatherer?.id.includes("extractor")
       ? "Yield Multiplier (%)"
       : "Veins Count";
 

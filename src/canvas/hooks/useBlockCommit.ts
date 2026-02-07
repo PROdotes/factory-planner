@@ -6,8 +6,9 @@
 
 import { useCallback } from "react";
 import { ProductionBlock } from "../../factory/blocks/ProductionBlock";
+import { GathererBlock } from "../../factory/blocks/GathererBlock";
 import { useFactoryStore } from "../../factory/factoryStore";
-import { Recipe, Machine } from "../../gamedata/gamedata.types";
+import { Recipe, Machine, Gatherer } from "../../gamedata/gamedata.types";
 
 interface BlockCommitHandlers {
   commitMachineCount: (val: number) => void;
@@ -20,80 +21,67 @@ interface BlockCommitHandlers {
  * Handles the complex logic of syncing machine count, output rate, and yield.
  */
 export function useBlockCommit(
-  block: ProductionBlock,
+  block: ProductionBlock | GathererBlock,
   recipe: Recipe | null,
   machine: Machine | null,
-  isPerMin: boolean
+  isPerMin: boolean,
+  gatherer?: Gatherer | null
 ): BlockCommitHandlers {
   const { setRequest, setYield, setMachineCount } = useFactoryStore();
-  const mainOutput = recipe?.outputs[0];
-  const isGenerator = !recipe && !!machine?.generation;
+  const mainOutputId = recipe?.outputs[0]?.itemId ?? gatherer?.outputItemId;
+  const isGenerator = !recipe && !gatherer && !!machine?.generation;
+  const isGatherer = block instanceof GathererBlock;
 
   const commitMachineCount = useCallback(
     (val: number) => {
       if (isNaN(val) || val < 0) return;
 
-      if (recipe && mainOutput && machine) {
-        const isGatherer = recipe.category === "Gathering";
-        if (isGatherer) {
-          // Miners (Gathering): Machine count does not drive rate, Veins do.
-          // Don't update setRequest here.
-        } else {
-          const ratePerMachine =
-            (mainOutput.amount * machine.speed) / recipe.craftingTime;
-          setRequest(block.id, mainOutput.itemId, val * ratePerMachine);
-        }
+      if (!isGatherer && recipe && recipe.outputs[0] && machine) {
+        const ratePerMachine =
+          (recipe.outputs[0].amount * machine.speed) / recipe.craftingTime;
+        setRequest(block.id, recipe.outputs[0].itemId, val * ratePerMachine);
       }
-      // For generators, we just set the machine count directly
+
+      // For both gatherers and standard machines, we track machineCount normally
       setMachineCount(block.id, val);
     },
-    [
-      block.id,
-      block.sourceYield,
-      recipe,
-      mainOutput,
-      machine,
-      setRequest,
-      setMachineCount,
-    ]
+    [block.id, recipe, machine, isGatherer, setRequest, setMachineCount]
   );
 
   const commitOutputRate = useCallback(
     (val: number) => {
       if (isGenerator) return; // Cannot edit rate directly for generators
-      if (isNaN(val) || val < 0 || !mainOutput) return;
+      if (isNaN(val) || val < 0 || !mainOutputId) return;
 
       const perSec = isPerMin ? val / 60 : val;
 
-      const isGatherer = recipe?.category === "Gathering";
-
-      if (isGatherer && machine) {
-        // Gathering Law: Target Rate = Veins * RatePerVein
-        // Veins = Target Rate / RatePerVein
-        const ratePerVein =
-          (mainOutput.amount * machine.speed) / recipe.craftingTime;
+      if (isGatherer && machine && gatherer) {
+        // Gathering Law: Rate = ExtractionRate * Speed * Yield
+        // Yield = Rate / (ExtractionRate * Speed)
+        const ratePerVein = gatherer.extractionRate * machine.speed;
         if (ratePerVein > 0) {
           setYield(block.id, perSec / ratePerVein);
         }
-        setRequest(block.id, mainOutput.itemId, perSec);
-      } else if (recipe && machine) {
+        setRequest(block.id, gatherer.outputItemId, perSec);
+      } else if (recipe && machine && recipe.outputs[0]) {
         // Standard Machine Law: Target Rate = MachineCount * RatePerMachine
         const ratePerMachine =
-          (mainOutput.amount * machine.speed) / recipe.craftingTime;
+          (recipe.outputs[0].amount * machine.speed) / recipe.craftingTime;
         if (ratePerMachine > 0) {
           setMachineCount(block.id, perSec / ratePerMachine);
-          setRequest(block.id, mainOutput.itemId, perSec);
+          setRequest(block.id, recipe.outputs[0].itemId, perSec);
         }
       }
     },
     [
       block.id,
-      block.sourceYield,
       recipe,
-      mainOutput,
+      gatherer,
+      mainOutputId,
       machine,
       isPerMin,
       isGenerator,
+      isGatherer,
       setRequest,
       setYield,
       setMachineCount,
@@ -105,14 +93,12 @@ export function useBlockCommit(
       if (isNaN(val) || val < 0) return;
 
       setYield(block.id, val);
-      const isGatherer = recipe?.category === "Gathering";
-      if (isGatherer && mainOutput && machine) {
-        const ratePerVein =
-          (mainOutput.amount * machine.speed) / recipe.craftingTime;
-        setRequest(block.id, mainOutput.itemId, val * ratePerVein);
+      if (isGatherer && machine && gatherer) {
+        const ratePerVein = gatherer.extractionRate * machine.speed;
+        setRequest(block.id, gatherer.outputItemId, val * ratePerVein);
       }
     },
-    [block.id, recipe, mainOutput, machine, setYield, setRequest]
+    [block.id, machine, gatherer, isGatherer, setYield, setRequest]
   );
 
   return { commitMachineCount, commitOutputRate, commitYield };

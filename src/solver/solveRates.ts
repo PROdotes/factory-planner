@@ -10,9 +10,10 @@ import {
   FactoryLayout,
   Connection,
   ProductionBlock,
+  GathererBlock,
   FlowResult,
 } from "../factory/core/factory.types";
-import { Recipe, Machine } from "../gamedata/gamedata.types";
+import { Recipe, Machine, Gatherer } from "../gamedata/gamedata.types";
 
 const MAX_ITERATIONS = 100;
 const EPSILON = 1e-9;
@@ -30,7 +31,8 @@ interface NodeIndex {
 export function solveFlowRates(
   graph: FactoryLayout,
   recipes: Record<string, Recipe>,
-  machines?: Record<string, Machine>
+  machines?: Record<string, Machine>,
+  gatherers?: Record<string, Gatherer>
 ): FactoryLayout {
   if (graph.connections.length === 0) return graph;
 
@@ -47,12 +49,12 @@ export function solveFlowRates(
       prevRate.set(edge.id, edge.rate);
     }
 
-    backwardPass(graph, recipes, machines, index, order);
-    forwardPass(graph, recipes, machines, index, order);
+    backwardPass(graph, recipes, machines, gatherers, index, order);
+    forwardPass(graph, recipes, machines, gatherers, index, order);
     if (isConverged(graph.connections, prevDemand, prevRate)) break;
   }
 
-  finalizeResults(graph, recipes, machines, index);
+  finalizeResults(graph, recipes, machines, gatherers, index);
   return graph;
 }
 
@@ -87,6 +89,7 @@ function finalizeResults(
   graph: FactoryLayout,
   recipes: Record<string, Recipe>,
   machines: Record<string, Machine> | undefined,
+  gatherers: Record<string, Gatherer> | undefined,
   index: Map<string, NodeIndex>
 ): void {
   for (const node of Object.values(graph.blocks)) {
@@ -119,13 +122,27 @@ function finalizeResults(
         for (const inp of recipe.inputs) itemIds.add(inp.itemId);
         for (const out of recipe.outputs) itemIds.add(out.itemId);
 
-        const blockCapacities = getBlockCapacities(block, recipe, machines);
+        const blockCapacities = getBlockCapacities(
+          block,
+          recipe,
+          machines,
+          false
+        );
         Object.assign(capacities, blockCapacities);
       } else {
         // Stationary Node (Sink/Storage)
         for (const id of Object.keys(node.demand)) {
           capacities[id] = node.demand[id];
         }
+      }
+    } else if (node.type === "gatherer") {
+      const block = node as GathererBlock;
+      const gatherer = block.gathererId ? gatherers?.[block.gathererId] : null;
+
+      if (gatherer) {
+        itemIds.add(gatherer.outputItemId);
+        const cap = getGathererCapacity(block, gatherer, machines);
+        capacities[gatherer.outputItemId] = cap;
       }
     } else if (node.type === "logistics") {
       for (const id of Object.keys(node.demand)) {
@@ -247,6 +264,7 @@ function backwardPass(
   graph: FactoryLayout,
   recipes: Record<string, Recipe>,
   machines: Record<string, Machine> | undefined,
+  gatherers: Record<string, Gatherer> | undefined,
   index: Map<string, NodeIndex>,
   order: string[]
 ): void {
@@ -261,7 +279,6 @@ function backwardPass(
       const recipe = block.recipeId ? recipes[block.recipeId] : null;
 
       if (recipe) {
-        const isGatherer = recipe.category === "Gathering";
         const isSourceNode = recipe.inputs.length === 0;
 
         // 1. Calculate goals for each recipe output
@@ -281,11 +298,9 @@ function backwardPass(
             );
           } else {
             // UNCONNECTED OUTPUT
-            if (isGatherer || isSourceNode) {
-              const yieldMult = block.sourceYield ?? 1.0;
+            if (isSourceNode) {
               const count = block.machineCount ?? 1.0;
-              const multiplier = isGatherer ? yieldMult : count;
-              outputGoals[itemId] = (out.amount / effectiveTime) * multiplier;
+              outputGoals[itemId] = (out.amount / effectiveTime) * count;
             } else {
               outputGoals[itemId] =
                 block.requested?.[itemId] || block.demand[itemId] || 0;
@@ -305,8 +320,7 @@ function backwardPass(
         let maxScale = 0;
         for (const out of recipe.outputs) {
           const goal = outputGoals[out.itemId] || 0;
-          const multiplier = isGatherer ? block.sourceYield ?? 1.0 : 1.0;
-          const ratePerMachine = (out.amount / effectiveTime) * multiplier;
+          const ratePerMachine = out.amount / effectiveTime;
           if (ratePerMachine > EPSILON) {
             const scale = goal / ratePerMachine;
             if (scale > maxScale) maxScale = scale;
@@ -320,6 +334,28 @@ function backwardPass(
         }
       } else {
         // Stationary Node (Sink/Storage)
+        node.requested = { ...node.demand };
+      }
+    } else if (node.type === "gatherer") {
+      const block = node as GathererBlock;
+      const gatherer = block.gathererId ? gatherers?.[block.gathererId] : null;
+
+      if (gatherer) {
+        const itemId = gatherer.outputItemId;
+        const edgesForItem = idx.outgoingAll.filter((e) => e.itemId === itemId);
+
+        let outputGoal: number;
+        if (edgesForItem.length > 0) {
+          outputGoal = edgesForItem.reduce((sum, e) => sum + e.demand, 0);
+        } else {
+          // UNCONNECTED OUTPUT: Use full capacity
+          outputGoal = getGathererCapacity(block, gatherer, machines);
+        }
+
+        node.requested = { [itemId]: outputGoal };
+        // Gatherers have no inputs (they extract from the ground)
+        block.demand = {};
+      } else {
         node.requested = { ...node.demand };
       }
     } else if (node.type === "logistics") {
@@ -365,6 +401,7 @@ function forwardPass(
   graph: FactoryLayout,
   recipes: Record<string, Recipe>,
   machines: Record<string, Machine> | undefined,
+  gatherers: Record<string, Gatherer> | undefined,
   index: Map<string, NodeIndex>,
   order: string[]
 ): void {
@@ -397,7 +434,7 @@ function forwardPass(
         }
         supplyToGive = block.output;
       }
-      // 3. CASE B: Machines (Gatherers or Assemblers)
+      // 3. CASE B: Production Machines (Assemblers, Smelters, etc.)
       else if (recipe) {
         const effectiveTime = getEffectiveTime(recipe, machines);
         if (!Number.isFinite(effectiveTime) || effectiveTime <= EPSILON) {
@@ -407,11 +444,16 @@ function forwardPass(
           continue;
         }
 
-        const blockCapacities = getBlockCapacities(block, recipe, machines);
+        const blockCapacities = getBlockCapacities(
+          block,
+          recipe,
+          machines,
+          false
+        );
         const delivered = aggregateEdges(idx.incomingAll, "rate");
 
         if (isSource) {
-          // Sources (Miners) are always satisfied by the ground/infinite input
+          // Source production nodes (no inputs) are always satisfied
           block.satisfaction = 1.0;
           block.supply = {};
         } else {
@@ -472,6 +514,28 @@ function forwardPass(
           }
         }
         block.satisfaction = minSat;
+      }
+    } else if (node.type === "gatherer") {
+      const block = node as GathererBlock;
+      const gatherer = block.gathererId ? gatherers?.[block.gathererId] : null;
+
+      if (gatherer) {
+        // Gatherers are always satisfied (they extract from infinite ground)
+        block.satisfaction = 1.0;
+        block.supply = {};
+
+        const itemId = gatherer.outputItemId;
+        const cap = getGathererCapacity(block, gatherer, machines);
+        const requestedValue = node.requested?.[itemId] || 0;
+        const goal = requestedValue * block.satisfaction;
+        block.output[itemId] = Math.min(goal, cap);
+        supplyToGive = block.output;
+      } else {
+        // Gatherer without gatherer data - treat as sink
+        block.supply = aggregateEdges(idx.incomingAll, "rate");
+        block.output = { ...block.supply };
+        supplyToGive = block.output;
+        block.satisfaction = 1.0;
       }
     } else if (node.type === "logistics") {
       // Logistics nodes provide what their inputs supplied
@@ -595,7 +659,8 @@ function getEffectiveTime(
 function getBlockCapacities(
   block: ProductionBlock,
   recipe: Recipe,
-  machines: Record<string, Machine> | undefined
+  machines: Record<string, Machine> | undefined,
+  _isGatherer: boolean = false
 ): Record<string, number> {
   const capacities: Record<string, number> = {};
   const effectiveTime = getEffectiveTime(recipe, machines);
@@ -603,19 +668,25 @@ function getBlockCapacities(
     return capacities;
 
   const count = block.machineCount ?? 1;
-  const isGatherer = recipe.category === "Gathering";
-  const yieldMult = block.sourceYield ?? 1.0;
-
-  // Manual Mode Law:
-  // For Miners: Rate = Base * Veins (Ignore machine count multiplication)
-  // For Others: Rate = Base * MachineCount
-  const multiplier = isGatherer ? yieldMult : count;
 
   for (const inp of recipe.inputs) {
     capacities[inp.itemId] = (inp.amount / effectiveTime) * count;
   }
   for (const out of recipe.outputs) {
-    capacities[out.itemId] = (out.amount / effectiveTime) * multiplier;
+    capacities[out.itemId] = (out.amount / effectiveTime) * count;
   }
   return capacities;
+}
+
+function getGathererCapacity(
+  block: GathererBlock,
+  gatherer: Gatherer,
+  machines: Record<string, Machine> | undefined
+): number {
+  // Gatherer capacity = extractionRate * sourceYield * machineSpeed
+  const machine = machines?.[gatherer.machineId];
+  const speed = machine?.speed ?? 1.0;
+  const yieldMult = block.sourceYield ?? 1.0;
+
+  return gatherer.extractionRate * yieldMult * speed;
 }

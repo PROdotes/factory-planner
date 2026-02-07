@@ -5,7 +5,7 @@
  */
 
 import { BlockBase } from "../../factory/core/BlockBase";
-import { Recipe } from "../../gamedata/gamedata.types";
+import { Recipe, Gatherer } from "../../gamedata/gamedata.types";
 
 export interface IOItem {
   itemId: string;
@@ -22,6 +22,7 @@ interface ItemMap {
  * Collects input items for display.
  * For sinks: uses demand directly.
  * For production blocks: uses recipe inputs with flow data.
+ * Gatherers have no inputs.
  *
  * Shows "actual/target" where:
  * - actual = supply received
@@ -30,8 +31,12 @@ interface ItemMap {
 export function collectInputItems(
   block: BlockBase,
   recipe: Recipe | null,
-  items: ItemMap
+  items: ItemMap,
+  _gatherer?: Gatherer | null
 ): IOItem[] {
+  // Gatherers have no inputs (they extract from the ground)
+  if (block.type === "gatherer") return [];
+
   const isStationary = block.type === "production" && !recipe;
   if (isStationary) {
     return Object.keys(block.demand).map((id) => ({
@@ -71,8 +76,27 @@ export function collectInputItems(
 export function collectOutputItems(
   block: BlockBase,
   recipe: Recipe | null,
-  items: ItemMap
+  items: ItemMap,
+  gatherer?: Gatherer | null
 ): IOItem[] {
+  // Handle gatherer outputs
+  if (gatherer) {
+    const itemId = gatherer.outputItemId;
+    const flow = block.results?.flows?.[itemId];
+    const factoryMax = flow?.demand ?? (block.output[itemId] || 0);
+    const machineCapacity = flow?.capacity ?? factoryMax;
+    const workingTarget = Math.min(machineCapacity, factoryMax);
+
+    return [
+      {
+        itemId,
+        name: items[itemId]?.name || itemId,
+        actual: flow?.sent ?? (block.output[itemId] || 0),
+        target: workingTarget,
+      },
+    ];
+  }
+
   if (!recipe) return [];
 
   return recipe.outputs.map((output) => {

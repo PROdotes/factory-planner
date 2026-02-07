@@ -358,7 +358,7 @@ const ConnectionPathWithPorts = memo(
     isPerMin: boolean;
     version: number;
   }) => {
-    const { recipes } = useGameDataStore();
+    const { recipes, gatherers } = useGameDataStore();
     const sourcePorts = usePortPositions(source, version);
     const targetPorts = usePortPositions(target, version);
 
@@ -374,7 +374,8 @@ const ConnectionPathWithPorts = memo(
       source,
       target,
       conn,
-      recipes
+      recipes,
+      gatherers
     );
 
     const label = formatConnectionLabel(

@@ -4,33 +4,57 @@ import {
   FactoryLayout,
   ProductionBlock,
   LogisticsBlock,
+  GathererBlock,
   Connection,
   FactoryBlock,
 } from "../factory/core/factory.types";
-import { Recipe, Machine } from "../gamedata/gamedata.types";
+import { Recipe, Machine, Gatherer } from "../gamedata/gamedata.types";
 
 // ── Test Helpers ────────────────────────────────────────────────────
+
+const testGatherers: Record<string, Gatherer> = {};
+const testMachines: Record<string, Machine> = {
+  miner: { id: "miner", speed: 1.0, consumption: 0, idleConsumption: 0 },
+  assembler: {
+    id: "assembler",
+    speed: 1.0,
+    consumption: 0,
+    idleConsumption: 0,
+  },
+};
 
 function makeSource(
   id: string,
   itemId: string,
   capacity: number
-): ProductionBlock {
-  // Sources are now ProductionBlocks with mining recipes - use sourceYield to set capacity
+): GathererBlock {
+  // Register gatherer for this item if not exists
+  if (!testGatherers[itemId]) {
+    testGatherers[itemId] = {
+      id: itemId,
+      name: itemId,
+      machineId: "miner",
+      outputItemId: itemId,
+      outputAmount: 1,
+      extractionRate: 1.0, // Base extraction rate of 1.0/sec
+    };
+  }
+
+  // Sources are now GathererBlocks
   return {
     id,
-    type: "production",
+    type: "gatherer",
     name: id,
     position: { x: 0, y: 0 },
-    recipeId: `mining-${itemId}`,
+    gathererId: itemId,
     demand: {},
     supply: {},
     output: {},
     requested: { [itemId]: capacity },
     satisfaction: 1.0,
-    sourceYield: capacity,
+    sourceYield: capacity, // Use sourceYield to set capacity (capacity = extractionRate * sourceYield)
     results: { flows: {}, satisfaction: 1.0 },
-  };
+  } as GathererBlock;
 }
 
 function makeBlock(id: string, recipeId: string): ProductionBlock {
@@ -146,7 +170,12 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       expect(block(result, "blk").demand["iron-ore"]).toBe(2.0);
       expect(edge(result, "e1").demand).toBe(2.0);
@@ -181,7 +210,12 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       expect(block(result, "blk").satisfaction).toBe(0.25);
       expect(edge(result, "e2").rate).toBe(0.25);
@@ -221,7 +255,12 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       // Sink demands: refined oil 1.0/s, hydrogen 0.5/s
       // Rate per machine: refined oil = 2/4 = 0.5/s, hydrogen = 1/4 = 0.25/s
@@ -269,7 +308,12 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       // maxScale=8 → crude demand = 8 * 0.5 = 4.0/s
       expect(block(result, "refinery").demand["crude-oil"]).toBeCloseTo(4.0);
@@ -334,7 +378,12 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       // The system should converge to stable values
       expect(block(result, "refinery").satisfaction).toBeGreaterThan(0);
@@ -377,7 +426,12 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       // Net output should be positive (production exceeds self-consumption)
       expect(edge(result, "prof-out").rate).toBeGreaterThan(0);
@@ -429,7 +483,12 @@ describe("rateSolver", () => {
       edges.push(makeEdge("e-snk", `b${items.length - 2}`, "snk", "module"));
 
       const graph: FactoryLayout = { blocks: nodes, connections: edges };
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       // Demand at source should be 2^4 = 16 (each step doubles)
       expect(edge(result, "e-src").demand).toBeCloseTo(16.0);
@@ -470,7 +529,12 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       // Total ore needed: 4/s. Sources: A=3, B=1 → total 4, should satisfy
       const rateA = edge(result, "eA").rate;
@@ -504,7 +568,12 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       // Total available: 2/s, needed: 4/s → satisfaction = 0.5
       expect(block(result, "blk").satisfaction).toBeCloseTo(0.5);
@@ -541,7 +610,12 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       // Total output demand: 4.0/s, block produces 4.0/s
       expect(edge(result, "eA").rate).toBeCloseTo(2.0);
@@ -575,7 +649,12 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       // Satisfaction = 0.5/1.0 = 0.5, each sink gets half its demand
       expect(block(result, "blk").satisfaction).toBeCloseTo(0.5);
@@ -618,7 +697,7 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes, machines);
+      const result = solveFlowRates(graph, recipes, machines, testGatherers);
 
       // With speed 2x: effective time = 2/2 = 1s
       // Rate per machine: ingot = 1/1 = 1/s, ore = 2/1 = 2/s
@@ -646,7 +725,12 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       // Without speed: effective time = 2s
       // Rate per machine: ingot = 1/2 = 0.5/s, ore = 2/2 = 1/s
@@ -662,7 +746,7 @@ describe("rateSolver", () => {
   describe("edge cases", () => {
     it("should handle empty graph", () => {
       const graph: FactoryLayout = { blocks: {}, connections: [] };
-      const result = solveFlowRates(graph, {});
+      const result = solveFlowRates(graph, {}, testMachines, testGatherers);
       expect(result.connections).toHaveLength(0);
     });
 
@@ -671,7 +755,7 @@ describe("rateSolver", () => {
         blocks: { src: makeSource("src", "ore", 10) },
         connections: [],
       };
-      const result = solveFlowRates(graph, {});
+      const result = solveFlowRates(graph, {}, testMachines, testGatherers);
       expect(Object.keys(result.blocks)).toHaveLength(1);
     });
 
@@ -688,7 +772,7 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, {});
+      const result = solveFlowRates(graph, {}, testMachines, testGatherers);
 
       // Block should be skipped, satisfaction stays at default
       expect(block(result, "blk").satisfaction).toBe(1.0);
@@ -726,7 +810,7 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes, machines);
+      const result = solveFlowRates(graph, recipes, machines, testGatherers);
 
       expect(block(result, "blk").satisfaction).toBe(0);
       expect(edge(result, "e1").rate).toBe(0);
@@ -755,7 +839,12 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       expect(edge(result, "e1").rate).toBeCloseTo(0);
       expect(edge(result, "e2").rate).toBeCloseTo(0);
@@ -784,7 +873,12 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       // Connected chain works normally
       expect(edge(result, "e2").rate).toBeCloseTo(1.0);
@@ -840,7 +934,12 @@ describe("rateSolver", () => {
       const graph: FactoryLayout = { blocks: nodes, connections: edges };
 
       const start = performance.now();
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
       const elapsed = performance.now() - start;
 
       // Should complete well under 200ms
@@ -884,7 +983,12 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       // Block should only consume 60 (capacity), not 180 (available)
       expect(block(result, "blk").supply["ore"]).toBeCloseTo(60);
@@ -931,7 +1035,12 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       expect(edge(result, "e1").rate).toBeCloseTo(50); // Capped by B's capacity
       expect(edge(result, "e2").rate).toBeCloseTo(50); // B outputs 50
@@ -966,7 +1075,12 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       // Total consumed should be capped at 60
       const rateA = edge(result, "eA").rate;
@@ -1014,7 +1128,12 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       // Copper limits at 20, which corresponds to 20 gears
       // Iron takes full delivered amount (current behavior - could be optimized later)
@@ -1049,7 +1168,12 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       // Edge rate must reflect consumption (50), not delivery (100)
       expect(edge(result, "e1").rate).toBeCloseTo(50);
@@ -1082,7 +1206,12 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       // Input FlowResult: demand=delivered, actual=consumed, capacity=max input
       const inputFlow = result.blocks["blk"].results.flows["ore"];
@@ -1116,7 +1245,7 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, {});
+      const result = solveFlowRates(graph, {}, testMachines, testGatherers);
 
       expect(edge(result, "eIn").rate).toBeCloseTo(100);
       expect(edge(result, "eA").rate).toBeCloseTo(50);
@@ -1139,7 +1268,7 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, {});
+      const result = solveFlowRates(graph, {}, testMachines, testGatherers);
 
       expect(edge(result, "eIn").rate).toBeCloseTo(100);
       expect(edge(result, "eA").rate).toBeCloseTo(75);
@@ -1163,7 +1292,7 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, {});
+      const result = solveFlowRates(graph, {}, testMachines, testGatherers);
 
       // Water-filling: 50 available, 2 edges
       // First pass: try 25 each. snkB wants 40, snkA wants 60 → both can take 25
@@ -1190,7 +1319,7 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, {});
+      const result = solveFlowRates(graph, {}, testMachines, testGatherers);
 
       // Each sink gets exactly what it demands
       expect(edge(result, "eA").rate).toBeCloseTo(40);
@@ -1215,7 +1344,7 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, {});
+      const result = solveFlowRates(graph, {}, testMachines, testGatherers);
 
       expect(edge(result, "eA").rate).toBeCloseTo(30);
       expect(edge(result, "eB").rate).toBeCloseTo(30);
@@ -1241,7 +1370,7 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, {});
+      const result = solveFlowRates(graph, {}, testMachines, testGatherers);
 
       expect(edge(result, "eA").rate).toBeCloseTo(40);
       expect(edge(result, "eB").rate).toBeCloseTo(60);
@@ -1265,7 +1394,7 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, {});
+      const result = solveFlowRates(graph, {}, testMachines, testGatherers);
 
       expect(edge(result, "eA").rate).toBeCloseTo(30);
       expect(edge(result, "eB").rate).toBeCloseTo(20);
@@ -1289,7 +1418,7 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, {});
+      const result = solveFlowRates(graph, {}, testMachines, testGatherers);
 
       // Output capped at 100
       expect(edge(result, "eOut").rate).toBeCloseTo(100);
@@ -1316,7 +1445,7 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, {});
+      const result = solveFlowRates(graph, {}, testMachines, testGatherers);
 
       expect(edge(result, "eA").rate).toBeCloseTo(20);
       expect(edge(result, "eB").rate).toBeCloseTo(30);
@@ -1346,7 +1475,7 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, {});
+      const result = solveFlowRates(graph, {}, testMachines, testGatherers);
 
       expect(edge(result, "inA").rate).toBeCloseTo(50);
       expect(edge(result, "inB").rate).toBeCloseTo(50);
@@ -1373,7 +1502,7 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, {});
+      const result = solveFlowRates(graph, {}, testMachines, testGatherers);
 
       // Total input: 100, total output demand: 100
       expect(edge(result, "outA").rate).toBeCloseTo(50);
@@ -1398,7 +1527,7 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, {});
+      const result = solveFlowRates(graph, {}, testMachines, testGatherers);
 
       // Total: 60, split evenly to both outputs (30 each)
       expect(edge(result, "outA").rate).toBeCloseTo(30);
@@ -1427,7 +1556,7 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, {});
+      const result = solveFlowRates(graph, {}, testMachines, testGatherers);
 
       expect(edge(result, "outA").rate).toBeCloseTo(30);
       expect(edge(result, "outB").rate).toBeCloseTo(30);
@@ -1452,7 +1581,7 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, {});
+      const result = solveFlowRates(graph, {}, testMachines, testGatherers);
 
       // Total input: 100, should distribute according to demand ratios
       expect(edge(result, "outA").rate).toBeCloseTo(70);
@@ -1480,7 +1609,7 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, {});
+      const result = solveFlowRates(graph, {}, testMachines, testGatherers);
 
       expect(edge(result, "e1").rate).toBeCloseTo(100);
       expect(edge(result, "e3").rate).toBeCloseTo(100);
@@ -1510,7 +1639,7 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, {});
+      const result = solveFlowRates(graph, {}, testMachines, testGatherers);
 
       expect(edge(result, "inA").rate).toBeCloseTo(40);
       expect(edge(result, "inB").rate).toBeCloseTo(60);
@@ -1553,7 +1682,12 @@ describe("rateSolver", () => {
         ],
       };
 
-      const result = solveFlowRates(graph, recipes);
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
 
       // Each smelter processes 100 ore → 50 ingots
       expect(edge(result, "e2a").rate).toBeCloseTo(100);

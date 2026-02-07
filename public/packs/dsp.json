@@ -78,7 +78,7 @@
             "isFluid": false,
             "gridIndex": 1211,
             "iconIndex": 54,
-            "description": "The Annihilation Constraint Sphere\u2019s strong restraints act on Antimatter to form a more stable fuel rod. This powerful energy is then safer to harness."
+            "description": "The Annihilation Constraint Sphere’s strong restraints act on Antimatter to form a more stable fuel rod. This powerful energy is then safer to harness."
         },
         {
             "id": "arc-smelter",
@@ -188,7 +188,7 @@
             "isFluid": false,
             "gridIndex": 1508,
             "iconIndex": 61,
-            "description": "The ion trap\u2019s electric field holds charged particles in place, and Coulomb repulsion between the particles causes them to spontaneously form a spatial ring crystal. The zero-point energy of the particles inside the crystal can be stimulated by imposing a weak static magnetic field, resulting in a noticeable Casimir effect."
+            "description": "The ion trap’s electric field holds charged particles in place, and Coulomb repulsion between the particles causes them to spontaneously form a spatial ring crystal. The zero-point energy of the particles inside the crystal can be stimulated by imposing a weak static magnetic field, resulting in a noticeable Casimir effect."
         },
         {
             "id": "chemical-plant",
@@ -452,7 +452,7 @@
             "isFluid": false,
             "gridIndex": 1710,
             "iconIndex": 75,
-            "description": "Small Carrier Rockets can transport the components to the planned Dyson Sphere, where they will form the Dyson Sphere\u2019s Nodes and Frames."
+            "description": "Small Carrier Rockets can transport the components to the planned Dyson Sphere, where they will form the Dyson Sphere’s Nodes and Frames."
         },
         {
             "id": "electric-motor",
@@ -584,7 +584,7 @@
             "isFluid": false,
             "gridIndex": 1706,
             "iconIndex": 77,
-            "description": "It is a terrain leveling tool. But it can\u2019t be used to alter the planet"
+            "description": "It is a terrain leveling tool. But it can’t be used to alter the planet"
         },
         {
             "id": "fractal-silicon",
@@ -694,7 +694,7 @@
             "isFluid": false,
             "gridIndex": 1705,
             "iconIndex": 65,
-            "description": "It is a piece of neutron star material encapsulated after processing. Its distorted and powerful gravitational field is shielded within. It is normally used to manipulate and change the spatial structure, but this does not stop some folks from using it to focus the sun\u2019s rays and ignite a fire."
+            "description": "It is a piece of neutron star material encapsulated after processing. Its distorted and powerful gravitational field is shielded within. It is normally used to manipulate and change the spatial structure, but this does not stop some folks from using it to focus the sun’s rays and ignite a fire."
         },
         {
             "id": "gravity-matrix",
@@ -859,7 +859,7 @@
             "isFluid": false,
             "gridIndex": 1114,
             "iconIndex": 9,
-            "description": "It is a rare ore formed and crystallized directly from kimberlite magmas under CO\u2082-rich conditions. Smelting it yield diamonds."
+            "description": "It is a rare ore formed and crystallized directly from kimberlite magmas under CO₂-rich conditions. Smelting it yield diamonds."
         },
         {
             "id": "laser-turret",
@@ -1486,7 +1486,7 @@
             "isFluid": false,
             "gridIndex": 2106,
             "iconIndex": 142,
-            "description": "It generates electricity from sunlight. The actual power generation performance is linked with the planet\u2019s light energy utilization. Stops running at night. Accumulators can be used to store surplus electricity during the day."
+            "description": "It generates electricity from sunlight. The actual power generation performance is linked with the planet’s light energy utilization. Stops running at night. Accumulators can be used to store surplus electricity during the day."
         },
         {
             "id": "solar-sail",
@@ -1893,7 +1893,7 @@
             "isFluid": false,
             "gridIndex": 2104,
             "iconIndex": 127,
-            "description": "It is a primary power generator that converts wind energy into electrical energy. The actual power generation performance depends on the planet\u2019s wind energy utilization."
+            "description": "It is a primary power generator that converts wind energy into electrical energy. The actual power generation performance depends on the planet’s wind energy utilization."
         },
         {
             "id": "wireless-power-tower",
@@ -6075,118 +6075,6 @@
             ],
             "craftingTime": 4,
             "category": "refine"
-        },
-        {
-            "id": "mining-iron-ore",
-            "name": "Mining (Iron Ore)",
-            "machineId": "mining-machine",
-            "inputs": [],
-            "outputs": [
-                {
-                    "itemId": "iron-ore",
-                    "amount": 1
-                }
-            ],
-            "craftingTime": 2.0,
-            "category": "Gathering"
-        },
-        {
-            "id": "mining-copper-ore",
-            "name": "Mining (Copper Ore)",
-            "machineId": "mining-machine",
-            "inputs": [],
-            "outputs": [
-                {
-                    "itemId": "copper-ore",
-                    "amount": 1
-                }
-            ],
-            "craftingTime": 2.0,
-            "category": "Gathering"
-        },
-        {
-            "id": "mining-stone",
-            "name": "Mining (Stone)",
-            "machineId": "mining-machine",
-            "inputs": [],
-            "outputs": [
-                {
-                    "itemId": "stone",
-                    "amount": 1
-                }
-            ],
-            "craftingTime": 2.0,
-            "category": "Gathering"
-        },
-        {
-            "id": "mining-coal",
-            "name": "Mining (Coal)",
-            "machineId": "mining-machine",
-            "inputs": [],
-            "outputs": [
-                {
-                    "itemId": "coal",
-                    "amount": 1
-                }
-            ],
-            "craftingTime": 2.0,
-            "category": "Gathering"
-        },
-        {
-            "id": "mining-silicon-ore",
-            "name": "Mining (Silicon Ore)",
-            "machineId": "mining-machine",
-            "inputs": [],
-            "outputs": [
-                {
-                    "itemId": "silicon-ore",
-                    "amount": 1
-                }
-            ],
-            "craftingTime": 2.0,
-            "category": "Gathering"
-        },
-        {
-            "id": "mining-titanium-ore",
-            "name": "Mining (Titanium Ore)",
-            "machineId": "mining-machine",
-            "inputs": [],
-            "outputs": [
-                {
-                    "itemId": "titanium-ore",
-                    "amount": 1
-                }
-            ],
-            "craftingTime": 2.0,
-            "category": "Gathering"
-        },
-        {
-            "id": "extraction-water",
-            "name": "Pumping (Water)",
-            "machineId": "water-pump",
-            "inputs": [],
-            "outputs": [
-                {
-                    "itemId": "water",
-                    "amount": 1
-                }
-            ],
-            "craftingTime": 1.2,
-            "category": "Gathering"
-        },
-        {
-            "id": "extraction-crude-oil",
-            "name": "Pumping (Crude Oil)",
-            "machineId": "oil-extractor",
-            "inputs": [],
-            "outputs": [
-                {
-                    "itemId": "crude-oil",
-                    "amount": 1
-                }
-            ],
-            "craftingTime": 1.0,
-            "category": "Gathering"
         }
     ],
     "machines": [
@@ -6308,6 +6196,72 @@
             "id": "wind-turbine",
             "name": "Wind Turbine",
             "generation": 300000
+        }
+    ],
+    "gatherers": [
+        {
+            "id": "mining-iron-ore",
+            "name": "Mining (Iron Ore)",
+            "machineId": "mining-machine",
+            "outputItemId": "iron-ore",
+            "outputAmount": 1,
+            "extractionRate": 0.5
+        },
+        {
+            "id": "mining-copper-ore",
+            "name": "Mining (Copper Ore)",
+            "machineId": "mining-machine",
+            "outputItemId": "copper-ore",
+            "outputAmount": 1,
+            "extractionRate": 0.5
+        },
+        {
+            "id": "mining-stone",
+            "name": "Mining (Stone)",
+            "machineId": "mining-machine",
+            "outputItemId": "stone",
+            "outputAmount": 1,
+            "extractionRate": 0.5
+        },
+        {
+            "id": "mining-coal",
+            "name": "Mining (Coal)",
+            "machineId": "mining-machine",
+            "outputItemId": "coal",
+            "outputAmount": 1,
+            "extractionRate": 0.5
+        },
+        {
+            "id": "mining-silicon-ore",
+            "name": "Mining (Silicon Ore)",
+            "machineId": "mining-machine",
+            "outputItemId": "silicon-ore",
+            "outputAmount": 1,
+            "extractionRate": 0.5
+        },
+        {
+            "id": "mining-titanium-ore",
+            "name": "Mining (Titanium Ore)",
+            "machineId": "mining-machine",
+            "outputItemId": "titanium-ore",
+            "outputAmount": 1,
+            "extractionRate": 0.5
+        },
+        {
+            "id": "extraction-water",
+            "name": "Pumping (Water)",
+            "machineId": "water-pump",
+            "outputItemId": "water",
+            "outputAmount": 1,
+            "extractionRate": 0.8333333333333334
+        },
+        {
+            "id": "extraction-crude-oil",
+            "name": "Pumping (Crude Oil)",
+            "machineId": "oil-extractor",
+            "outputItemId": "crude-oil",
+            "outputAmount": 1,
+            "extractionRate": 1.0
         }
     ]
 }

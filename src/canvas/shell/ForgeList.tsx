@@ -10,17 +10,24 @@ import { useGameDataStore } from "../../gamedata/gamedataStore";
 import { computeFactoryAnalytics } from "../../solver/factoryAnalytics";
 import { useMemo } from "react";
 import { ItemIcon } from "../blocks/ItemIcon";
-import { Search, Upload, GitBranch, Zap } from "lucide-react";
+import { Search, GitBranch, Zap } from "lucide-react";
 import { DragSpawnPayload } from "../hooks/useDragToSpawn";
 import { useUIStore } from "../uiStore";
 
 export function ForgeList() {
-  const { categories, recipesByCategory, generators, search, setSearch } =
-    useRecipeCatalog();
+  const {
+    categories,
+    recipesByCategory,
+    generators,
+    gatherers,
+    search,
+    setSearch,
+  } = useRecipeCatalog();
   const { factory, version } = useFactoryStore();
   const { recipes, machines, isLoaded } = useGameDataStore();
   const { windEfficiency } = useUIStore();
-  const { addBlock, addLogistics, setRecipe } = useFactoryStore();
+  const { addBlock, addLogistics, addGatherer, setRecipe, setGatherer } =
+    useFactoryStore();
 
   const analytics = useMemo(() => {
     if (!isLoaded) return null;
@@ -55,22 +62,6 @@ export function ForgeList() {
         <section className="forge-section">
           <h3>Logistics</h3>
           <div className="forge-grid">
-            <button
-              className="forge-item-btn"
-              onMouseDown={(e) =>
-                handleDragStart(e, { type: "sink", label: "Storage" })
-              }
-              onClick={() =>
-                addBlock(
-                  "New Storage",
-                  window.innerWidth / 2,
-                  window.innerHeight / 2
-                )
-              }
-            >
-              <Upload size={16} />
-              <span>Storage</span>
-            </button>
             <button
               className="forge-item-btn"
               onMouseDown={(e) =>
@@ -129,57 +120,49 @@ export function ForgeList() {
           </details>
         )}
 
-        {/* Dynamic sections for all other categories */}
+        {/* Gatherers section (Miners, Oil Extractors, etc.) */}
+        {gatherers.length > 0 && (
+          <details open={!search} className="forge-category gathering-section">
+            <summary>Gathering</summary>
+            <div className="recipe-list">
+              {gatherers.map((gatherer) => (
+                <button
+                  key={gatherer.id}
+                  className="recipe-row"
+                  onMouseDown={(e) =>
+                    handleDragStart(e, {
+                      type: "gatherer",
+                      gathererId: gatherer.id,
+                      label: gatherer.name,
+                    })
+                  }
+                  onClick={() => {
+                    const block = addGatherer(
+                      gatherer.name,
+                      window.innerWidth / 2,
+                      window.innerHeight / 2
+                    );
+                    setGatherer(block.id, gatherer.id);
+                  }}
+                >
+                  <ItemIcon itemId={gatherer.outputItemId} size={20} />
+                  <span className="recipe-name">{gatherer.name}</span>
+                </button>
+              ))}
+            </div>
+          </details>
+        )}
+
+        {/* Dynamic sections for all recipe categories */}
         {categories.map((cat) => {
-          const recipes = recipesByCategory[cat];
-          if (recipes.length === 0) return null;
-
-          // Header styling: specific for Gathering, generic for others
-          const isGathering = cat.toLowerCase() === "gathering";
-
-          if (isGathering) {
-            return (
-              <details
-                key={cat}
-                open={!search}
-                className="forge-category gathering-section"
-              >
-                <summary>{cat}</summary>
-                <div className="recipe-list">
-                  {recipes.map((recipe) => (
-                    <button
-                      key={recipe.id}
-                      className="recipe-row"
-                      onMouseDown={(e) =>
-                        handleDragStart(e, {
-                          type: "recipe",
-                          recipeId: recipe.id,
-                          label: recipe.name,
-                        })
-                      }
-                      onClick={() => {
-                        const block = addBlock(
-                          recipe.name,
-                          window.innerWidth / 2,
-                          window.innerHeight / 2
-                        );
-                        setRecipe(block.id, recipe.id);
-                      }}
-                    >
-                      <ItemIcon itemId={recipe.outputs[0]?.itemId} size={20} />
-                      <span className="recipe-name">{recipe.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </details>
-            );
-          }
+          const catRecipes = recipesByCategory[cat];
+          if (catRecipes.length === 0) return null;
 
           return (
             <details key={cat} open={!!search} className="forge-category">
               <summary>{cat}</summary>
               <div className="recipe-list">
-                {recipes.map((recipe) => (
+                {catRecipes.map((recipe) => (
                   <button
                     key={recipe.id}
                     className="recipe-row"

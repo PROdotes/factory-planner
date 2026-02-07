@@ -6,15 +6,20 @@
 
 import { useMemo, useState } from "react";
 import { useGameDataStore } from "../../gamedata/gamedataStore";
-import { Recipe } from "../../gamedata/gamedata.types";
+import { Recipe, Gatherer } from "../../gamedata/gamedata.types";
 
 export function useRecipeCatalog() {
-  const { recipes, items, generators } = useGameDataStore();
+  const { recipes, items, generators, gatherers } = useGameDataStore();
   const [search, setSearch] = useState("");
 
   const categories = useMemo(() => {
     const cats = new Set<string>();
-    Object.values(recipes).forEach((r) => cats.add(r.category));
+    Object.values(recipes).forEach((r) => {
+      // Filter out special categories handled elsewhere
+      if (r.category !== "Gathering") {
+        cats.add(r.category);
+      }
+    });
     return Array.from(cats).sort();
   }, [recipes]);
 
@@ -54,10 +59,23 @@ export function useRecipeCatalog() {
     );
   }, [generators, search]);
 
+  const filteredGatherers = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const gathererList = Object.values(gatherers) as Gatherer[];
+    if (!query) return gathererList;
+
+    return gathererList.filter(
+      (g) =>
+        g.name.toLowerCase().includes(query) ||
+        g.outputItemId.toLowerCase().includes(query)
+    );
+  }, [gatherers, search]);
+
   return {
     categories,
     recipesByCategory,
     generators: filteredGenerators,
+    gatherers: filteredGatherers,
     search,
     setSearch,
     filteredRecipes,

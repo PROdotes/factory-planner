@@ -18,7 +18,7 @@ export abstract class BlockBase {
   output: Record<string, number> = {};
   requested: Record<string, number> = {};
   satisfaction: number = 1.0;
-  sourceYield: number = 6.0; // Default to 6 for miners compatibility
+  sourceYield: number = 1.0;
 
   // Port Stability
   inputOrder: string[] = [];
@@ -57,8 +57,7 @@ export abstract class BlockBase {
     this.output = { ...data.output };
     this.requested = { ...(data.requested || {}) };
     this.satisfaction = data.satisfaction;
-    this.sourceYield =
-      data.sourceYield ?? (this.type === "production" ? 6.0 : 1.0);
+    this.sourceYield = data.sourceYield ?? 1.0;
     this.inputOrder = data.inputOrder || [];
     this.outputOrder = data.outputOrder || [];
 

@@ -8,8 +8,9 @@ import { useEffect, useRef } from "react";
 import { useFactoryStore } from "../../factory/factoryStore";
 
 export interface DragSpawnPayload {
-  type: "recipe" | "sink" | "generator" | "junction";
+  type: "recipe" | "sink" | "generator" | "junction" | "gatherer";
   recipeId?: string;
+  gathererId?: string;
   machineId?: string;
   label: string;
 }
@@ -27,7 +28,8 @@ declare global {
 export function useDragToSpawn(
   clientToWorld: (x: number, y: number) => { x: number; y: number }
 ) {
-  const { addBlock, addLogistics, setRecipe } = useFactoryStore();
+  const { addBlock, addLogistics, addGatherer, setRecipe, setGatherer } =
+    useFactoryStore();
   const ghostRef = useRef<HTMLDivElement | null>(null);
   const activePayload = useRef<DragSpawnPayload | null>(null);
 
@@ -90,6 +92,9 @@ export function useDragToSpawn(
         if (p.type === "recipe" && p.recipeId) {
           const block = addBlock(p.label, world.x, world.y);
           setRecipe(block.id, p.recipeId);
+        } else if (p.type === "gatherer" && p.gathererId) {
+          const block = addGatherer(p.label, world.x, world.y);
+          setGatherer(block.id, p.gathererId);
         } else if (p.type === "generator" && p.machineId) {
           const block = addBlock(p.label, world.x, world.y);
           // Use setMachine directly for generators
@@ -111,5 +116,12 @@ export function useDragToSpawn(
     window.addEventListener("spawn-drag-start", startDrag as any);
     return () =>
       window.removeEventListener("spawn-drag-start", startDrag as any);
-  }, [addBlock, addLogistics, setRecipe, clientToWorld]);
+  }, [
+    addBlock,
+    addLogistics,
+    addGatherer,
+    setRecipe,
+    setGatherer,
+    clientToWorld,
+  ]);
 }

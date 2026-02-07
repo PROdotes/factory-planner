@@ -14,7 +14,7 @@ export interface FlowResult {
 export interface FactoryBlock {
   id: string;
   name: string;
-  type: "production" | "logistics";
+  type: "production" | "logistics" | "gatherer";
   position: { x: number; y: number };
 
   // Solver results (ABC Pillar)
@@ -43,6 +43,14 @@ export interface ProductionBlock extends FactoryBlock {
 
 export interface LogisticsBlock extends FactoryBlock {
   type: "logistics";
+}
+
+export interface GathererBlock extends FactoryBlock {
+  type: "gatherer";
+  gathererId?: string;
+  machineId?: string;
+  sourceYield: number;
+  machineCount?: number;
 }
 
 export interface Connection {

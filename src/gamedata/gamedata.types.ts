@@ -25,3 +25,12 @@ export interface Machine {
   idleConsumption: number; // Idle power in Watts
   generation?: number; // Power generated in Watts (e.g., Wind Turbine)
 }
+
+export interface Gatherer {
+  id: string;
+  name: string;
+  machineId: string;
+  outputItemId: string;
+  outputAmount: number;
+  extractionRate: number; // Items per second per vein/seep
+}

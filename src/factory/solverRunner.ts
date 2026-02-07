@@ -6,7 +6,7 @@
 
 import { solveFlowRates } from "../solver/solveRates";
 import { FactoryGraph } from "./core/FactoryGraph";
-import { Recipe, Machine } from "../gamedata/gamedata.types";
+import { Recipe, Machine, Gatherer } from "../gamedata/gamedata.types";
 
 interface FactoryState {
   factory: FactoryGraph;
@@ -41,6 +41,10 @@ interface MachineMap {
   [id: string]: Machine;
 }
 
+interface GathererMap {
+  [id: string]: Gatherer;
+}
+
 /**
  * Runs the solver in Manual (Capacity-Driven) mode.
  * Preserves user-set requested values for production blocks.
@@ -48,7 +52,8 @@ interface MachineMap {
 export function runManualSolver(
   factory: FactoryGraph,
   recipes: RecipeMap,
-  machines: MachineMap
+  machines: MachineMap,
+  gatherers?: GathererMap
 ): void {
   // Use toDTO for fast object-level manipulation
   const layoutDTO = factory.toDTO();
@@ -59,10 +64,10 @@ export function runManualSolver(
       layoutDTO.blocks[c.sourceBlockId] && layoutDTO.blocks[c.targetBlockId]
   );
 
-  // Preserve user-set requested values for PRODUCTION blocks
+  // Preserve user-set requested values for PRODUCTION and GATHERER blocks
   const savedRequested = new Map<string, Record<string, number>>();
   Object.values(layoutDTO.blocks).forEach((block) => {
-    if (block.type === "production") {
+    if (block.type === "production" || block.type === "gatherer") {
       savedRequested.set(block.id, { ...(block.requested || {}) });
     }
   });
@@ -74,7 +79,7 @@ export function runManualSolver(
   );
 
   // Solve in Manual (Capacity-Driven) mode
-  solveFlowRates(layoutDTO, recipes, machines);
+  solveFlowRates(layoutDTO, recipes, machines, gatherers);
 
   // Restore user-set requested values
   savedRequested.forEach((requested, blockId) => {
@@ -95,14 +100,15 @@ export function runManualSolver(
 export function runAutoScale(
   factory: FactoryGraph,
   recipes: RecipeMap,
-  machines: MachineMap
+  machines: MachineMap,
+  gatherers?: GathererMap
 ): void {
   const layoutDTO = factory.toDTO();
 
   console.log("[SOLVER] Performing AUTO-SCALE...");
 
   // 1. Run a standard pass to ensure 'requested' demand is populated
-  solveFlowRates(layoutDTO, recipes, machines);
+  solveFlowRates(layoutDTO, recipes, machines, gatherers);
 
   // 2. Sync machineCount to match total required demand (requested)
   Object.values(layoutDTO.blocks).forEach((block) => {
@@ -117,26 +123,34 @@ export function runAutoScale(
       if (!machine) return;
 
       const effectiveTime = recipe.craftingTime / (machine.speed || 1);
-      const isGatherer = recipe.category === "Gathering";
 
-      // Scaling: For Miners, we scale VEINS (sourceYield). For others, MACHINE COUNT.
       let maxScale = 0;
       recipe.outputs.forEach((out) => {
         const demand = b.requested?.[out.itemId] || 0;
-        const ratePerUnit = out.amount / effectiveTime; // Base rate without multipliers
+        const ratePerUnit = out.amount / effectiveTime;
         if (ratePerUnit > 0) {
           const scale = demand / ratePerUnit;
           if (scale > maxScale) maxScale = scale;
         }
       });
 
-      if (isGatherer) {
-        // Update Veins
-        (block as any).sourceYield = maxScale;
+      (block as any).machineCount = Math.ceil(maxScale - 0.001);
+    } else if (block.type === "gatherer") {
+      const b = block as any;
+      if (!b.gathererId || !gatherers) return;
+
+      const gatherer = gatherers[b.gathererId];
+      if (!gatherer) return;
+
+      const machine = machines[gatherer.machineId];
+      const speed = machine?.speed ?? 1.0;
+      const ratePerVein = gatherer.extractionRate * speed;
+
+      const demand = b.requested?.[gatherer.outputItemId] || 0;
+      if (ratePerVein > 0) {
+        // Scale veins to meet demand
+        (block as any).sourceYield = demand / ratePerVein;
         (block as any).machineCount = 1; // Default to 1 miner for the patch
-      } else {
-        // Update Machines
-        (block as any).machineCount = Math.ceil(maxScale - 0.001);
       }
     }
   });

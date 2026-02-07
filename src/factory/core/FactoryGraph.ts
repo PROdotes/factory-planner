@@ -7,6 +7,7 @@
 import { BlockBase } from "./BlockBase";
 import { ProductionBlock } from "../blocks/ProductionBlock";
 import { LogisticsBlock } from "../blocks/LogisticsBlock";
+import { GathererBlock } from "../blocks/GathererBlock";
 import { FactoryLayout, Connection, FactoryBlock } from "./factory.types";
 
 export class FactoryGraph {
@@ -30,6 +31,13 @@ export class FactoryGraph {
   addLogistics(x: number, y: number): LogisticsBlock {
     const id = crypto.randomUUID();
     const block = new LogisticsBlock(id, x, y);
+    this.blocks.set(id, block);
+    return block;
+  }
+
+  addGatherer(name: string, x: number, y: number): GathererBlock {
+    const id = crypto.randomUUID();
+    const block = new GathererBlock(id, name, x, y);
     this.blocks.set(id, block);
     return block;
   }

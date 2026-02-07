@@ -11,6 +11,7 @@
 import { memo, useEffect } from "react";
 import { BlockBase } from "../../factory/core/BlockBase";
 import { ProductionBlock } from "../../factory/blocks/ProductionBlock";
+import { GathererBlock } from "../../factory/blocks/GathererBlock";
 import { useGameDataStore } from "../../gamedata/gamedataStore";
 import { useDragToMove } from "../hooks/useDragToMove";
 import { useFactoryStore } from "../../factory/factoryStore";
@@ -42,7 +43,7 @@ interface Props {
 }
 
 export const BlockCard = memo(({ block, scale, version }: Props) => {
-  const { recipes, items, machines } = useGameDataStore();
+  const { recipes, items, machines, gatherers } = useGameDataStore();
   const {
     moveBlock,
     selectBlock,
@@ -88,26 +89,32 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
     );
   }, [ports, block.id]);
 
-  // Recipe and machine data
+  // Recipe/Gatherer and machine data
   const recipe =
     block instanceof ProductionBlock && block.recipeId
       ? recipes[block.recipeId]
       : null;
+  const gatherer =
+    block instanceof GathererBlock && block.gathererId
+      ? gatherers[block.gathererId]
+      : null;
   const machine = recipe
     ? machines[recipe.machineId]
+    : gatherer
+    ? machines[gatherer.machineId]
     : block instanceof ProductionBlock && block.machineId
     ? machines[block.machineId]
     : null;
 
   // Calculate metrics using extracted utilities
   const { requiredMachineCount, targetRateUnitValue, isGenerator } =
-    calculateMachineMetrics(block, recipe, machine, isPerMin);
+    calculateMachineMetrics(block, recipe, machine, isPerMin, gatherer);
 
   const mainOutput = recipe?.outputs[0];
 
   // Collect I/O items using extracted utilities
-  const inputItems = collectInputItems(block, recipe, items);
-  const outputItems = collectOutputItems(block, recipe, items);
+  const inputItems = collectInputItems(block, recipe, items, gatherer);
+  const outputItems = collectOutputItems(block, recipe, items, gatherer);
 
   const isZoomedIn = scale >= 0.9;
 
@@ -119,7 +126,7 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
     denom: footerDenom,
     capacity: machineCapacity,
     efficiency: footerEfficiency,
-  } = calculateFooterMetrics(block, mainOutput);
+  } = calculateFooterMetrics(block, mainOutput, gatherer);
 
   const isFailing = isBlockFailing(
     block.satisfaction,
@@ -127,7 +134,7 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
     footerDenom,
     machineCapacity,
     block.type === "logistics",
-    recipe?.category === "Gathering"
+    block.type === "gatherer"
   );
   const statusClass = isFailing ? "status-error" : "status-ok";
 
@@ -135,8 +142,8 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
 
   // Commit handlers from extracted hook
   const { commitMachineCount, commitOutputRate, commitYield } =
-    block instanceof ProductionBlock
-      ? useBlockCommit(block, recipe, machine, isPerMin)
+    block instanceof ProductionBlock || block instanceof GathererBlock
+      ? useBlockCommit(block, recipe, machine, isPerMin, gatherer)
       : {
           commitMachineCount: () => {},
           commitOutputRate: () => {},
@@ -186,7 +193,7 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
         isSelected ? "selected" : ""
       } ${isDimmed ? "dimmed" : ""} ${statusClass} ${
         isLogistics ? "junction" : ""
-      } ${recipe?.category === "Gathering" ? "gathering" : ""}`}
+      } ${block.type === "gatherer" ? "gatherer" : ""}`}
       style={
         {
           transform: `translate(${position.x}px, ${position.y}px)`,
@@ -278,11 +285,13 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
           <div className="block-body">
             {!isZoomedIn ? (
               <BlockZoomedOut
-                mainOutputId={mainOutput?.itemId ?? null}
+                mainOutputId={
+                  mainOutput?.itemId ?? gatherer?.outputItemId ?? null
+                }
                 blockType={block.type}
                 machineCount={requiredMachineCount}
                 sourceYield={block.sourceYield}
-                isGatherer={recipe?.category === "Gathering"}
+                isGatherer={block.type === "gatherer"}
               />
             ) : (
               <div className="zoom-in-view">
@@ -306,6 +315,19 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
                       onYieldChange={commitYield}
                     />
                   )}
+                {block instanceof GathererBlock && machine && gatherer && (
+                  <BlockControls
+                    block={block}
+                    gatherer={gatherer}
+                    machine={machine}
+                    rateLabel={rateLabel}
+                    targetRateUnitValue={targetRateUnitValue}
+                    wasDragged={wasDragged}
+                    onMachineCountChange={commitMachineCount}
+                    onRateChange={commitOutputRate}
+                    onYieldChange={commitYield}
+                  />
+                )}
 
                 <BlockIORows
                   inputItems={inputItems}
@@ -324,7 +346,7 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
             targetRate={footerDenom}
             powerMW={workingPowerMW}
             isPerMinute={isPerMin}
-            hasMainOutput={!!mainOutput}
+            hasMainOutput={!!mainOutput || !!gatherer}
           />
         </>
       )}

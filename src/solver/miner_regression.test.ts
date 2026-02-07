@@ -1,19 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { solveFlowRates } from "./solveRates";
-import { FactoryLayout, ProductionBlock } from "../factory/core/factory.types";
-import { Recipe, Machine } from "../gamedata/gamedata.types";
+import {
+  FactoryLayout,
+  ProductionBlock,
+  GathererBlock,
+} from "../factory/core/factory.types";
+import { Recipe, Machine, Gatherer } from "../gamedata/gamedata.types";
 
 describe("Miner Regression Tests", () => {
   const recipes: Record<string, Recipe> = {
-    "iron-ore": {
-      id: "iron-ore",
-      name: "Iron Ore",
-      machineId: "miner",
-      category: "Gathering",
-      inputs: [],
-      outputs: [{ itemId: "iron-ore", amount: 1 }],
-      craftingTime: 2, // 0.5/sec = 30/min at speed 1.0
-    },
     "iron-ingot": {
       id: "iron-ingot",
       name: "Iron Ingot",
@@ -22,6 +17,17 @@ describe("Miner Regression Tests", () => {
       inputs: [{ itemId: "iron-ore", amount: 1 }],
       outputs: [{ itemId: "iron-ingot", amount: 1 }],
       craftingTime: 1, // 1.0/sec
+    },
+  };
+
+  const gatherers: Record<string, Gatherer> = {
+    "iron-ore": {
+      id: "iron-ore",
+      name: "Iron Ore",
+      machineId: "miner",
+      outputItemId: "iron-ore",
+      outputAmount: 1,
+      extractionRate: 0.5, // 30/min
     },
   };
 
@@ -37,8 +43,8 @@ describe("Miner Regression Tests", () => {
           id: "miner",
           name: "Miner",
           position: { x: 0, y: 0 },
-          type: "production",
-          recipeId: "iron-ore",
+          type: "gatherer",
+          gathererId: "iron-ore",
           machineCount: 5, // 5 machines...
           sourceYield: 1.0, // ...covering only 1 vein
           demand: {},
@@ -46,7 +52,7 @@ describe("Miner Regression Tests", () => {
           output: {},
           satisfaction: 1.0,
           results: { flows: {}, satisfaction: 1.0 },
-        } as ProductionBlock,
+        } as GathererBlock,
         sink: {
           id: "sink",
           name: "Sink",
@@ -71,11 +77,11 @@ describe("Miner Regression Tests", () => {
       ],
     };
 
-    const result = solveFlowRates(graph, recipes, machines);
-    const miner = result.blocks.miner as ProductionBlock;
+    const result = solveFlowRates(graph, recipes, machines, gatherers);
+    const miner = result.blocks.miner as GathererBlock;
     const flow = miner.results.flows["iron-ore"];
 
-    // Base rate is 0.5/sec. Multiplier should be sourceYield (1.0).
+    // Extraction rate is 0.5/sec. Multiplier should be sourceYield (1.0).
     expect(flow.capacity).toBe(0.5);
     expect(flow.sent).toBe(0.5);
     expect(flow.sent).not.toBe(2.5);
@@ -137,7 +143,7 @@ describe("Miner Regression Tests", () => {
       ],
     };
 
-    const result = solveFlowRates(graph, recipes, machines);
+    const result = solveFlowRates(graph, recipes, machines, gatherers);
     const smelter = result.blocks.smelter as ProductionBlock;
     const flow = smelter.results.flows["iron-ingot"];
 

@@ -9,13 +9,20 @@ import { useUIStore } from "../uiStore";
 import { useGameDataStore } from "../../gamedata/gamedataStore";
 import { useFactoryStore } from "../../factory/factoryStore";
 import { ItemIcon } from "./ItemIcon";
-import { Upload, GitBranch, X } from "lucide-react";
+import { GitBranch, X } from "lucide-react";
 
 export function ImplicitSearchPicker() {
   const { implicitSearch, setImplicitSearch } = useUIStore();
-  const { recipes, items } = useGameDataStore();
-  const { addBlock, setRecipe, addLogistics, connect, runSolver } =
-    useFactoryStore();
+  const { recipes, items, gatherers } = useGameDataStore();
+  const {
+    addBlock,
+    setRecipe,
+    addLogistics,
+    connect,
+    runSolver,
+    addGatherer,
+    setGatherer,
+  } = useFactoryStore();
   const pickerRef = useRef<HTMLDivElement>(null);
 
   // Filter recipes based on the dragged item
@@ -33,6 +40,12 @@ export function ImplicitSearchPicker() {
       }
     });
   }, [implicitSearch, recipes]);
+
+  const matchingGatherers = useMemo(() => {
+    if (!implicitSearch || implicitSearch.side === "right") return [];
+    const { itemId } = implicitSearch;
+    return Object.values(gatherers).filter((g) => g.outputItemId === itemId);
+  }, [implicitSearch, gatherers]);
 
   // Handle clicks outside to close
   useEffect(() => {
@@ -89,15 +102,13 @@ export function ImplicitSearchPicker() {
     setImplicitSearch(null);
   };
 
-  const handleSelectSink = () => {
-    const newBlock = addBlock(`Storage (${itemName})`, worldPos.x, worldPos.y);
+  const handleSelectGatherer = (gathererId: string, gathererName: string) => {
+    const newBlock = addGatherer(gathererName, worldPos.x, worldPos.y);
+    setGatherer(newBlock.id, gathererId);
 
     // Auto-connect
-    if (side === "right") {
-      connect(blockId, newBlock.id, itemId);
-    } else {
-      connect(newBlock.id, blockId, itemId);
-    }
+    // Side is left (input looking for producer), so connect gatherer (newBlock) TO blockId
+    connect(newBlock.id, blockId, itemId);
 
     runSolver();
     setImplicitSearch(null);
@@ -131,12 +142,26 @@ export function ImplicitSearchPicker() {
               <GitBranch size={16} />
               <span>Junction</span>
             </button>
-            <button className="picker-item-btn" onClick={handleSelectSink}>
-              <Upload size={16} />
-              <span>Storage</span>
-            </button>
           </div>
         </div>
+
+        {matchingGatherers.length > 0 && (
+          <div className="picker-section">
+            <div className="section-title">Gathering</div>
+            <div className="recipe-grid">
+              {matchingGatherers.map((g) => (
+                <button
+                  key={g.id}
+                  className="picker-recipe-btn"
+                  onClick={() => handleSelectGatherer(g.id, g.name)}
+                >
+                  <ItemIcon itemId={g.outputItemId} size={20} />
+                  <span>{g.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {results.length > 0 && (
           <div className="picker-section">

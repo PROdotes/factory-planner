@@ -20,7 +20,7 @@ export function getSortedPorts(
   overrideY?: number,
   neighborOverrides?: Map<string, { y: number }>
 ) {
-  const { recipes } = useGameDataStore.getState();
+  const { recipes, gatherers } = useGameDataStore.getState();
   const currentY = overrideY ?? block.position.y;
 
   // 1. Identify all ports (items) the block supports
@@ -60,6 +60,11 @@ export function getSortedPorts(
         Object.keys(block.demand).find((k) => k !== "unknown") || "unknown";
       inputItems = [fallback];
       outputItems = [fallback];
+    }
+  } else if (block.type === "gatherer") {
+    const gathererId = (block as any).gathererId;
+    if (gathererId && gatherers[gathererId]) {
+      outputItems = [gatherers[gathererId].outputItemId];
     }
   }
 

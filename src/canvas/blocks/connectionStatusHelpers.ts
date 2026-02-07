@@ -5,7 +5,7 @@
  */
 
 import { BlockBase } from "../../factory/core/BlockBase";
-import { Recipe } from "../../gamedata/gamedata.types";
+import { Recipe, Gatherer } from "../../gamedata/gamedata.types";
 import { isBlockFailing } from "./blockHelpers";
 
 interface Connection {
@@ -25,19 +25,33 @@ interface RecipeMap {
   [id: string]: Recipe | undefined;
 }
 
+interface GathererMap {
+  [id: string]: Gatherer | undefined;
+}
+
 /**
  * Checks if a block is failing based on its primary output flow.
  * Used to determine the "chain of blame" for connection coloring.
  */
 export function checkBlockFailing(
   block: BlockBase,
-  recipes: RecipeMap
+  recipes: RecipeMap,
+  gatherers?: GathererMap
 ): boolean {
   const recipe = (block as any).recipeId
     ? recipes[(block as any).recipeId]
     : null;
-  const isGathering = recipe?.category === "Gathering";
-  const mainItemId = recipe?.outputs[0]?.itemId;
+  const isGatherer = block.type === "gatherer";
+
+  let mainItemId: string | undefined;
+  if (isGatherer) {
+    const gathererId = (block as any).gathererId;
+    mainItemId =
+      gathererId && gatherers ? gatherers[gathererId]?.outputItemId : undefined;
+  } else {
+    mainItemId = recipe?.outputs[0]?.itemId;
+  }
+
   const primaryFlow = mainItemId ? block.results?.flows?.[mainItemId] : null;
 
   return isBlockFailing(
@@ -46,7 +60,7 @@ export function checkBlockFailing(
     primaryFlow?.demand ?? 0,
     primaryFlow?.capacity ?? 0,
     block.type === "logistics",
-    isGathering
+    isGatherer
   );
 }
 
@@ -69,10 +83,11 @@ export function getConnectionStatus(
   source: BlockBase,
   target: BlockBase,
   conn: Connection,
-  recipes: RecipeMap
+  recipes: RecipeMap,
+  gatherers?: GathererMap
 ): ConnectionStatus {
-  const sourceIsFailing = checkBlockFailing(source, recipes);
-  const targetIsFailing = checkBlockFailing(target, recipes);
+  const sourceIsFailing = checkBlockFailing(source, recipes, gatherers);
+  const targetIsFailing = checkBlockFailing(target, recipes, gatherers);
 
   let isStarved = false;
   let isShortfall = false;

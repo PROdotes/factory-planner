@@ -5,8 +5,14 @@
  */
 
 import { ProductionBlock } from "../../factory/blocks/ProductionBlock";
+import { GathererBlock } from "../../factory/blocks/GathererBlock";
 import { BlockBase } from "../../factory/core/BlockBase";
-import { Recipe, Machine, RecipePort } from "../../gamedata/gamedata.types";
+import {
+  Recipe,
+  Machine,
+  RecipePort,
+  Gatherer,
+} from "../../gamedata/gamedata.types";
 
 export interface MachineMetrics {
   requiredMachineCount: number;
@@ -21,7 +27,8 @@ export function calculateMachineMetrics(
   block: BlockBase,
   recipe: Recipe | null,
   machine: Machine | null,
-  isPerMin: boolean
+  isPerMin: boolean,
+  gatherer?: Gatherer | null
 ): MachineMetrics {
   let requiredMachineCount = 0;
   let targetRateUnitValue = 0;
@@ -35,14 +42,10 @@ export function calculateMachineMetrics(
     const mainOutput = recipe?.outputs[0];
 
     if (recipe && mainOutput) {
-      const isGatherer = recipe.category === "Gathering";
-      const yieldMult = block.sourceYield ?? 1.0;
       const count = block.machineCount ?? 1.0;
-
       const ratePerMachine =
         (mainOutput.amount * machine.speed) / recipe.craftingTime;
-      const multiplier = isGatherer ? yieldMult : count;
-      const targetRate = ratePerMachine * multiplier;
+      const targetRate = ratePerMachine * count;
 
       requiredMachineCount = count;
       targetRateUnitValue = isPerMin ? targetRate * 60 : targetRate;
@@ -51,6 +54,13 @@ export function calculateMachineMetrics(
       requiredMachineCount = block.machineCount;
       targetRateUnitValue = block.machineCount * machine.generation;
     }
+  } else if (block instanceof GathererBlock && machine && gatherer) {
+    const yieldMult = block.sourceYield ?? 1.0;
+    const count = block.machineCount ?? 1.0;
+    const targetRate = gatherer.extractionRate * machine.speed * yieldMult;
+
+    requiredMachineCount = count;
+    targetRateUnitValue = isPerMin ? targetRate * 60 : targetRate;
   }
 
   return { requiredMachineCount, targetRateUnitValue, isGenerator };
@@ -88,10 +98,13 @@ export interface FooterMetrics {
  */
 export function calculateFooterMetrics(
   block: BlockBase,
-  mainOutput: RecipePort | undefined
+  mainOutput: RecipePort | undefined,
+  gatherer?: Gatherer | null
 ): FooterMetrics {
-  const primaryFlow = mainOutput
-    ? block.results?.flows?.[mainOutput.itemId]
+  // For gatherers, use the outputItemId
+  const outputItemId = mainOutput?.itemId ?? gatherer?.outputItemId;
+  const primaryFlow = outputItemId
+    ? block.results?.flows?.[outputItemId]
     : null;
 
   const actual = primaryFlow?.sent ?? 0;
