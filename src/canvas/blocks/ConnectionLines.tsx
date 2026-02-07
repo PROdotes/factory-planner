@@ -12,10 +12,13 @@ import { useUIStore } from "../uiStore";
 import { usePortPositions, getPortOffset } from "../hooks/usePortPositions";
 import { useGhostEdgeDrag } from "../hooks/useGhostEdgeDrag";
 import { bezier, midpoint, portXY } from "../utils/connectionGeometry";
+import { ItemIcon } from "./ItemIcon";
 import {
   getConnectionStatus,
-  formatConnectionLabel,
+  getConnectionLabelData,
+  ConnectionLabelData,
 } from "./connectionStatusHelpers";
+import { hasBeltTiers, getNextBeltTier } from "../../gamedata/beltGroups";
 
 // --- ConnectionPath: draws a single bezier between two absolute points ---
 
@@ -29,8 +32,9 @@ interface ConnectionPathProps {
   targetPos: { x: number; y: number };
   sourcePortY: number;
   targetPortY: number;
-  label: string;
+  labelData: ConnectionLabelData;
   itemId: string;
+  beltId?: string;
   isDimmed: boolean;
   isStarved: boolean;
   isShortfall: boolean;
@@ -38,6 +42,7 @@ interface ConnectionPathProps {
   rate: number;
   version: number;
   onSelect: (id: string) => void;
+  onBeltChange: (id: string, newBeltId: string) => void;
 }
 
 const ConnectionPath = memo(
@@ -51,8 +56,9 @@ const ConnectionPath = memo(
     targetPos,
     sourcePortY,
     targetPortY,
-    label,
+    labelData,
     itemId,
+    beltId,
     isDimmed,
     isStarved,
     isShortfall,
@@ -60,6 +66,7 @@ const ConnectionPath = memo(
     rate,
     version,
     onSelect,
+    onBeltChange,
   }: ConnectionPathProps) => {
     const pathRef = useRef<SVGPathElement>(null);
     const hitRef = useRef<SVGPathElement>(null);
@@ -176,6 +183,16 @@ const ConnectionPath = memo(
         onClick={(e) => {
           e.stopPropagation();
           onSelect(id);
+          // If already selected, cycle belt tier
+          if (isSelected && hasBeltTiers(beltId)) {
+            const nextBelt = getNextBeltTier(beltId);
+            onBeltChange(id, nextBelt);
+          }
+        }}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          // Direct cycle on double click?
+          // Or single click if selected
         }}
         style={{ pointerEvents: "auto", cursor: "pointer" }}
       >
@@ -225,32 +242,74 @@ const ConnectionPath = memo(
         <g
           ref={labelRef}
           transform={`translate(${mid.x}, ${mid.y})`}
-          style={{ opacity: isDimmed ? 0 : 1, pointerEvents: "none" }}
+          style={{ opacity: isDimmed ? 0 : 1, pointerEvents: "auto" }}
         >
-          <rect
-            x="-60"
-            y="-10"
-            width="120"
-            height="20"
-            fill="rgba(10, 11, 16, 0.8)"
-            rx="4"
-          />
-          <text
-            x="0"
-            y="4"
-            fill={
-              isStarved
-                ? "var(--flow-error)"
-                : isShortfall
-                ? "var(--flow-warning)"
-                : "var(--text-main)"
-            }
-            fontSize="11"
-            fontWeight="600"
-            textAnchor="middle"
+          <foreignObject
+            x="-100"
+            y="-40"
+            width="200"
+            height="80"
+            style={{ overflow: "visible", pointerEvents: "none" }}
           >
-            {label}
-          </text>
+            <div
+              style={{
+                width: "fit-content",
+                minWidth: "max-content",
+                margin: "0 auto",
+                background: "rgba(10, 11, 16, 0.95)",
+                border: `1px solid ${
+                  isStarved
+                    ? "var(--flow-error)"
+                    : isShortfall
+                    ? "var(--flow-warning)"
+                    : "rgba(255,255,255,0.15)" // Slightly brighter border
+                }`,
+                borderRadius: 8,
+                padding: "4px 10px", // Less horizontal padding visually relative to content
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                color: isStarved
+                  ? "var(--flow-error)"
+                  : isShortfall
+                  ? "var(--flow-warning)"
+                  : "var(--text-main)",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.6)",
+                backdropFilter: "blur(8px)",
+                gap: 2,
+                pointerEvents: "auto",
+                transform: "translateY(10px)",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: "0.9rem",
+                  fontWeight: 700,
+                  letterSpacing: "0.5px",
+                }}
+              >
+                <ItemIcon itemId={itemId} size={20} />
+                <span>
+                  {labelData.beltCount}× {labelData.beltTier}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  fontSize: "0.75rem",
+                  opacity: 0.9,
+                  fontFamily: "monospace",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {labelData.rateText}
+              </div>
+            </div>
+          </foreignObject>
         </g>
       </g>
     );
@@ -341,7 +400,6 @@ const ConnectionPathWithPorts = memo(
     conn,
     source,
     target,
-    items,
     isDimmed,
     isSelected,
     onSelect,
@@ -359,6 +417,7 @@ const ConnectionPathWithPorts = memo(
     version: number;
   }) => {
     const { recipes, gatherers } = useGameDataStore();
+    const { setBelt } = useFactoryStore();
     const sourcePorts = usePortPositions(source, version);
     const targetPorts = usePortPositions(target, version);
 
@@ -378,9 +437,8 @@ const ConnectionPathWithPorts = memo(
       gatherers
     );
 
-    const label = formatConnectionLabel(
+    const labelData = getConnectionLabelData(
       conn,
-      items,
       isPerMin,
       planRequired,
       machineRequired
@@ -397,13 +455,15 @@ const ConnectionPathWithPorts = memo(
         targetPos={target.position}
         sourcePortY={sourcePortY}
         targetPortY={targetPortY}
-        label={label}
+        labelData={labelData}
         itemId={conn.itemId}
+        beltId={conn.beltId}
         isDimmed={isDimmed}
         isStarved={isStarved}
         isShortfall={isShortfall}
         isSelected={isSelected}
         onSelect={onSelect}
+        onBeltChange={setBelt}
         rate={conn.rate}
         version={version}
       />

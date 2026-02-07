@@ -283,7 +283,12 @@ function backwardPass(
 
         // 1. Calculate goals for each recipe output
         const outputGoals: Record<string, number> = {};
-        const effectiveTime = getEffectiveTime(recipe, machines);
+        const activeMachineId = block.machineId || recipe.machineId;
+        const effectiveTime = getEffectiveTime(
+          recipe,
+          machines,
+          activeMachineId
+        );
 
         for (const out of recipe.outputs) {
           const itemId = out.itemId;
@@ -436,7 +441,12 @@ function forwardPass(
       }
       // 3. CASE B: Production Machines (Assemblers, Smelters, etc.)
       else if (recipe) {
-        const effectiveTime = getEffectiveTime(recipe, machines);
+        const activeMachineId = block.machineId || recipe.machineId;
+        const effectiveTime = getEffectiveTime(
+          recipe,
+          machines,
+          activeMachineId
+        );
         if (!Number.isFinite(effectiveTime) || effectiveTime <= EPSILON) {
           block.satisfaction = 0;
           block.output = {};
@@ -649,9 +659,10 @@ function aggregateEdges(
 
 function getEffectiveTime(
   recipe: Recipe,
-  machines: Record<string, Machine> | undefined
+  machines: Record<string, Machine> | undefined,
+  machineId: string
 ): number {
-  const speed = machines?.[recipe.machineId]?.speed ?? 1.0;
+  const speed = machines?.[machineId]?.speed ?? 1.0;
   if (!Number.isFinite(speed) || speed <= 0) return NaN;
   return recipe.craftingTime / speed;
 }
@@ -663,7 +674,8 @@ function getBlockCapacities(
   _isGatherer: boolean = false
 ): Record<string, number> {
   const capacities: Record<string, number> = {};
-  const effectiveTime = getEffectiveTime(recipe, machines);
+  const activeMachineId = block.machineId || recipe.machineId;
+  const effectiveTime = getEffectiveTime(recipe, machines, activeMachineId);
   if (!Number.isFinite(effectiveTime) || effectiveTime <= EPSILON)
     return capacities;
 

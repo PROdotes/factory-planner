@@ -39,6 +39,7 @@ interface FactoryState {
   setRecipe: (blockId: string, recipeId: string | null) => void;
   setGatherer: (blockId: string, gathererId: string | null) => void;
   setMachine: (blockId: string, machineId: string | null) => void;
+  setBelt: (connectionId: string, beltId: string) => void;
   selectBlock: (id: string | null) => void;
   selectConnection: (id: string | null) => void;
   updateBlockName: (id: string, name: string) => void;
@@ -208,15 +209,45 @@ export const useFactoryStore = create<FactoryState>((set, get) => {
 
     setMachine: (blockId, machineId) => {
       const { factory } = get();
+      const { recipes, machines } = useGameDataStore.getState();
       const block = factory.blocks.get(blockId);
-      if (
-        block &&
-        (block instanceof ProductionBlock || block instanceof GathererBlock)
-      ) {
+
+      if (block) {
         undoRedoManager.push(factory);
-        block.setMachine(machineId);
+
+        if (block instanceof ProductionBlock) {
+          // 1. Resolve Old Speed
+          const recipe = block.recipeId ? recipes[block.recipeId] : null;
+          const oldMachineId = block.machineId || recipe?.machineId;
+          const oldSpeed = oldMachineId ? machines[oldMachineId]?.speed : 1.0;
+
+          // 2. Resolve New Speed
+          const newSpeed = machines[machineId as string]?.speed || 1.0;
+
+          // 3. Adjust Count to Maintain Rate
+          if (oldSpeed && newSpeed && oldSpeed !== newSpeed) {
+            block.machineCount = block.machineCount * (oldSpeed / newSpeed);
+          }
+        }
+
+        if (
+          block instanceof ProductionBlock ||
+          block instanceof GathererBlock
+        ) {
+          block.setMachine(machineId);
+          set((state) => ({ version: state.version + 1 }));
+          debouncedSolve();
+        }
+      }
+    },
+
+    setBelt: (connectionId, beltId) => {
+      const { factory } = get();
+      const conn = factory.connections.find((c) => c.id === connectionId);
+      if (conn) {
+        undoRedoManager.push(factory);
+        conn.beltId = beltId;
         set((state) => ({ version: state.version + 1 }));
-        debouncedSolve();
       }
     },
 

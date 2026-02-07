@@ -9,7 +9,7 @@ import { useUIStore } from "../uiStore";
 import { useGameDataStore } from "../../gamedata/gamedataStore";
 import { useFactoryStore } from "../../factory/factoryStore";
 import { ItemIcon } from "./ItemIcon";
-import { GitBranch, X } from "lucide-react";
+import { GitBranch, X, ArrowRightLeft } from "lucide-react";
 
 export function ImplicitSearchPicker() {
   const { implicitSearch, setImplicitSearch } = useUIStore();
@@ -22,6 +22,7 @@ export function ImplicitSearchPicker() {
     runSolver,
     addGatherer,
     setGatherer,
+    factory,
   } = useFactoryStore();
   const pickerRef = useRef<HTMLDivElement>(null);
 
@@ -46,6 +47,62 @@ export function ImplicitSearchPicker() {
     const { itemId } = implicitSearch;
     return Object.values(gatherers).filter((g) => g.outputItemId === itemId);
   }, [implicitSearch, gatherers]);
+
+  // Find existing blocks to connect to
+  const existingConnections = useMemo(() => {
+    if (!implicitSearch) return [];
+    const { blockId, itemId, side } = implicitSearch;
+
+    return Array.from(factory.blocks.values()).filter((block) => {
+      if (block.id === blockId) return false; // Don't connect to self
+
+      // Check if already connected
+      const isConnected = factory.connections.some(
+        (c) =>
+          c.itemId === itemId &&
+          ((side === "right" &&
+            c.sourceBlockId === blockId &&
+            c.targetBlockId === block.id) ||
+            (side === "left" &&
+              c.sourceBlockId === block.id &&
+              c.targetBlockId === blockId))
+      );
+      if (isConnected) return false;
+
+      // Check compatibility
+      if (side === "right") {
+        // We are Outputting Item -> Look for Consumers
+        // 1. Production Block with matching input
+        if (block.type === "production") {
+          const recipe = (block as any).recipeId
+            ? recipes[(block as any).recipeId]
+            : null;
+          return recipe?.inputs.some((i) => i.itemId === itemId);
+        }
+        // 2. Logistics (Junctions accept anything)
+        if (block.type === "logistics") return true;
+      } else {
+        // We need Input Item -> Look for Producers
+        // 1. Production Block with matching output
+        if (block.type === "production") {
+          const recipe = (block as any).recipeId
+            ? recipes[(block as any).recipeId]
+            : null;
+          return recipe?.outputs.some((o) => o.itemId === itemId);
+        }
+        // 2. Gatherer with matching output
+        if (block.type === "gatherer") {
+          const gatherer = (block as any).gathererId
+            ? gatherers[(block as any).gathererId]
+            : null;
+          return gatherer?.outputItemId === itemId;
+        }
+        // 3. Logistics (Junctions supply anything if fed)
+        if (block.type === "logistics") return true;
+      }
+      return false;
+    });
+  }, [implicitSearch, factory.blocks, factory.connections, recipes, gatherers]);
 
   // Handle clicks outside to close
   useEffect(() => {
@@ -114,6 +171,16 @@ export function ImplicitSearchPicker() {
     setImplicitSearch(null);
   };
 
+  const handleConnectExisting = (targetBlockId: string) => {
+    if (implicitSearch?.side === "right") {
+      connect(implicitSearch.blockId, targetBlockId, implicitSearch.itemId);
+    } else if (implicitSearch) {
+      connect(targetBlockId, implicitSearch.blockId, implicitSearch.itemId);
+    }
+    runSolver();
+    setImplicitSearch(null);
+  };
+
   return (
     <div
       className="implicit-picker"
@@ -144,6 +211,34 @@ export function ImplicitSearchPicker() {
             </button>
           </div>
         </div>
+
+        {existingConnections.length > 0 && (
+          <div className="picker-section">
+            <div className="section-title">Connect to Existing</div>
+            <div className="recipe-grid">
+              {existingConnections.map((block) => (
+                <button
+                  key={block.id}
+                  className="picker-recipe-btn existing-conn-btn"
+                  onClick={() => handleConnectExisting(block.id)}
+                  style={{
+                    border: "1px dashed var(--accent)",
+                    background: "rgba(241, 196, 15, 0.05)",
+                  }}
+                >
+                  <ArrowRightLeft size={16} className="icon-subtle" />
+                  <div className="btn-col">
+                    <span className="btn-title">{block.name}</span>
+                    <span className="btn-subtitle">
+                      {Math.round(block.position.x)},{" "}
+                      {Math.round(block.position.y)}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {matchingGatherers.length > 0 && (
           <div className="picker-section">

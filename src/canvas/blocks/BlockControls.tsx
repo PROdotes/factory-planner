@@ -9,6 +9,10 @@ import { ProductionBlock } from "../../factory/blocks/ProductionBlock";
 import { GathererBlock } from "../../factory/blocks/GathererBlock";
 import { Recipe, Machine, Gatherer } from "../../gamedata/gamedata.types";
 import { ItemIcon } from "./ItemIcon";
+import {
+  hasMachineTiers,
+  getNextMachineTier,
+} from "../../gamedata/machineGroups";
 
 interface Props {
   block: ProductionBlock | GathererBlock;
@@ -22,6 +26,7 @@ interface Props {
   onMachineCountChange: (count: number) => void;
   onRateChange: (rate: number) => void;
   onYieldChange: (yieldVal: number) => void;
+  onMachineChange: (newMachineId: string) => void;
 }
 
 export const BlockControls = memo(
@@ -37,6 +42,7 @@ export const BlockControls = memo(
     onMachineCountChange,
     onRateChange,
     onYieldChange,
+    onMachineChange,
   }: Props) => {
     const [isEditingCount, setIsEditingCount] = useState(false);
     const [editCount, setEditCount] = useState("");
@@ -102,15 +108,26 @@ export const BlockControls = memo(
           ? targetRateUnitValue + delta
           : targetRateUnitValue - delta;
       onRateChange(Math.max(0, next));
+      onRateChange(Math.max(0, next));
+    };
+
+    const handleMachineClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (hasMachineTiers(machine.id)) {
+        const nextId = getNextMachineTier(machine.id);
+        onMachineChange(nextId);
+      }
     };
 
     const isGenerator = !!machine.generation && !recipe;
 
     const yieldLabel = isGenerator
       ? "POWER"
-      : gatherer?.id.includes("pump") || gatherer?.id.includes("extractor")
-      ? "YIELD %"
-      : "VEINS";
+      : gatherer?.id.includes("water")
+      ? "PUMPS" // Water pumps use yield as count
+      : gatherer?.id.includes("oil")
+      ? "SEEP RATE" // Oil uses yield as seep rate
+      : "VEINS"; // Miners use yield as vein count
 
     const yieldTitle = isGenerator
       ? "Power Output (MW)"
@@ -118,11 +135,23 @@ export const BlockControls = memo(
       ? "Yield Multiplier (%)"
       : "Veins Count";
 
+    const machineHasTiers = hasMachineTiers(machine.id);
+
     return (
       <div className="controls-row">
         {/* Machine icon */}
-        <div className="machine-info" title={machine.id}>
+        <div
+          className={`machine-info ${machineHasTiers ? "has-tiers" : ""}`}
+          title={
+            machineHasTiers
+              ? `Current: ${machine.id}\nClick to swap tier`
+              : machine.id
+          }
+          onClick={handleMachineClick}
+          style={{ cursor: machineHasTiers ? "pointer" : "default" }}
+        >
           <ItemIcon itemId={machine.id} size={24} />
+          {machineHasTiers && <div className="tier-indicator">▲</div>}
         </div>
 
         {/* 1. Primary Control: Veins for gatherers, Machines for others */}

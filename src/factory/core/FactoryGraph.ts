@@ -101,6 +101,7 @@ export class FactoryGraph {
       sourceBlockId: sourceId,
       targetBlockId: targetId,
       itemId,
+      beltId: "conveyor-belt-mk-i", // Default to Mk.1
       demand: 0,
       rate: 0,
     };

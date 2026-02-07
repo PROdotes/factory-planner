@@ -7,17 +7,20 @@
 import { BlockBase } from "../../factory/core/BlockBase";
 import { Recipe, Gatherer } from "../../gamedata/gamedata.types";
 import { isBlockFailing } from "./blockHelpers";
+import { BELT_SPEEDS } from "../../gamedata/beltGroups";
 
 interface Connection {
   id: string;
   sourceBlockId: string;
   targetBlockId: string;
   itemId: string;
+  beltId?: string;
   rate: number;
   demand: number;
 }
 
-interface ItemMap {
+// ItemMap is now implicitly used in formatters
+export interface ItemMap {
   [id: string]: { name: string } | undefined;
 }
 
@@ -112,27 +115,54 @@ export function getConnectionStatus(
   return { isStarved, isShortfall };
 }
 
+export interface ConnectionLabelData {
+  beltCount: number;
+  beltTier: string;
+  rateText: string;
+}
+
 /**
- * Formats the label shown on a connection line.
- * Shows "ItemName (actual/plan/m)" when plan exceeds machine capacity,
- * otherwise just "ItemName (actual/m)".
+ * Returns structured data for the connection label:
+ * - beltCount: Ceiled number of belts needed (e.g. 2)
+ * - beltTier: "MK.1", "MK.2", "MK.3"
+ * - rateText: "360/m" or "360 / 720/m"
  */
-export function formatConnectionLabel(
+export function getConnectionLabelData(
   conn: Connection,
-  items: ItemMap,
   isPerMin: boolean,
   planRequired: number,
   machineRequired: number
-): string {
+): ConnectionLabelData {
   const rateMult = isPerMin ? 60 : 1;
   const rateLabel = isPerMin ? "/m" : "/s";
 
   const actualStr = (conn.rate * rateMult).toFixed(1);
   const planStr = (planRequired * rateMult).toFixed(1);
-  const itemName = items[conn.itemId]?.name || conn.itemId;
 
+  // 1. Resolve Belt Tier Label
+  const beltTier = conn.beltId
+    ? conn.beltId.includes("iii")
+      ? "MK.3"
+      : conn.beltId.includes("ii")
+      ? "MK.2"
+      : "MK.1"
+    : "MK.1";
+
+  // 2. Resolve Belt Count
+  const selectedBeltId = conn.beltId || "conveyor-belt-mk-i";
+  const beltSpeed = BELT_SPEEDS[selectedBeltId] || 6;
+  const targetFlow = Math.max(conn.rate, planRequired, machineRequired);
+
+  // Ceil logic: 0.1 -> 1 belt
+  const beltsRequiredRaw = targetFlow / beltSpeed;
+  const beltsRequiredSeq = Math.ceil(beltsRequiredRaw - 0.0001);
+  const beltCount = Math.max(1, beltsRequiredSeq);
+
+  // 3. Rate Text
+  let rateText = `${actualStr}${rateLabel}`;
   if (planRequired > machineRequired + 0.001) {
-    return `${itemName} (${actualStr} / ${planStr}${rateLabel})`;
+    rateText = `${actualStr} / ${planStr}${rateLabel}`;
   }
-  return `${itemName} (${actualStr}${rateLabel})`;
+
+  return { beltCount, beltTier, rateText };
 }

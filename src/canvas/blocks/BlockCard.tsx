@@ -50,6 +50,7 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
     selectedBlockId,
     removeBlock,
     updateBlockName,
+    setMachine,
   } = useFactoryStore();
 
   const isSelected = selectedBlockId === block.id;
@@ -98,13 +99,13 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
     block instanceof GathererBlock && block.gathererId
       ? gatherers[block.gathererId]
       : null;
-  const machine = recipe
-    ? machines[recipe.machineId]
-    : gatherer
-    ? machines[gatherer.machineId]
-    : block instanceof ProductionBlock && block.machineId
-    ? machines[block.machineId]
-    : null;
+  const machineId =
+    (block instanceof ProductionBlock || block instanceof GathererBlock) &&
+    block.machineId
+      ? block.machineId
+      : recipe?.machineId ?? gatherer?.machineId;
+
+  const machine = machineId ? machines[machineId] : null;
 
   // Calculate metrics using extracted utilities
   const { requiredMachineCount, targetRateUnitValue, isGenerator } =
@@ -149,6 +150,10 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
           commitOutputRate: () => {},
           commitYield: () => {},
         };
+
+  const commitMachine = (newMachineId: string) => {
+    setMachine(block.id, newMachineId);
+  };
 
   const isLogistics = block.type === "logistics";
   const cardHeight = isLogistics
@@ -313,6 +318,7 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
                       onMachineCountChange={commitMachineCount}
                       onRateChange={commitOutputRate}
                       onYieldChange={commitYield}
+                      onMachineChange={commitMachine}
                     />
                   )}
                 {block instanceof GathererBlock && machine && gatherer && (
@@ -326,6 +332,7 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
                     onMachineCountChange={commitMachineCount}
                     onRateChange={commitOutputRate}
                     onYieldChange={commitYield}
+                    onMachineChange={commitMachine}
                   />
                 )}
 

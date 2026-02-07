@@ -58,6 +58,7 @@ export interface Connection {
   sourceBlockId: string;
   targetBlockId: string;
   itemId: string;
+  beltId?: string; // Optional belt tier (e.g., "conveyor-belt-mk-ii")
   demand: number;
   rate: number;
 }
