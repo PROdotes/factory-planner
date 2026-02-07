@@ -14,7 +14,6 @@ import {
   Hammer,
   BarChart3,
   Play,
-  RefreshCw,
   Target,
   Settings,
   Download,
@@ -54,8 +53,6 @@ export function App() {
     toggleRightSidebar,
     focusedNodeId,
     toggleFocus,
-    autoSolveEnabled,
-    toggleAutoSolve,
     iconMapperOpen,
     setIconMapperOpen,
   } = useUIStore();
@@ -110,12 +107,12 @@ export function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [undo, redo, saveToLocalStorage]);
 
-  // [Solver Watcher] - Ensure rates update when modes change
+  // [Solver Watcher] - Ensure rates update when data loads
   useEffect(() => {
-    if (isLoaded && autoSolveEnabled) {
+    if (isLoaded) {
       runSolver();
     }
-  }, [isLoaded, autoSolveEnabled, runSolver]);
+  }, [isLoaded, runSolver]);
 
   if (error) {
     return (
@@ -159,27 +156,14 @@ export function App() {
           </button>
 
           <button
-            className="toolbar-btn"
-            onClick={runSolver}
-            title="Run Solver"
-          >
-            <RefreshCw size={16} /> <span>Solve Rates</span>
-          </button>
-
-          <button
-            className={`toolbar-btn ${autoSolveEnabled ? "primary" : ""}`}
+            className="toolbar-btn primary"
             onClick={() => {
-              toggleAutoSolve();
-              runSolver();
+              const { autoScale } = useFactoryStore.getState();
+              autoScale();
             }}
-            title={
-              autoSolveEnabled
-                ? "Auto-Pilot: Solver writes values"
-                : "Advisory: Manual control"
-            }
+            title="Auto-Scale: Batch set machine counts to match demand"
           >
-            <Play size={16} />{" "}
-            <span>{autoSolveEnabled ? "Auto" : "Manual"}</span>
+            <Play size={16} /> <span>Optimize Machines</span>
           </button>
 
           {focusedNodeId && (

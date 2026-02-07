@@ -12,11 +12,10 @@ interface UIState {
   focusedNodeId: string | null;
 
   rateUnit: "per_second" | "per_minute";
-  autoSolveEnabled: boolean;
   implicitSearch: {
     blockId: string;
     itemId: string;
-    side: "left" | "right";
+    side: "left" | "right" | "Junction";
     worldPos: { x: number; y: number };
     clientPos: { x: number; y: number };
   } | null;
@@ -29,7 +28,6 @@ interface UIState {
   setRightSidebar: (open: boolean) => void;
   toggleFocus: (nodeId: string | null) => void;
   toggleRateUnit: () => void;
-  toggleAutoSolve: () => void;
   setImplicitSearch: (state: UIState["implicitSearch"] | null) => void;
   setIconMapperOpen: (open: boolean) => void;
   setWindEfficiency: (efficiency: number) => void;
@@ -40,7 +38,6 @@ export const useUIStore = create<UIState>((set) => ({
   leftSidebarOpen: true,
   rightSidebarOpen: true,
   rateUnit: "per_minute",
-  autoSolveEnabled: false, // Default to Advisory Mode
   implicitSearch: null,
   iconMapperOpen: false,
   windEfficiency: 1.0,
@@ -54,8 +51,6 @@ export const useUIStore = create<UIState>((set) => ({
     set((state) => ({
       rateUnit: state.rateUnit === "per_second" ? "per_minute" : "per_second",
     })),
-  toggleAutoSolve: () =>
-    set((state) => ({ autoSolveEnabled: !state.autoSolveEnabled })),
   setImplicitSearch: (implicitSearch) => set({ implicitSearch }),
   setIconMapperOpen: (iconMapperOpen) => set({ iconMapperOpen }),
   setWindEfficiency: (windEfficiency) => set({ windEfficiency }),

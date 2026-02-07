@@ -4,44 +4,18 @@
  * RELATION: FLOW mode visualization.
  */
 
-import { memo, useState, useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import { useFactoryStore } from "../../factory/factoryStore";
 import { useGameDataStore } from "../../gamedata/gamedataStore";
 import { useHighlightSet } from "../hooks/useHighlightSet";
 import { useUIStore } from "../uiStore";
-import { FLOW_CONFIG } from "../LayoutConfig";
 import { usePortPositions, getPortOffset } from "../hooks/usePortPositions";
-import { isBlockFailing } from "./blockHelpers";
-
-// --- Geometry helpers ---
-
-function bezier(x1: number, y1: number, x2: number, y2: number) {
-  const dx = x2 - x1;
-  return `M ${x1} ${y1} C ${x1 + dx * 0.4} ${y1}, ${
-    x2 - dx * 0.4
-  } ${y2}, ${x2} ${y2}`;
-}
-
-function midpoint(x1: number, y1: number, x2: number, y2: number) {
-  return { x: (x1 + x2) / 2, y: (y1 + y2) / 2 - 15 };
-}
-
-// --- Absolute port position from block position + port Y offset ---
-
-function portXY(
-  blockX: number,
-  blockY: number,
-  side: "left" | "right",
-  portY: number,
-  type?: string
-) {
-  const width =
-    type === "logistics" ? FLOW_CONFIG.JUNCTION_SIZE : FLOW_CONFIG.BLOCK_WIDTH;
-  return {
-    x: side === "left" ? blockX : blockX + width,
-    y: blockY + portY,
-  };
-}
+import { useGhostEdgeDrag } from "../hooks/useGhostEdgeDrag";
+import { bezier, midpoint, portXY } from "../utils/connectionGeometry";
+import {
+  getConnectionStatus,
+  formatConnectionLabel,
+} from "./connectionStatusHelpers";
 
 // --- ConnectionPath: draws a single bezier between two absolute points ---
 
@@ -168,16 +142,14 @@ const ConnectionPath = memo(
         }
       };
 
-      // NEW: Listen for dynamic port reordering during drag
+      // Listen for dynamic port reordering during drag
       const onPortsUpdate = (e: any) => {
         const { blockId, ports } = e.detail;
         if (blockId === sourceBlockId) {
-          // Find new Y offset for our source item
           const newY = getPortOffset(ports, "right", itemId);
           portsRef.current.sourcePortY = newY;
           flush();
         } else if (blockId === targetBlockId) {
-          // Find new Y offset for our target item
           const newY = getPortOffset(ports, "left", itemId);
           portsRef.current.targetPortY = newY;
           flush();
@@ -245,7 +217,6 @@ const ConnectionPath = memo(
                 : isSelected
                 ? "drop-shadow(0 0 10px var(--accent))"
                 : "drop-shadow(0 0 5px var(--flow-success-glow))",
-              // @ts-ignore
               "--flow-duration": `${flowDuration}s`,
             } as any
           }
@@ -307,174 +278,8 @@ export const ConnectionLines = memo(
     const { rateUnit } = useUIStore();
     const isPerMin = rateUnit === "per_minute";
 
-    // --- Ghost edge for drag-to-connect ---
-    const [ghostEdge, setGhostEdge] = useState<{
-      x1: number;
-      y1: number;
-      x2: number;
-      y2: number;
-    } | null>(null);
-    const activeDrag = useRef<any>(null);
-
-    useEffect(() => {
-      const onStart = (e: any) => {
-        const { x, y, blockId, itemId, side } = e.detail;
-        activeDrag.current = { blockId, itemId, side };
-        (window as any).activePortDrag = activeDrag.current;
-
-        const start = clientToWorld(x, y);
-        setGhostEdge({ x1: start.x, y1: start.y, x2: start.x, y2: start.y });
-
-        const onMove = (moveEv: MouseEvent) => {
-          const pt = clientToWorld(moveEv.clientX, moveEv.clientY);
-          setGhostEdge((prev) =>
-            prev ? { ...prev, x2: pt.x, y2: pt.y } : null
-          );
-        };
-
-        const onUp = (upEv: MouseEvent) => {
-          window.removeEventListener("mousemove", onMove);
-          window.removeEventListener("mouseup", onUp as any);
-
-          // RACE PROTECTION: Delay the cleanup slightly so 'onEnd' can finish
-          setTimeout(() => {
-            if (activeDrag.current) {
-              const pt = clientToWorld(upEv.clientX, upEv.clientY);
-              useUIStore.getState().setImplicitSearch({
-                ...activeDrag.current,
-                worldPos: pt,
-                clientPos: { x: upEv.clientX, y: upEv.clientY },
-              });
-              activeDrag.current = null;
-              (window as any).activePortDrag = null;
-            }
-            setGhostEdge(null);
-          }, 10);
-        };
-
-        window.addEventListener("mousemove", onMove);
-        window.addEventListener("mouseup", onUp as any);
-      };
-
-      const onEnd = (e: any) => {
-        if (!activeDrag.current) {
-          console.log("[CONNECTION] Ignoring drop: No active drag.");
-          return;
-        }
-        const src = activeDrag.current;
-        const tgt = e.detail;
-
-        console.log("[CONNECTION] Resolving drop:", { src, tgt });
-
-        // Validation: Items must match! (Allow 'unknown' to adopt the other side's item)
-        const effectiveItemId =
-          src.itemId !== "unknown" ? src.itemId : tgt.itemId;
-
-        if (
-          src.itemId !== "unknown" &&
-          tgt.itemId !== "unknown" &&
-          src.itemId !== tgt.itemId
-        ) {
-          console.warn(
-            `[CONNECTION] ABORT: Mismatched items: ${src.itemId} vs ${tgt.itemId}`
-          );
-          activeDrag.current = null;
-          (window as any).activePortDrag = null;
-          return;
-        }
-
-        if (effectiveItemId === "unknown") {
-          console.warn("[CONNECTION] ABORT: Still unknown item on both sides.");
-          activeDrag.current = null;
-          (window as any).activePortDrag = null;
-          return;
-        }
-
-        // HOLISTIC: Bi-Directional Junction Resolve
-        let canConnect = false;
-        let finalSrcBlockId = src.blockId;
-        let finalTgtBlockId = tgt.blockId;
-
-        // CASE 1: Both are Junctions
-        if (src.side === "Junction" && tgt.side === "Junction") {
-          if (src.itemId !== "unknown") {
-            // Src has item, it must be the source
-            finalSrcBlockId = src.blockId;
-            finalTgtBlockId = tgt.blockId;
-            canConnect = true;
-          } else if (tgt.itemId !== "unknown") {
-            // Tgt has the item, it must be the source
-            finalSrcBlockId = tgt.blockId;
-            finalTgtBlockId = src.blockId;
-            canConnect = true;
-          } else {
-            // Both unknown - Abort
-            console.warn("[CONNECTION] Cannot link two empty junctions.");
-          }
-        }
-        // CASE 2: Dragging FROM a Junction to a machine
-        else if (src.side === "Junction") {
-          if (tgt.side === "left") {
-            // Dragging to an INPUT -> Junction is SOURCE
-            finalSrcBlockId = src.blockId;
-            finalTgtBlockId = tgt.blockId;
-            canConnect = true;
-          } else if (tgt.side === "right") {
-            // Dragging to an OUTPUT -> Junction is TARGET
-            finalSrcBlockId = tgt.blockId;
-            finalTgtBlockId = src.blockId;
-            canConnect = true;
-          }
-        }
-        // CASE 3: Dragging FROM a machine TO a Junction
-        else if (tgt.side === "Junction") {
-          if (src.side === "right") {
-            // From OUTPUT to Junction -> Junction is TARGET
-            finalSrcBlockId = src.blockId;
-            finalTgtBlockId = tgt.blockId;
-            canConnect = true;
-          } else if (src.side === "left") {
-            // From INPUT to Junction -> Junction is SOURCE
-            finalSrcBlockId = tgt.blockId;
-            finalTgtBlockId = src.blockId;
-            canConnect = true;
-          }
-        }
-        // CASE 4: Standard Machine-to-Machine
-        else if (src.side === "right" && tgt.side === "left") {
-          canConnect = true;
-        } else if (src.side === "left" && tgt.side === "right") {
-          finalSrcBlockId = tgt.blockId;
-          finalTgtBlockId = src.blockId;
-          canConnect = true;
-        }
-
-        if (canConnect) {
-          console.log("[CONNECTION] FINAL ACTION:", {
-            src: finalSrcBlockId,
-            tgt: finalTgtBlockId,
-            item: effectiveItemId,
-          });
-          connect(finalSrcBlockId, finalTgtBlockId, effectiveItemId);
-          runSolver();
-        } else {
-          console.warn("[CONNECTION] ABORT: No valid directional role.", {
-            srcSide: src.side,
-            tgtSide: tgt.side,
-          });
-        }
-
-        activeDrag.current = null;
-        (window as any).activePortDrag = null;
-      };
-
-      window.addEventListener("port-drag-start", onStart as any);
-      window.addEventListener("port-drag-end", onEnd as any);
-      return () => {
-        window.removeEventListener("port-drag-start", onStart as any);
-        window.removeEventListener("port-drag-end", onEnd as any);
-      };
-    }, [clientToWorld, connect, runSolver]);
+    // Ghost edge management via extracted hook
+    const { ghostEdge } = useGhostEdgeDrag(clientToWorld, connect, runSolver);
 
     return (
       <svg
@@ -560,65 +365,25 @@ const ConnectionPathWithPorts = memo(
     const sourcePortY = getPortOffset(sourcePorts, "right", conn.itemId);
     const targetPortY = getPortOffset(targetPorts, "left", conn.itemId);
 
-    const rateMult = isPerMin ? 60 : 1;
-    const rateLabel = isPerMin ? "/m" : "/s";
-
     const targetFlow = target.results?.flows?.[conn.itemId];
     const machineRequired = targetFlow?.capacity ?? 0;
     const planRequired = conn.demand;
 
-    // BELT COLOR LOGIC: User's 'Chain of Blame' Model
-    const checkFailing = (block: any) => {
-      const recipe = block.recipeId ? recipes[block.recipeId] : null;
-      const mainItemId = recipe?.outputs[0]?.itemId;
-      const primaryFlow = mainItemId
-        ? block.results?.flows?.[mainItemId]
-        : null;
-      return isBlockFailing(
-        block.satisfaction,
-        primaryFlow?.sent ?? 0,
-        primaryFlow?.demand ?? 0,
-        primaryFlow?.capacity ?? 0
-      );
-    };
+    // Use extracted helpers for status and label
+    const { isStarved, isShortfall } = getConnectionStatus(
+      source,
+      target,
+      conn,
+      recipes
+    );
 
-    const sourceIsFailing = checkFailing(source);
-    const targetIsFailing = checkFailing(target);
-
-    // Rule:
-    // (B) -> (R) = Orange (The Culprit starts here)
-    // (R) -> (R) = Red (The Chain of Pain)
-    // (X) -> (B) = Blue (Healthy)
-    let isStarved = false; // Red
-    let isShortfall = false; // Orange
-
-    if (targetIsFailing) {
-      if (sourceIsFailing) {
-        isStarved = true; // Propagation (R -> R)
-      } else {
-        isShortfall = true; // Transition (B -> R)
-      }
-    } else if (sourceIsFailing) {
-      isStarved = true; // Red if feeding a blue machine too little (Source Limit)
-    }
-
-    // 100% Fulfillment OVERRIDE: If this belt is 100% as planned, always Blue/Cyan
-    if (conn.rate >= planRequired - 0.001) {
-      isStarved = false;
-      isShortfall = false;
-    }
-
-    const actualStr = (conn.rate * rateMult).toFixed(1);
-    const planStr = (planRequired * rateMult).toFixed(1);
-
-    const label =
-      planRequired > machineRequired + 0.001
-        ? `${
-            items[conn.itemId]?.name || conn.itemId
-          } (${actualStr} / ${planStr}${rateLabel})`
-        : `${
-            items[conn.itemId]?.name || conn.itemId
-          } (${actualStr}${rateLabel})`;
+    const label = formatConnectionLabel(
+      conn,
+      items,
+      isPerMin,
+      planRequired,
+      machineRequired
+    );
 
     return (
       <ConnectionPath

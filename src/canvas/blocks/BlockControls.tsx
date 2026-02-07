@@ -15,9 +15,7 @@ interface Props {
   machine: Machine;
   rateLabel: string;
   displayRate?: string;
-  requiredMachineCount: number;
   targetRateUnitValue: number;
-  autoSolveEnabled: boolean;
   wasDragged: boolean;
   onMachineCountChange: (count: number) => void;
   onRateChange: (rate: number) => void;
@@ -31,9 +29,7 @@ export const BlockControls = memo(
     machine,
     rateLabel,
     displayRate,
-    requiredMachineCount,
     targetRateUnitValue,
-    autoSolveEnabled,
     wasDragged,
     onMachineCountChange,
     onRateChange,
@@ -59,9 +55,7 @@ export const BlockControls = memo(
 
     const isGatherer = recipe?.category === "Gathering";
 
-    const currentMachineCount = autoSolveEnabled
-      ? requiredMachineCount
-      : block.machineCount;
+    const currentMachineCount = block.machineCount;
 
     const handleCountWheel = (e: React.WheelEvent) => {
       e.stopPropagation();

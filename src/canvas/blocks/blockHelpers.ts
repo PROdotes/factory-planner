@@ -21,6 +21,12 @@ export function getStatusClass(satisfaction: number): string {
   return "status-error";
 }
 
+export function getBarColor(satisfaction: number): string {
+  if (satisfaction >= 0.999) return "var(--flow-success)";
+  if (satisfaction > 0.001) return "var(--flow-warning)";
+  return "var(--flow-error)";
+}
+
 /**
  * Logic: A block is 'Failing' (Red) only if it is the ROOT CAUSE of a throughput issue.
  * 1. Success: Meeting the global factory goal -> BLUE
@@ -31,8 +37,14 @@ export function isBlockFailing(
   inputSatisfaction: number,
   outputActual: number,
   outputGoal: number,
-  outputCapacity: number
+  outputCapacity: number,
+  isLogistics: boolean = false
 ): boolean {
+  // Logistics blocks (Splitters/Mergers) are 'Failing' if they are starved.
+  if (isLogistics) {
+    return inputSatisfaction < 0.99;
+  }
+
   // 1. Are we meeting the factory plan? If yes, we are Blue.
   if (outputActual >= outputGoal - 0.001) return false;
 
