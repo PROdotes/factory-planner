@@ -1,195 +1,128 @@
 /**
- * ROLE: Layout Algorithm
- * PURPOSE: Performs topological auto-layout of factory blocks.
- * RELATION: Called by factoryStore.autoLayout action.
+ * ROLE: Layout Algorithm (V7 - Industrial Schematic)
+ * PURPOSE: Logic for high-density mall construction. Group machines by common inputs.
  */
 
 import { BlockBase } from "./core/BlockBase";
 import { FactoryGraph } from "./core/FactoryGraph";
 import { sortBlockPorts } from "./core/sortBlockPorts";
 
-// Layout constants
-const COL_WIDTH = 500;
-const ROW_HEIGHT = 320;
+// Layout constants - VASTLY increased for mall clarity
+const COL_WIDTH = 650;
+const NODE_ROW_HEIGHT = 450;
 const START_X = 100;
 const CENTER_Y = 500;
-const MAX_COLLISION_ITERATIONS = 10;
 
-interface Connection {
-  sourceBlockId: string;
-  targetBlockId: string;
+function isJunction(block: BlockBase): boolean {
+  return block.type === "logistics";
 }
 
 /**
- * Calculates topological ranks for blocks using iterative propagation.
- * Every block starts at rank 0. If A -> B, then B.rank = max(B.rank, A.rank + 1)
+ * Perform Layout focusing on "Supply Districts"
  */
-export function calculateBlockRanks(
-  blocks: BlockBase[],
-  connections: Connection[]
-): Map<string, number> {
-  const ranks = new Map<string, number>();
-  blocks.forEach((b) => ranks.set(b.id, 0));
+export function performAutoLayout(factory: FactoryGraph) {
+  const allBlocks = Array.from(factory.blocks.values());
+  if (allBlocks.length === 0) return;
 
-  // Multiple passes to propagate rank
-  // Limit to block count to prevent infinite loops (cyclic graphs)
-  for (let i = 0; i < blocks.length; i++) {
+  const prodBlocks = allBlocks.filter((b) => !isJunction(b));
+
+  // 1. Calculate Rank (X-Columns)
+  const ranks = new Map<string, number>();
+  prodBlocks.forEach((b) => ranks.set(b.id, 0));
+
+  for (let i = 0; i < allBlocks.length; i++) {
     let changed = false;
-    connections.forEach((conn) => {
-      const rSrc = ranks.get(conn.sourceBlockId) ?? 0;
-      const rTgt = ranks.get(conn.targetBlockId) ?? 0;
-      if (rTgt <= rSrc) {
-        ranks.set(conn.targetBlockId, rSrc + 1);
+    factory.connections.forEach((c) => {
+      const rs = ranks.get(c.sourceBlockId) ?? 0;
+      const rt = ranks.get(c.targetBlockId);
+      if (rt !== undefined && rt <= rs) {
+        ranks.set(c.targetBlockId, rs + 1);
         changed = true;
       }
     });
     if (!changed) break;
   }
 
-  return ranks;
-}
+  // 2. INDUSTRIAL DISTRICTING (Y-Alignment)
+  // We group machines by their PRIMARY input source to create "Vertical Districts"
+  const districts = new Map<string, string[]>(); // sourceId -> targetIds
+  factory.connections.forEach((c) => {
+    if (ranks.has(c.sourceBlockId) && ranks.has(c.targetBlockId)) {
+      if (!districts.has(c.sourceBlockId)) districts.set(c.sourceBlockId, []);
+      if (!districts.get(c.sourceBlockId)!.includes(c.targetBlockId)) {
+        districts.get(c.sourceBlockId)!.push(c.targetBlockId);
+      }
+    }
+  });
 
-/**
- * Groups blocks by their assigned rank (column).
- */
-export function groupBlocksByRank(
-  blocks: BlockBase[],
-  ranks: Map<string, number>
-): Map<number, BlockBase[]> {
-  const groups = new Map<number, BlockBase[]>();
-  blocks.forEach((b) => {
+  // 3. Position Production Columns
+  const columns = new Map<number, BlockBase[]>();
+  prodBlocks.forEach((b) => {
     const r = ranks.get(b.id) ?? 0;
-    if (!groups.has(r)) groups.set(r, []);
-    groups.get(r)!.push(b);
+    if (!columns.has(r)) columns.set(r, []);
+    columns.get(r)!.push(b);
   });
-  return groups;
-}
 
-/**
- * Builds a map of target block ID -> source block IDs for quick lookup.
- */
-function buildIncomingMap(connections: Connection[]): Map<string, string[]> {
-  const incomingMap = new Map<string, string[]>();
-  connections.forEach((c) => {
-    if (!incomingMap.has(c.targetBlockId)) {
-      incomingMap.set(c.targetBlockId, []);
-    }
-    incomingMap.get(c.targetBlockId)!.push(c.sourceBlockId);
-  });
-  return incomingMap;
-}
+  const sortedRanks = Array.from(columns.keys()).sort((a, b) => a - b);
 
-/**
- * Resolves vertical collisions by pushing blocks apart symmetrically.
- */
-function resolveCollisions(group: BlockBase[]): void {
-  let hasOverlap = true;
-  let iterations = 0;
-
-  while (hasOverlap && iterations < MAX_COLLISION_ITERATIONS) {
-    hasOverlap = false;
-    // Downward sweep
-    for (let i = 0; i < group.length - 1; i++) {
-      const upper = group[i];
-      const lower = group[i + 1];
-
-      if (lower.position.y < upper.position.y + ROW_HEIGHT) {
-        // Overlap detected. Push them apart symmetrically.
-        const center = (upper.position.y + lower.position.y) / 2;
-        const dist = ROW_HEIGHT / 2 + 1; // +1 buffer
-
-        upper.position.y = center - dist;
-        lower.position.y = center + dist;
-        hasOverlap = true;
-      }
-    }
-    iterations++;
-  }
-}
-
-/**
- * Positions blocks within a single column (rank).
- * First rank: keeps relative Y order, stacks centered.
- * Subsequent ranks: positions based on average Y of upstream sources (Lane Logic).
- */
-function positionColumn(
-  group: BlockBase[],
-  rank: number,
-  incomingMap: Map<string, string[]>,
-  factory: FactoryGraph
-): void {
-  const x = START_X + rank * COL_WIDTH;
-
-  // Special handling for First Rank (Sources/User Start)
-  if (rank === 0) {
-    // Keep their relative Y order but stack them neatly centered
-    group.sort((a, b) => a.position.y - b.position.y);
-    const totalHeight = (group.length - 1) * ROW_HEIGHT;
-    group.forEach((block, index) => {
-      block.position.x = x;
-      block.position.y = CENTER_Y + index * ROW_HEIGHT - totalHeight / 2;
-    });
-    return;
-  }
-
-  // For subsequent ranks: Calculate Ideal Y based on Upstream Sources
-  const ideals = new Map<string, number>();
-
-  group.forEach((block) => {
-    const sourceIds = incomingMap.get(block.id) || [];
-    let runningY = 0;
-    let count = 0;
-
-    sourceIds.forEach((srcId) => {
-      const srcBlock = factory.blocks.get(srcId);
-      if (srcBlock) {
-        runningY += srcBlock.position.y;
-        count++;
-      }
+  sortedRanks.forEach((r) => {
+    const colBlocks = columns.get(r)!;
+    // Sort within column: Put machines with shared sources next to each other
+    colBlocks.sort((a, b) => {
+      const sourceA =
+        factory.connections.find((c) => c.targetBlockId === a.id)
+          ?.sourceBlockId || "";
+      const sourceB =
+        factory.connections.find((c) => c.targetBlockId === b.id)
+          ?.sourceBlockId || "";
+      return sourceA.localeCompare(sourceB);
     });
 
-    // If connected, follow sources. If orphan, default to center (500)
-    ideals.set(block.id, count > 0 ? runningY / count : CENTER_Y);
-    block.position.x = x;
+    const x = START_X + r * COL_WIDTH;
+    const totalH = (colBlocks.length - 1) * NODE_ROW_HEIGHT;
+    let startY = CENTER_Y - totalH / 2;
+
+    colBlocks.forEach((b) => {
+      b.position.x = x;
+      b.position.y = startY;
+      startY += NODE_ROW_HEIGHT;
+    });
   });
 
-  // Sort by Ideal Y (The "Lane Logic")
-  // This ensures blocks with top-inputs float to top, bottom-inputs sink to bottom
-  group.sort((a, b) => ideals.get(a.id)! - ideals.get(b.id)!);
+  // 4. SERIAL JUNCTION POSITIONING
+  // Instead of midpoints, we align junctions along a vertical "Serial Bus"
+  // right before their machine column.
+  allBlocks.filter(isJunction).forEach((j) => {
+    const outConns = factory.connections.filter(
+      (c) => c.sourceBlockId === j.id
+    );
+    const inConns = factory.connections.filter((c) => c.targetBlockId === j.id);
 
-  // Initial placement at Ideal Y
-  group.forEach((b) => (b.position.y = ideals.get(b.id)!));
+    const targets = outConns
+      .map((c) => factory.blocks.get(c.targetBlockId))
+      .filter(Boolean) as BlockBase[];
+    const sources = inConns
+      .map((c) => factory.blocks.get(c.sourceBlockId))
+      .filter(Boolean) as BlockBase[];
 
-  // Resolve collisions
-  resolveCollisions(group);
-}
-
-/**
- * Performs automatic layout of all blocks in the factory.
- * Uses topological ranking to determine columns and lane logic for vertical positioning.
- */
-export function performAutoLayout(factory: FactoryGraph): void {
-  const blocks = Array.from(factory.blocks.values());
-  if (blocks.length === 0) return;
-
-  // 1. Calculate topological ranks
-  const ranks = calculateBlockRanks(blocks, factory.connections);
-
-  // 2. Group blocks by rank
-  const groups = groupBlocksByRank(blocks, ranks);
-
-  // 3. Build incoming connection map
-  const incomingMap = buildIncomingMap(factory.connections);
-
-  // 4. Sort ranks to process left-to-right
-  const sortedRanks = Array.from(groups.keys()).sort((a, b) => a - b);
-
-  // 5. Position each column
-  sortedRanks.forEach((rank) => {
-    const group = groups.get(rank)!;
-    positionColumn(group, rank, incomingMap, factory);
+    if (targets.length > 0) {
+      // Position j at a fixed offset to the left of its targets' average column
+      const avgX =
+        targets.reduce((sum, t) => sum + t.position.x, 0) / targets.length;
+      const avgY =
+        targets.reduce((sum, t) => sum + t.position.y, 0) / targets.length;
+      j.position.x = avgX - 180; // 180px gap for the "bus backbone"
+      j.position.y = avgY;
+    } else if (sources.length > 0) {
+      const avgX =
+        sources.reduce((sum, src) => sum + src.position.x, 0) / sources.length;
+      const avgY =
+        sources.reduce((sum, src) => sum + src.position.y, 0) / sources.length;
+      j.position.x = avgX + 180;
+      j.position.y = avgY;
+    }
   });
 
-  // 6. Update port sort orders
-  blocks.forEach((b) => sortBlockPorts(b, factory));
+  // 5. Port Sort
+  allBlocks.forEach((b) => sortBlockPorts(b, factory));
 }

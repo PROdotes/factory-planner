@@ -7,14 +7,38 @@
 import { FLOW_CONFIG } from "../LayoutConfig";
 
 /**
- * Generates a cubic bezier curve SVG path string between two points.
- * The control points create a smooth horizontal-biased curve.
+ * Generates an ortho-stepped path string between two points.
+ * Includes a deterministic 'stagger' to prevent overlapping lines in a bus.
  */
-export function bezier(x1: number, y1: number, x2: number, y2: number): string {
+export function bezier(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  seed?: string
+): string {
   const dx = x2 - x1;
-  return `M ${x1} ${y1} C ${x1 + dx * 0.4} ${y1}, ${
-    x2 - dx * 0.4
-  } ${y2}, ${x2} ${y2}`;
+
+  // Calculate a deterministic offset based on the ID (seed)
+  let stagger = 0;
+  if (seed) {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    stagger = (Math.abs(hash) % 5) * 8; // 0, 8, 16, 24, 32px offsets
+  }
+
+  const leadOut = 40 + stagger;
+
+  if (dx < leadOut + 20) {
+    const mid = x1 + dx / 2;
+    return `M ${x1} ${y1} L ${mid} ${y1} L ${mid} ${y2} L ${x2} ${y2}`;
+  }
+
+  return `M ${x1} ${y1} L ${x1 + leadOut} ${y1} L ${
+    x1 + leadOut
+  } ${y2} L ${x2} ${y2}`;
 }
 
 /**

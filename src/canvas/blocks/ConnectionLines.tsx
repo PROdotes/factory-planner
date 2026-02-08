@@ -115,7 +115,7 @@ const ConnectionPath = memo(
     const flush = () => {
       if (!pathRef.current || !labelRef.current || !hitRef.current) return;
       const { p1, p2 } = getPoints(pos.current);
-      const d = bezier(p1.x, p1.y, p2.x, p2.y);
+      const d = bezier(p1.x, p1.y, p2.x, p2.y, id);
 
       pathRef.current.setAttribute("d", d);
       hitRef.current.setAttribute("d", d);
@@ -176,7 +176,7 @@ const ConnectionPath = memo(
 
     const { p1, p2 } = getPoints(pos.current);
     const mid = midpoint(p1.x, p1.y, p2.x, p2.y);
-    const d = bezier(p1.x, p1.y, p2.x, p2.y);
+    const d = bezier(p1.x, p1.y, p2.x, p2.y, id);
 
     return (
       <g
