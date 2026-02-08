@@ -5,9 +5,6 @@
  */
 
 export const FLOW_CONFIG = {
-  // --- Grid System ---
-  GRID_SIZE: 20,
-
   // --- UI Metrics ---
   SIDEBAR_WIDTH: 350,
   SIDEBAR_TRANSITION_MS: 200,

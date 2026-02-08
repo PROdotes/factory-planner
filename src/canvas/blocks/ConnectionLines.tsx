@@ -12,7 +12,7 @@ import { useUIStore } from "../uiStore";
 import { FLOW_CONFIG } from "../LayoutConfig";
 import { usePortPositions, getPortOffset } from "../hooks/usePortPositions";
 import { useGhostEdgeDrag } from "../hooks/useGhostEdgeDrag";
-import { bezier, midpoint, portXY } from "../utils/connectionGeometry";
+import { bezier, portXY } from "../utils/connectionGeometry";
 import { ItemIcon } from "./ItemIcon";
 import { identifySwimlanes } from "../../factory/autoLayout";
 import {
@@ -135,10 +135,14 @@ const ConnectionPath = memo(
 
       pathRef.current.setAttribute("d", d);
       hitRef.current.setAttribute("d", d);
-      const mid = midpoint(p1.x, p1.y, p2.x, p2.y);
+
+      // Label anchored at start of belt (p1)
+      const labelX = p1.x;
+      const labelY = p1.y;
+
       labelRef.current.setAttribute(
         "transform",
-        `translate(${mid.x}, ${mid.y})`
+        `translate(${labelX}, ${labelY})`
       );
     };
 
@@ -206,7 +210,10 @@ const ConnectionPath = memo(
     ]);
 
     const { p1, p2 } = getPoints(pos.current);
-    const mid = midpoint(p1.x, p1.y, p2.x, p2.y);
+    // Label anchored at start of belt (p1)
+    const labelX = p1.x;
+    const labelY = p1.y;
+
     const d = bezier(
       p1.x,
       p1.y,
@@ -280,14 +287,14 @@ const ConnectionPath = memo(
         />
         <g
           ref={labelRef}
-          transform={`translate(${mid.x}, ${mid.y})`}
+          transform={`translate(${labelX}, ${labelY})`}
           style={{ opacity: isDimmed ? 0 : 1, pointerEvents: "auto" }}
         >
           <foreignObject
-            x="-100"
-            y="-40"
-            width="200"
-            height="80"
+            x="20"
+            y="-120"
+            width="500"
+            height="160"
             style={{ overflow: "visible", pointerEvents: "none" }}
           >
             <div
@@ -295,7 +302,7 @@ const ConnectionPath = memo(
               style={{
                 width: "fit-content",
                 minWidth: "max-content",
-                margin: "0 auto",
+                margin: "0",
                 background: "rgba(10, 11, 16, 0.95)",
                 border: `1px solid ${
                   isStarved
@@ -304,8 +311,8 @@ const ConnectionPath = memo(
                     ? "var(--flow-warning)"
                     : "rgba(255,255,255,0.15)"
                 }`,
-                borderRadius: 8,
-                padding: "4px 10px",
+                borderRadius: 12,
+                padding: "8px 16px",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
@@ -315,9 +322,9 @@ const ConnectionPath = memo(
                   : isShortfall
                   ? "var(--flow-warning)"
                   : "var(--text-main)",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.6)",
+                boxShadow: "0 6px 16px rgba(0,0,0,0.6)",
                 backdropFilter: "blur(8px)",
-                gap: 2,
+                gap: 4,
                 pointerEvents: "auto",
                 transform: "translateY(10px)",
                 position: "relative",
@@ -327,13 +334,13 @@ const ConnectionPath = memo(
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 8,
-                  fontSize: "0.9rem",
+                  gap: 12,
+                  fontSize: "1.6rem",
                   fontWeight: 700,
                   letterSpacing: "0.5px",
                 }}
               >
-                <ItemIcon itemId={itemId} size={20} />
+                <ItemIcon itemId={itemId} size={40} />
                 <span>
                   {labelData.beltCount}× {labelData.beltTier}
                 </span>
@@ -341,7 +348,7 @@ const ConnectionPath = memo(
 
               <div
                 style={{
-                  fontSize: "0.75rem",
+                  fontSize: "1.2rem",
                   opacity: 0.9,
                   fontFamily: "monospace",
                   whiteSpace: "nowrap",
@@ -470,6 +477,46 @@ export const ConnectionLines = memo(
       });
 
       // 3. Assign Lanes within groups
+      const columnItemOffsets = new Map<string, number>();
+      const sourceGroups = new Map<number, any[]>();
+
+      // Group by Source Column X
+      factory.connections.forEach((conn) => {
+        const source = factory.blocks.get(conn.sourceBlockId);
+        if (source) {
+          const key = Math.round(source.position.x);
+          if (!sourceGroups.has(key)) sourceGroups.set(key, []);
+          sourceGroups.get(key)!.push(conn);
+        }
+      });
+
+      // Assign One Offset PER ITEM Type per Column
+      // This ensures different items don't overlap (vertical separation)
+      // But same items SHARE the same line (Manifolding)
+      sourceGroups.forEach((conns, colX) => {
+        // Find all unique items in this column
+        const itemMinY = new Map<string, number>();
+
+        conns.forEach((c) => {
+          const s = factory.blocks.get(c.sourceBlockId);
+          if (!s) return;
+          const currentMin = itemMinY.get(c.itemId) ?? Infinity;
+          if (s.position.y < currentMin) itemMinY.set(c.itemId, s.position.y);
+        });
+
+        // Sort items by their first appearance (Top -> Bottom)
+        // Top-most item type gets the Inner Lane (0)
+        // Lower item types get Outer Lanes (+20, +40...)
+        const sortedItems = Array.from(itemMinY.keys()).sort((a, b) => {
+          return (itemMinY.get(a) || 0) - (itemMinY.get(b) || 0);
+        });
+
+        sortedItems.forEach((itemId, index) => {
+          const key = `${colX}-${itemId}`;
+          columnItemOffsets.set(key, index * FLOW_CONFIG.PORT_VERTICAL_SPACING);
+        });
+      });
+
       groups.forEach((conns, key) => {
         const itemPriorityScore = new Map<string, number>();
         conns.forEach((c) => {
@@ -524,8 +571,15 @@ export const ConnectionLines = memo(
           const beltKey = `belt-${rS + 1}-${groupKey}`;
 
           const physical = factory.layoutMetadata?.beltYPositions.get(beltKey);
+
+          // Use pre-computed safe corridor if available (avoids building collisions)
+          const safeCorridorY = factory.layoutMetadata?.safeCorridors?.get(
+            c.id
+          );
           const transitY =
-            physical !== undefined
+            safeCorridorY !== undefined
+              ? safeCorridorY
+              : physical !== undefined
               ? physical.y + physical.h / 2
               : itemAvgY.get(c.itemId) ?? sourceAbsY;
 
@@ -534,13 +588,14 @@ export const ConnectionLines = memo(
             source.type === "logistics" ? 0 : transitY - sourceAbsY;
 
           // Re-Align vertical bus lanes based on item priority (0 = innermost)
-          const exitOffset = 0; // Keeping it 0 for perfect overlapping "Trunk" look.
+          const colX = Math.round(source.position.x);
+          const exitOffset = columnItemOffsets.get(`${colX}-${c.itemId}`) ?? 0;
 
           info.set(c.id, { laneOffset, sourceOffset, exitOffset });
         });
       });
       return info;
-    }, [factory.connections, factory.blocks, version]);
+    }, [factory.connections, factory.blocks, factory.layoutMetadata, version]);
 
     return (
       <svg

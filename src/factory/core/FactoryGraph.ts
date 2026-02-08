@@ -15,7 +15,16 @@ export class FactoryGraph {
   connections: Connection[] = [];
   layoutMetadata: {
     beltYPositions: Map<string, { y: number; h: number }>; // key: "belt-{rank}-{itemId}-{slId}"
-  } = { beltYPositions: new Map() };
+    blockBounds: Map<
+      number,
+      Array<{ blockId: string; y: number; height: number }>
+    >;
+    safeCorridors: Map<string, number>; // connectionId -> safeY
+  } = {
+    beltYPositions: new Map(),
+    blockBounds: new Map(),
+    safeCorridors: new Map(),
+  };
 
   constructor() {
     // Empty initialization

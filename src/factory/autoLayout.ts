@@ -44,6 +44,106 @@ function isJunction(block: BlockBase): boolean {
   return block.type === "logistics";
 }
 
+// Collision detection: check if a belt at Y would pass through any buildings between ranks
+// Geometric collision: check if a horizontal line from startX to endX at Y hits any block
+export function checkGeometricCollision(
+  y: number,
+  startX: number,
+  endX: number,
+  allBlocks: BlockBase[],
+  sourceId: string,
+  targetId: string,
+  margin: number = 30
+): boolean {
+  for (const block of allBlocks) {
+    if (block.id === sourceId || block.id === targetId) continue;
+
+    // Check X overlap (is the block between start and end?)
+    // Block width is approx 190.
+    // We only care if the BODY of the block is in the path.
+    // Let's assume block occupies [x, x+200].
+    const blockStart = block.position.x;
+    const blockEnd = block.position.x + FLOW_CONFIG.BLOCK_WIDTH;
+
+    // Strict betweenness?
+    // If the path is Left -> Right (startX < endX)
+    // We hit if (blockStart < endX) AND (blockEnd > startX)
+    // AND it's not the source or target.
+    // Narrow the window slightly to avoid touching neighbors.
+    const pathMin = Math.min(startX, endX);
+    const pathMax = Math.max(startX, endX);
+
+    if (blockEnd > pathMin + 1 && blockStart < pathMax - 1) {
+      // Check Y overlap
+      const h = getPhysicalHeight(block);
+      if (
+        y >= block.position.y - margin &&
+        y <= block.position.y + h + margin
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Find a safe Y corridor that doesn't intersect buildings
+export function findSafeCorridorY(
+  preferredY: number,
+  startX: number,
+  endX: number,
+  allBlocks: BlockBase[],
+  sourceId: string,
+  targetId: string
+): number {
+  if (
+    !checkGeometricCollision(
+      preferredY,
+      startX,
+      endX,
+      allBlocks,
+      sourceId,
+      targetId
+    )
+  ) {
+    return preferredY;
+  }
+  // Search above and below in steps of PORT_VERTICAL_SPACING
+  // Search above and below in steps of PORT_VERTICAL_SPACING
+  // Expanded search range to +/- 1000 to solve deep overlaps
+  for (
+    let offset = FLOW_CONFIG.PORT_VERTICAL_SPACING;
+    offset < 1000;
+    offset += FLOW_CONFIG.PORT_VERTICAL_SPACING
+  ) {
+    if (
+      !checkGeometricCollision(
+        preferredY - offset,
+        startX,
+        endX,
+        allBlocks,
+        sourceId,
+        targetId
+      )
+    ) {
+      return preferredY - offset;
+    }
+    if (
+      !checkGeometricCollision(
+        preferredY + offset,
+        startX,
+        endX,
+        allBlocks,
+        sourceId,
+        targetId
+      )
+    ) {
+      return preferredY + offset;
+    }
+  }
+  return preferredY; // Fallback: use preferred even if it collides
+}
+
 /**
  * ROLE: Logic Utility
  * PURPOSE: Identify distinct production chains (swimlanes) to organize the layout.
@@ -118,7 +218,11 @@ export function performAutoLayout(factory: FactoryGraph) {
 
   // Clear transient layout metadata
   if (!factory.layoutMetadata) {
-    factory.layoutMetadata = { beltYPositions: new Map() };
+    factory.layoutMetadata = {
+      beltYPositions: new Map(),
+      blockBounds: new Map(),
+      safeCorridors: new Map(),
+    };
   }
   factory.layoutMetadata.beltYPositions.clear();
 
@@ -492,10 +596,90 @@ export function performAutoLayout(factory: FactoryGraph) {
 
       if (isFinite(shift)) {
         relevantBlocks.forEach((b) => (b.position.y += shift));
+
+        // Shift belts in this column too
+        let movedBelts = 0;
+        factory.layoutMetadata.beltYPositions.forEach((pos, key) => {
+          if (key.startsWith(`belt-${r}-`)) {
+            pos.y += shift;
+            movedBelts++;
+          }
+        });
+        // console.log(`[AutoLayout] Col ${r} Top-Align: Shifted ${shift}px. moved ${movedBelts} belts.`);
       }
     }
   });
 
-  // 6. Port Sort
+  // 6. Build blockBounds for collision detection
+  factory.layoutMetadata.blockBounds = new Map();
+  sortedRanks.forEach((r) => {
+    const colBlocks = columns.get(r) || [];
+    factory.layoutMetadata.blockBounds.set(
+      r,
+      colBlocks.map((b) => ({
+        blockId: b.id,
+        y: b.position.y,
+        height: getPhysicalHeight(b),
+      }))
+    );
+  });
+
+  // 8. Port Sort (Run before collision check to ensure accurate start Y)
   allBlocks.forEach((b) => sortBlockPorts(b, factory));
+
+  // 7. Compute safe corridors for connections that would pass through buildings
+  factory.layoutMetadata.safeCorridors = new Map();
+  factory.connections.forEach((conn) => {
+    const source = factory.blocks.get(conn.sourceBlockId);
+    const target = factory.blocks.get(conn.targetBlockId);
+    if (!source || !target) return;
+
+    const sourceRank = ranks.get(conn.sourceBlockId);
+    const targetRank = ranks.get(conn.targetBlockId);
+    if (sourceRank === undefined || targetRank === undefined) return;
+    if (targetRank <= sourceRank) return; // Skip backwards connections
+
+    // Calculate preferred Y based on source port position
+    const pIdx = (source.outputOrder || []).indexOf(conn.itemId);
+    const portHStart =
+      FLOW_CONFIG.HEADER_HEIGHT +
+      FLOW_CONFIG.BORDER_WIDTH +
+      FLOW_CONFIG.CONTROLS_HEIGHT;
+    const portY =
+      source.type === "logistics"
+        ? FLOW_CONFIG.JUNCTION_SIZE / 2
+        : pIdx >= 0
+        ? portHStart +
+          pIdx * FLOW_CONFIG.PORT_VERTICAL_SPACING +
+          FLOW_CONFIG.PORT_VERTICAL_SPACING / 2
+        : portHStart;
+
+    const sourceAbsY = source.position.y + portY;
+
+    // Check beltYPositions first for manifold alignment
+    const slId = swimlaneMap.get(source.id) || "misc";
+    const groupKey = `${conn.itemId}-${slId}`;
+    const beltKey = `belt-${sourceRank + 1}-${groupKey}`;
+    const physical = factory.layoutMetadata.beltYPositions.get(beltKey);
+    const preferredY = physical ? physical.y + physical.h / 2 : sourceAbsY;
+
+    // Use actual physical coordinates for collision check
+    const startX = source.position.x;
+    const endX = target.position.x;
+
+    const safeY = findSafeCorridorY(
+      preferredY,
+      startX,
+      endX,
+      allBlocks,
+      source.id,
+      target.id
+    );
+
+    // Always store if the path deviates from the direct port line
+    // This ensures ConnectionLines (which may not know about belt lanes) finds the correct path
+    if (Math.abs(safeY - sourceAbsY) > 1) {
+      factory.layoutMetadata.safeCorridors.set(conn.id, safeY);
+    }
+  });
 }
