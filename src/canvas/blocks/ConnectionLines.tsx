@@ -4,15 +4,17 @@
  * RELATION: FLOW mode visualization.
  */
 
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useFactoryStore } from "../../factory/factoryStore";
 import { useGameDataStore } from "../../gamedata/gamedataStore";
 import { useHighlightSet } from "../hooks/useHighlightSet";
 import { useUIStore } from "../uiStore";
+import { FLOW_CONFIG } from "../LayoutConfig";
 import { usePortPositions, getPortOffset } from "../hooks/usePortPositions";
 import { useGhostEdgeDrag } from "../hooks/useGhostEdgeDrag";
 import { bezier, midpoint, portXY } from "../utils/connectionGeometry";
 import { ItemIcon } from "./ItemIcon";
+import { identifySwimlanes } from "../../factory/autoLayout";
 import {
   getConnectionStatus,
   getConnectionLabelData,
@@ -44,6 +46,9 @@ interface ConnectionPathProps {
   onSelect: (id: string) => void;
   onBeltChange: (id: string, newBeltId: string) => void;
   onDelete: (id: string) => void;
+  laneOffset: number;
+  sourceOffset: number;
+  exitOffset: number;
 }
 
 const ConnectionPath = memo(
@@ -69,6 +74,9 @@ const ConnectionPath = memo(
     onSelect,
     onBeltChange,
     onDelete,
+    laneOffset,
+    sourceOffset,
+    exitOffset,
   }: ConnectionPathProps) => {
     const [isHovered, setIsHovered] = useState(false);
     const pathRef = useRef<SVGPathElement>(null);
@@ -115,7 +123,15 @@ const ConnectionPath = memo(
     const flush = () => {
       if (!pathRef.current || !labelRef.current || !hitRef.current) return;
       const { p1, p2 } = getPoints(pos.current);
-      const d = bezier(p1.x, p1.y, p2.x, p2.y, id);
+      const d = bezier(
+        p1.x,
+        p1.y,
+        p2.x,
+        p2.y,
+        laneOffset,
+        sourceOffset,
+        exitOffset
+      );
 
       pathRef.current.setAttribute("d", d);
       hitRef.current.setAttribute("d", d);
@@ -135,7 +151,15 @@ const ConnectionPath = memo(
         by2: targetPos.y,
       };
       flush();
-    }, [sourcePos.x, sourcePos.y, targetPos.x, targetPos.y]);
+    }, [
+      sourcePos.x,
+      sourcePos.y,
+      targetPos.x,
+      targetPos.y,
+      laneOffset,
+      sourceOffset,
+      exitOffset,
+    ]);
 
     // Transient-level sync (during drag)
     useEffect(() => {
@@ -172,11 +196,26 @@ const ConnectionPath = memo(
         window.removeEventListener("block-transient-move", onMove);
         window.removeEventListener("block-ports-update", onPortsUpdate);
       };
-    }, [sourceBlockId, targetBlockId, itemId]);
+    }, [
+      sourceBlockId,
+      targetBlockId,
+      itemId,
+      laneOffset,
+      sourceOffset,
+      exitOffset,
+    ]);
 
     const { p1, p2 } = getPoints(pos.current);
     const mid = midpoint(p1.x, p1.y, p2.x, p2.y);
-    const d = bezier(p1.x, p1.y, p2.x, p2.y, id);
+    const d = bezier(
+      p1.x,
+      p1.y,
+      p2.x,
+      p2.y,
+      laneOffset,
+      sourceOffset,
+      exitOffset
+    );
 
     return (
       <g
@@ -373,6 +412,136 @@ export const ConnectionLines = memo(
     // Ghost edge management via extracted hook
     const { ghostEdge } = useGhostEdgeDrag(clientToWorld, connect, runSolver);
 
+    // Memoize the lane calculation to run only when topology changes
+    const laneInfo = useMemo(() => {
+      const info = new Map<
+        string,
+        { laneOffset: number; sourceOffset: number; exitOffset: number }
+      >();
+      const groups = new Map<number, any[]>();
+
+      const swimlaneMap = identifySwimlanes(factory);
+
+      // 1. Group by "Target Column" (Input Bus)
+      factory.connections.forEach((conn) => {
+        const target = factory.blocks.get(conn.targetBlockId);
+        if (!target) return;
+        const key = Math.round(target.position.x / 100) * 100;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(conn);
+      });
+
+      // 2. Pre-calculate "Manifold Transit Y" for each ITEM per target column
+      // This ensures all connections of the same item merge into ONE horizontal crossing line.
+      const manifoldYByGroup = new Map<number, Map<string, number>>();
+      groups.forEach((conns, key) => {
+        const itemTotalY = new Map<string, number>();
+        const itemCount = new Map<string, number>();
+
+        conns.forEach((c) => {
+          const source = factory.blocks.get(c.sourceBlockId);
+          if (!source) return;
+          const pIdx = (source.outputOrder || []).indexOf(c.itemId);
+          const portHStart =
+            FLOW_CONFIG.HEADER_HEIGHT +
+            FLOW_CONFIG.BORDER_WIDTH +
+            FLOW_CONFIG.CONTROLS_HEIGHT;
+          const portY =
+            source.type === "logistics"
+              ? FLOW_CONFIG.JUNCTION_SIZE / 2
+              : pIdx >= 0
+              ? portHStart +
+                pIdx * FLOW_CONFIG.PORT_VERTICAL_SPACING +
+                FLOW_CONFIG.PORT_VERTICAL_SPACING / 2
+              : portHStart;
+
+          itemTotalY.set(
+            c.itemId,
+            (itemTotalY.get(c.itemId) || 0) + source.position.y + portY
+          );
+          itemCount.set(c.itemId, (itemCount.get(c.itemId) || 0) + 1);
+        });
+
+        const itemAvg = new Map<string, number>();
+        itemTotalY.forEach((sum, itemId) => {
+          itemAvg.set(itemId, sum / itemCount.get(itemId)!);
+        });
+        manifoldYByGroup.set(key, itemAvg);
+      });
+
+      // 3. Assign Lanes within groups
+      groups.forEach((conns, key) => {
+        const itemPriorityScore = new Map<string, number>();
+        conns.forEach((c) => {
+          const target = factory.blocks.get(c.targetBlockId);
+          if (!target) return;
+          const portIndex = (target.inputOrder || []).indexOf(c.itemId);
+          const safePortIndex = portIndex >= 0 ? portIndex : 99;
+          const score = target.position.y + safePortIndex * 0.1;
+          const currentScore = itemPriorityScore.get(c.itemId) ?? Infinity;
+          if (score < currentScore) itemPriorityScore.set(c.itemId, score);
+        });
+
+        const sortedItems = Array.from(itemPriorityScore.keys()).sort(
+          (a, b) => {
+            return itemPriorityScore.get(a)! - itemPriorityScore.get(b)!;
+          }
+        );
+
+        const itemToLane = new Map<string, number>();
+        sortedItems.forEach((itemId, idx) => itemToLane.set(itemId, idx));
+
+        const itemAvgY = manifoldYByGroup.get(key)!;
+
+        conns.forEach((c) => {
+          const laneIndex = itemToLane.get(c.itemId) ?? 0;
+          const source = factory.blocks.get(c.sourceBlockId);
+          if (!source) return;
+
+          const laneOffset = -(laneIndex * FLOW_CONFIG.PORT_VERTICAL_SPACING);
+
+          // Current Abs Path Source Y
+          const pIdx = (source.outputOrder || []).indexOf(c.itemId);
+          const portHStart =
+            FLOW_CONFIG.HEADER_HEIGHT +
+            FLOW_CONFIG.BORDER_WIDTH +
+            FLOW_CONFIG.CONTROLS_HEIGHT;
+          const portY =
+            source.type === "logistics"
+              ? FLOW_CONFIG.JUNCTION_SIZE / 2
+              : pIdx >= 0
+              ? portHStart +
+                pIdx * FLOW_CONFIG.PORT_VERTICAL_SPACING +
+                FLOW_CONFIG.PORT_VERTICAL_SPACING / 2
+              : portHStart;
+
+          const sourceAbsY = source.position.y + portY;
+
+          // CROSSING LOGIC: Find the physics-reserved gap for this belt branch
+          const rS = Math.round(source.position.x / 100);
+          const slId = swimlaneMap.get(source.id) || "misc";
+          const groupKey = `${c.itemId}-${slId}`;
+          const beltKey = `belt-${rS + 1}-${groupKey}`;
+
+          const physical = factory.layoutMetadata?.beltYPositions.get(beltKey);
+          const transitY =
+            physical !== undefined
+              ? physical.y + physical.h / 2
+              : itemAvgY.get(c.itemId) ?? sourceAbsY;
+
+          // MANIFOLD Logic: Move to the physical transit corridor immediately.
+          const sourceOffset =
+            source.type === "logistics" ? 0 : transitY - sourceAbsY;
+
+          // Re-Align vertical bus lanes based on item priority (0 = innermost)
+          const exitOffset = 0; // Keeping it 0 for perfect overlapping "Trunk" look.
+
+          info.set(c.id, { laneOffset, sourceOffset, exitOffset });
+        });
+      });
+      return info;
+    }, [factory.connections, factory.blocks, version]);
+
     return (
       <svg
         className="edge-layer"
@@ -410,6 +579,9 @@ export const ConnectionLines = memo(
               onDelete={removeConnection}
               isPerMin={isPerMin}
               version={version}
+              laneOffset={laneInfo.get(conn.id)?.laneOffset ?? 0}
+              sourceOffset={laneInfo.get(conn.id)?.sourceOffset ?? 0}
+              exitOffset={laneInfo.get(conn.id)?.exitOffset ?? 0}
             />
           );
         })}
@@ -440,6 +612,9 @@ const ConnectionPathWithPorts = memo(
     onDelete,
     isPerMin,
     version,
+    laneOffset,
+    sourceOffset,
+    exitOffset,
   }: {
     conn: any;
     source: any;
@@ -451,6 +626,9 @@ const ConnectionPathWithPorts = memo(
     onDelete: (id: string) => void;
     isPerMin: boolean;
     version: number;
+    laneOffset: number;
+    sourceOffset: number;
+    exitOffset: number;
   }) => {
     const { recipes, gatherers } = useGameDataStore();
     const { setBelt } = useFactoryStore();
@@ -503,6 +681,9 @@ const ConnectionPathWithPorts = memo(
         onDelete={onDelete}
         rate={conn.rate}
         version={version}
+        laneOffset={laneOffset}
+        sourceOffset={sourceOffset}
+        exitOffset={exitOffset}
       />
     );
   }

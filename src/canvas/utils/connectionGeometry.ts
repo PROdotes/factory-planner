@@ -10,35 +10,41 @@ import { FLOW_CONFIG } from "../LayoutConfig";
  * Generates an ortho-stepped path string between two points.
  * Includes a deterministic 'stagger' to prevent overlapping lines in a bus.
  */
+/**
+ * Generates an ortho-stepped path string between two points.
+ * Creates a "Bus" style layout where lines travel horizontally, then share a vertical channel.
+ */
 export function bezier(
   x1: number,
   y1: number,
   x2: number,
   y2: number,
-  seed?: string
+  offset: number = 0,
+  sourceOffset: number = 0,
+  exitOffset: number = 0
 ): string {
   const dx = x2 - x1;
 
-  // Calculate a deterministic offset based on the ID (seed)
-  let stagger = 0;
-  if (seed) {
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-      hash = seed.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    stagger = (Math.abs(hash) % 5) * 8; // 0, 8, 16, 24, 32px offsets
+  // 1. Determine "Safe Y" for the horizontal crossing
+  // We move the belt vertically by sourceOffset after a horizontal stub
+  const exitX = x1 + FLOW_CONFIG.PORT_VERTICAL_SPACING + exitOffset;
+  const safeY = y1 + sourceOffset;
+
+  // 2. Target-Anchored Bus Pillar
+  const busX = x2 - FLOW_CONFIG.PORT_VERTICAL_SPACING * 1.5 + offset;
+
+  // Handling "Backwards" connections (loops)
+  if (dx < 0) {
+    const loopBackX = x1 + FLOW_CONFIG.PORT_VERTICAL_SPACING + offset;
+    const loopEntryX = x2 - FLOW_CONFIG.PORT_VERTICAL_SPACING - offset;
+    return `M ${x1} ${y1} L ${loopBackX} ${y1} L ${loopBackX} ${
+      y1 + 100
+    } L ${loopEntryX} ${y1 + 100} L ${loopEntryX} ${y2} L ${x2} ${y2}`;
   }
 
-  const leadOut = 40 + stagger;
-
-  if (dx < leadOut + 20) {
-    const mid = x1 + dx / 2;
-    return `M ${x1} ${y1} L ${mid} ${y1} L ${mid} ${y2} L ${x2} ${y2}`;
-  }
-
-  return `M ${x1} ${y1} L ${x1 + leadOut} ${y1} L ${
-    x1 + leadOut
-  } ${y2} L ${x2} ${y2}`;
+  // 3. Double-Manhattan Path:
+  // Exit -> Vertical to Safe Lane -> Horizontal to Bus -> Vertical to Target -> Entry
+  return `M ${x1} ${y1} L ${exitX} ${y1} L ${exitX} ${safeY} L ${busX} ${safeY} L ${busX} ${y2} L ${x2} ${y2}`;
 }
 
 /**

@@ -59,7 +59,12 @@ describe("computeFactoryAnalytics (Player-Centric)", () => {
     block.setMachine("smelter-1");
     block.machineCount = 10;
     // Even if flow is 0, we expect power for 10 machines because they are built
-    block.results.flows["iron"] = { actual: 0, desired: 0 };
+    block.results.flows["iron"] = {
+      actual: 0,
+      demand: 0,
+      capacity: 0,
+      sent: 0,
+    };
     factory.blocks.set(block.id, block);
 
     const analytics = computeFactoryAnalytics(factory, recipes, machines);

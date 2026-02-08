@@ -13,6 +13,9 @@ import { FactoryLayout, Connection, FactoryBlock } from "./factory.types";
 export class FactoryGraph {
   blocks: Map<string, BlockBase> = new Map();
   connections: Connection[] = [];
+  layoutMetadata: {
+    beltYPositions: Map<string, { y: number; h: number }>; // key: "belt-{rank}-{itemId}-{slId}"
+  } = { beltYPositions: new Map() };
 
   constructor() {
     // Empty initialization

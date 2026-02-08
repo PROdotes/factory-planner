@@ -21,7 +21,7 @@ export const FLOW_CONFIG = {
 
   // --- Port Geometry ---
   PORT_RADIUS: 10,
-  PORT_VERTICAL_SPACING: 28, // Matches io-row height
+  PORT_VERTICAL_SPACING: 60, // Matches io-row height
 
   // --- Junction Metrics ---
   JUNCTION_SIZE: 48,
