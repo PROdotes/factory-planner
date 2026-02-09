@@ -32,6 +32,7 @@ export interface FactoryBlock {
   sourceYield?: number;
   inputOrder?: string[];
   outputOrder?: string[];
+  done?: boolean;
 }
 
 export interface ProductionBlock extends FactoryBlock {

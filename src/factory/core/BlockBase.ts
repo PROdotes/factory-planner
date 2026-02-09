@@ -23,6 +23,7 @@ export abstract class BlockBase {
   // Port Stability
   inputOrder: string[] = [];
   outputOrder: string[] = [];
+  done: boolean = false;
 
   results: {
     flows: Record<string, FlowResult>;
@@ -60,6 +61,7 @@ export abstract class BlockBase {
     this.sourceYield = data.sourceYield ?? 1.0;
     this.inputOrder = data.inputOrder || [];
     this.outputOrder = data.outputOrder || [];
+    this.done = data.done ?? false;
 
     if (data.results) {
       this.results = {

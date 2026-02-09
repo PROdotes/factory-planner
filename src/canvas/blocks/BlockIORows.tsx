@@ -20,6 +20,8 @@ interface Props {
   isPerMinute: boolean;
   isOutputHighlight: (itemId: string) => boolean;
   isInputHighlight: (itemId: string) => boolean;
+  inputDoneItems: Record<string, boolean>;
+  outputDoneItems: Record<string, boolean>;
 }
 
 export const BlockIORows = memo(
@@ -29,6 +31,8 @@ export const BlockIORows = memo(
     isPerMinute,
     isOutputHighlight,
     isInputHighlight,
+    inputDoneItems,
+    outputDoneItems,
   }: Props) => {
     return (
       <div className="io-section">
@@ -38,12 +42,13 @@ export const BlockIORows = memo(
             {outputItems.map((item) => {
               const sat = item.target > 0 ? item.actual / item.target : 1;
               const isHighlighted = isOutputHighlight(item.itemId);
+              const isDone = outputDoneItems[item.itemId] ?? false;
               return (
                 <div
                   key={item.itemId}
                   className={`io-row output ${
                     isHighlighted ? "highlighted" : ""
-                  }`}
+                  } ${isDone ? "is-done" : ""}`}
                   title={item.name}
                 >
                   <span className="io-rates">
@@ -74,10 +79,13 @@ export const BlockIORows = memo(
             {inputItems.map((item) => {
               const sat = item.target > 0 ? item.actual / item.target : 1;
               const isHighlighted = isInputHighlight(item.itemId);
+              const isDone = inputDoneItems[item.itemId] ?? false;
               return (
                 <div
                   key={item.itemId}
-                  className={`io-row ${isHighlighted ? "highlighted" : ""}`}
+                  className={`io-row ${isHighlighted ? "highlighted" : ""} ${
+                    isDone ? "is-done" : ""
+                  }`}
                   title={item.name}
                 >
                   <span className="io-rates">

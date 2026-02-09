@@ -50,6 +50,7 @@ interface FactoryState {
   autoScale: () => void;
   autoLayout: () => void;
   clearFactory: () => void;
+  toggleDone: (blockId: string) => void;
 
   // Data Safety Actions
   saveToLocalStorage: () => void;
@@ -442,6 +443,17 @@ export const useFactoryStore = create<FactoryState>((set, get) => {
       factory.connections = [];
       set({ version: Date.now(), selectedBlockId: null });
       get().saveToLocalStorage();
+    },
+
+    toggleDone: (blockId: string) => {
+      const { factory } = get();
+      const block = factory.blocks.get(blockId);
+      if (block) {
+        undoRedoManager.push(factory);
+        block.done = !block.done;
+        set((state) => ({ version: state.version + 1 }));
+        get().saveToLocalStorage();
+      }
     },
   };
 });

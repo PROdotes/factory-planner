@@ -8,7 +8,7 @@
  * - Zoomed in (scale >= 0.9): Full controls and I/O debugging
  */
 
-import { memo, useEffect } from "react";
+import { memo, useEffect, useMemo } from "react";
 import { BlockBase } from "../../factory/core/BlockBase";
 import { ProductionBlock } from "../../factory/blocks/ProductionBlock";
 import { GathererBlock } from "../../factory/blocks/GathererBlock";
@@ -51,14 +51,31 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
     removeBlock,
     updateBlockName,
     setMachine,
+    toggleDone,
   } = useFactoryStore();
 
   const isSelected = selectedBlockId === block.id;
   const { toggleFocus, rateUnit } = useUIStore();
   const isPerMin = rateUnit === "per_minute";
   const highlightSet = useHighlightSet();
-  const isDimmed =
-    highlightSet.blocks.size > 0 && !highlightSet.blocks.has(block.id);
+  const { factory } = useFactoryStore();
+
+  const isDoneParent = useMemo(() => {
+    if (!block.done) return false;
+    const outgoingConns = factory.connections.filter(
+      (c) => c.sourceBlockId === block.id
+    );
+    if (outgoingConns.length === 0) return true; // Sinks dim if they are done
+    return outgoingConns.every((c) => {
+      const tgt = factory.blocks.get(c.targetBlockId);
+      return tgt?.done ?? false;
+    });
+  }, [factory, block.id, version, block.done]);
+
+  const isFocusActive = highlightSet.blocks.size > 0;
+  const isInHighlight = highlightSet.blocks.has(block.id);
+
+  const isDimmed = isFocusActive ? !isInHighlight : isDoneParent;
 
   const connectedInputItems = highlightSet.connectedInputs.get(block.id);
   const connectedOutputItems = highlightSet.connectedOutputs.get(block.id);
@@ -118,6 +135,56 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
   // Collect I/O items using extracted utilities
   const inputItems = collectInputItems(block, recipe, items, gatherer);
   const outputItems = collectOutputItems(block, recipe, items, gatherer);
+
+  // Calculate which items have 'done' counterparts (Both sides must agree)
+  // Focus Mode override: If highlight is active, don't dim these items
+  const inputDoneItems = useMemo(() => {
+    const doneMap: Record<string, boolean> = {};
+    if (isFocusActive) return doneMap;
+
+    inputItems.forEach((item) => {
+      if (!block.done) {
+        doneMap[item.itemId] = false;
+        return;
+      }
+      const incomingConns = factory.connections.filter(
+        (c) => c.targetBlockId === block.id && c.itemId === item.itemId
+      );
+      if (incomingConns.length === 0) {
+        doneMap[item.itemId] = true;
+        return;
+      }
+      doneMap[item.itemId] = incomingConns.every((c) => {
+        const src = factory.blocks.get(c.sourceBlockId);
+        return src?.done ?? false;
+      });
+    });
+    return doneMap;
+  }, [factory, block.id, block.done, inputItems, version]);
+
+  const outputDoneItems = useMemo(() => {
+    const doneMap: Record<string, boolean> = {};
+    if (isFocusActive) return doneMap;
+
+    outputItems.forEach((item) => {
+      if (!block.done) {
+        doneMap[item.itemId] = false;
+        return;
+      }
+      const outgoingConns = factory.connections.filter(
+        (c) => c.sourceBlockId === block.id && c.itemId === item.itemId
+      );
+      if (outgoingConns.length > 0) {
+        doneMap[item.itemId] = outgoingConns.every((c) => {
+          const tgt = factory.blocks.get(c.targetBlockId);
+          return tgt?.done ?? false;
+        });
+      } else {
+        doneMap[item.itemId] = true; // Sinks/Endpoints
+      }
+    });
+    return doneMap;
+  }, [factory, block.id, block.done, outputItems, version]);
 
   const isZoomedIn = scale >= 0.9;
 
@@ -282,11 +349,13 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
           <BlockHeader
             blockId={block.id}
             name={block.name}
+            done={block.done}
             statusClass={statusClass}
             version={version}
             wasDragged={wasDragged}
             onDelete={() => removeBlock(block.id)}
             onNameChange={(name) => updateBlockName(block.id, name)}
+            onToggleDone={() => toggleDone(block.id)}
           />
 
           <div className="block-body">
@@ -344,6 +413,8 @@ export const BlockCard = memo(({ block, scale, version }: Props) => {
                   isPerMinute={isPerMin}
                   isOutputHighlight={isOutputHighlight}
                   isInputHighlight={isInputHighlight}
+                  inputDoneItems={inputDoneItems}
+                  outputDoneItems={outputDoneItems}
                 />
               </div>
             )}

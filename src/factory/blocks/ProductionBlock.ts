@@ -38,6 +38,7 @@ export class ProductionBlock extends BlockBase {
       satisfaction: this.satisfaction,
       sourceYield: this.sourceYield,
       machineCount: this.machineCount,
+      done: this.done,
       results: {
         flows: { ...this.results.flows },
         satisfaction: this.results.satisfaction,

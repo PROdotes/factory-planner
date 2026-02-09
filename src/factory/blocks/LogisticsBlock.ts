@@ -23,6 +23,7 @@ export class LogisticsBlock extends BlockBase {
       requested: { ...this.requested },
       satisfaction: this.satisfaction,
       sourceYield: this.sourceYield,
+      done: this.done,
       results: {
         flows: { ...this.results.flows },
         satisfaction: this.results.satisfaction,

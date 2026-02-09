@@ -5,27 +5,31 @@
  */
 
 import { memo, useState, useRef, useEffect } from "react";
-import { Trash2 } from "lucide-react";
+import { Trash2, CheckCircle } from "lucide-react";
 
 interface Props {
   blockId: string;
   name: string;
+  done: boolean;
   statusClass: string;
   version: number;
   wasDragged: boolean;
   onDelete: () => void;
   onNameChange: (name: string) => void;
+  onToggleDone: () => void;
 }
 
 export const BlockHeader = memo(
   ({
     blockId,
     name,
+    done,
     statusClass,
     version,
     wasDragged,
     onDelete,
     onNameChange,
+    onToggleDone,
   }: Props) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editValue, setEditValue] = useState(name);
@@ -70,6 +74,16 @@ export const BlockHeader = memo(
             {name}
           </span>
         )}
+        <button
+          className={`done-btn ${done ? "active" : ""}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleDone();
+          }}
+          title={done ? "Mark as in-progress" : "Mark as done"}
+        >
+          <CheckCircle size={12} />
+        </button>
         <button
           className="delete-btn"
           onClick={(e) => {

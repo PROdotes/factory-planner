@@ -597,6 +597,17 @@ body {
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
 }
 
+.io-row.is-done,
+.edge-path.is-done {
+    opacity: 0.25 !important;
+    filter: grayscale(0.8);
+}
+
+.edge-path.is-done {
+    stroke-dasharray: 4 8 !important;
+    animation: none !important;
+}
+
 /* Status Colors */
 .block-card.status-ok {
     border-color: var(--flow-success);
@@ -810,6 +821,7 @@ body {
     outline: none;
 }
 
+.done-btn,
 .delete-btn {
     background: transparent;
     border: none;
@@ -822,6 +834,16 @@ body {
     justify-content: center;
     opacity: 0.4;
     transition: all 0.2s;
+}
+
+.done-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    opacity: 1;
+}
+
+.done-btn.active {
+    color: var(--flow-success);
+    opacity: 1;
 }
 
 .delete-btn:hover {

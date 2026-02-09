@@ -41,6 +41,7 @@ interface ConnectionPathProps {
   isStarved: boolean;
   isShortfall: boolean;
   isSelected: boolean;
+  isDone: boolean;
   rate: number;
   version: number;
   onSelect: (id: string) => void;
@@ -69,6 +70,7 @@ const ConnectionPath = memo(
     isStarved,
     isShortfall,
     isSelected,
+    isDone,
     rate,
     version,
     onSelect,
@@ -228,7 +230,7 @@ const ConnectionPath = memo(
       <g
         className={`${isDimmed ? "dimmed" : ""} ${isStarved ? "starved" : ""} ${
           isShortfall && !isStarved ? "shortfall" : ""
-        } ${isSelected ? "selected" : ""}`}
+        } ${isSelected ? "selected" : ""} ${isDone ? "is-done" : ""}`}
         onClick={(e) => {
           e.stopPropagation();
           onSelect(id);
@@ -256,7 +258,7 @@ const ConnectionPath = memo(
             isStarved ? "starved" : ""
           } ${isShortfall && !isStarved ? "shortfall" : ""} ${
             rate > 0 ? "animating" : ""
-          } ${isSelected ? "selected" : ""}`}
+          } ${isSelected ? "selected" : ""} ${isDone ? "is-done" : ""}`}
           stroke={
             isStarved
               ? "var(--flow-error)"
@@ -288,7 +290,7 @@ const ConnectionPath = memo(
         <g
           ref={labelRef}
           transform={`translate(${labelX}, ${labelY})`}
-          style={{ opacity: isDimmed ? 0 : 1, pointerEvents: "auto" }}
+          style={{ opacity: isDimmed || isDone ? 0 : 1, pointerEvents: "auto" }}
         >
           <foreignObject
             x="20"
@@ -629,6 +631,7 @@ export const ConnectionLines = memo(
               target={target}
               items={items}
               isDimmed={isDimmed}
+              isFocusActive={highlightSet.blocks.size > 0}
               isSelected={conn.id === selectedConnectionId}
               onSelect={selectConnection}
               onDelete={removeConnection}
@@ -666,6 +669,7 @@ const ConnectionPathWithPorts = memo(
     onSelect,
     onDelete,
     isPerMin,
+    isFocusActive,
     version,
     laneOffset,
     sourceOffset,
@@ -680,6 +684,7 @@ const ConnectionPathWithPorts = memo(
     onSelect: (id: string) => void;
     onDelete: (id: string) => void;
     isPerMin: boolean;
+    isFocusActive: boolean;
     version: number;
     laneOffset: number;
     sourceOffset: number;
@@ -731,6 +736,7 @@ const ConnectionPathWithPorts = memo(
         isStarved={isStarved}
         isShortfall={isShortfall}
         isSelected={isSelected}
+        isDone={(!isFocusActive || isDimmed) && source.done && target.done}
         onSelect={onSelect}
         onBeltChange={setBelt}
         onDelete={onDelete}
