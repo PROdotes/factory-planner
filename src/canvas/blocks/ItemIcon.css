@@ -3,7 +3,7 @@
  */
 
 .item-icon {
-    background-image: url('/icons.webp');
+    background-image: url('../../../public/icons.webp');
     background-repeat: no-repeat;
     display: inline-block;
     flex-shrink: 0;

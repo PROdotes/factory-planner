@@ -87,7 +87,7 @@ export const useGameDataStore = create<GameState>((set) => ({
 
   loadData: async () => {
     try {
-      const response = await fetch("/packs/dsp.json");
+      const response = await fetch(`${import.meta.env.BASE_URL}packs/dsp.json`);
       const rawData = await response.json();
 
       // 1. Validate data with Zod

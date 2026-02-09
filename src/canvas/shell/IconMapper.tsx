@@ -140,7 +140,9 @@ export function IconMapper({ onClose }: { onClose: () => void }) {
                         <div
                           className="mini-icon old"
                           style={{
-                            backgroundImage: "url('/icons.png')",
+                            backgroundImage: `url('${
+                              import.meta.env.BASE_URL
+                            }icons.png')`,
                             backgroundPosition: `-${
                               (oldIndex % OLD_COLS) * 16
                             }px -${Math.floor(oldIndex / OLD_COLS) * 16}px`,
@@ -154,7 +156,9 @@ export function IconMapper({ onClose }: { onClose: () => void }) {
                         <div
                           className="mini-icon"
                           style={{
-                            backgroundImage: "url('/icons.webp')",
+                            backgroundImage: `url('${
+                              import.meta.env.BASE_URL
+                            }icons.webp')`,
                             backgroundPosition: `-${
                               (currentIndex % COLS) * 16
                             }px -${Math.floor(currentIndex / COLS) * 16}px`,
@@ -201,7 +205,9 @@ export function IconMapper({ onClose }: { onClose: () => void }) {
                     <div
                       className="sprite-img"
                       style={{
-                        backgroundImage: "url('/icons.webp')",
+                        backgroundImage: `url('${
+                          import.meta.env.BASE_URL
+                        }icons.webp')`,
                         backgroundPosition: `-${(i % COLS) * ICON_SIZE}px -${
                           Math.floor(i / COLS) * ICON_SIZE
                         }px`,
@@ -225,7 +231,9 @@ export function IconMapper({ onClose }: { onClose: () => void }) {
                 <div
                   className="large-icon"
                   style={{
-                    backgroundImage: "url('/icons.png')",
+                    backgroundImage: `url('${
+                      import.meta.env.BASE_URL
+                    }icons.png')`,
                     backgroundPosition: `-${
                       ((items[selectedItemId]?.iconIndex ?? 0) % 16) * 64
                     }px -${
@@ -247,7 +255,9 @@ export function IconMapper({ onClose }: { onClose: () => void }) {
                 <div
                   className="large-icon"
                   style={{
-                    backgroundImage: "url('/icons.webp')",
+                    backgroundImage: `url('${
+                      import.meta.env.BASE_URL
+                    }icons.webp')`,
                     backgroundPosition: `-${
                       ((localMapping[selectedItemId] ??
                         items[selectedItemId]?.iconIndex ??
