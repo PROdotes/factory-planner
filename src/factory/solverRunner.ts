@@ -125,14 +125,29 @@ export function runAutoScale(
       const effectiveTime = recipe.craftingTime / (machine.speed || 1);
 
       let maxScale = 0;
-      recipe.outputs.forEach((out) => {
-        const demand = b.requested?.[out.itemId] || 0;
-        const ratePerUnit = out.amount / effectiveTime;
-        if (ratePerUnit > 0) {
-          const scale = demand / ratePerUnit;
-          if (scale > maxScale) maxScale = scale;
-        }
-      });
+      if (recipe.outputs.length > 0) {
+        recipe.outputs.forEach((out) => {
+          const demand = b.requested?.[out.itemId] || 0;
+          const ratePerUnit = out.amount / effectiveTime;
+          if (ratePerUnit > 0) {
+            const scale = demand / ratePerUnit;
+            if (scale > maxScale) maxScale = scale;
+          }
+        });
+      } else {
+        // Science Lab / Consumer block - look at inputs for manual targets
+        recipe.inputs.forEach((inp) => {
+          const demand =
+            (b as any)._manualRequested?.[inp.itemId] ||
+            b.requested?.[inp.itemId] ||
+            0;
+          const ratePerUnit = inp.amount / effectiveTime;
+          if (ratePerUnit > 0) {
+            const scale = demand / ratePerUnit;
+            if (scale > maxScale) maxScale = scale;
+          }
+        });
+      }
 
       (block as any).machineCount = maxScale;
     } else if (block.type === "gatherer") {

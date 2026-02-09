@@ -1697,4 +1697,96 @@ describe("rateSolver", () => {
       expect(edge(result, "e4").rate).toBeCloseTo(100);
     });
   });
+
+  // ── Sink-Dependent Demand Propagation ───────────────────────────
+
+  describe("sink-dependent demand", () => {
+    const recipes: Record<string, Recipe> = {
+      "iron-ingot": makeRecipe(
+        "iron-ingot",
+        [{ itemId: "iron-ore", amount: 2 }],
+        [{ itemId: "iron-ingot", amount: 1 }],
+        1
+      ),
+    };
+
+    it("should throttle oversized intermediate block to match sink demand", () => {
+      const intermediate = makeBlock("intermediate", "iron-ingot");
+      // Intermediate is configured for 200/s but sink only wants 10/s
+      intermediate.requested = { "iron-ingot": 200 };
+      intermediate.machineCount = 500; // Tons of capacity
+
+      const graph: FactoryLayout = {
+        blocks: {
+          src: makeSource("src", "iron-ore", 1000),
+          intermediate,
+          snk: makeSink("snk", "iron-ingot", 10),
+        },
+        connections: [
+          makeEdge("e1", "src", "intermediate", "iron-ore"),
+          makeEdge("e2", "intermediate", "snk", "iron-ingot"),
+        ],
+      };
+
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
+
+      // Even though intermediate asked for 200, it's connected to a 10/s sink.
+      // So its demand should be 10/s. Iron ore demand = 10 * 2 = 20/s.
+      expect(block(result, "intermediate").demand["iron-ore"]).toBe(20);
+      expect(edge(result, "e1").rate).toBe(20);
+      expect(edge(result, "e2").rate).toBe(10);
+      // Sink is master, so performing exactly what the sink needs is 100% satisfaction
+      expect(block(result, "intermediate").satisfaction).toBeCloseTo(1.0);
+    });
+
+    it("should fall back to manual request when block is disconnected", () => {
+      const b1 = makeBlock("b1", "iron-ingot");
+      b1.requested = { "iron-ingot": 50 };
+      b1.machineCount = 100;
+
+      const graph: FactoryLayout = {
+        blocks: {
+          src: makeSource("src", "iron-ore", 1000),
+          b1,
+        },
+        connections: [makeEdge("e1", "src", "b1", "iron-ore")],
+      };
+
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
+
+      // Disconnected block should pull 50/s as configured
+      expect(block(result, "b1").demand["iron-ore"]).toBe(100);
+      expect(edge(result, "e1").rate).toBe(100);
+      expect(block(result, "b1").satisfaction).toBe(1);
+    });
+
+    it("should allow miners to show full capacity when disconnected", () => {
+      const graph: FactoryLayout = {
+        blocks: {
+          src: makeSource("src", "iron-ore", 30),
+        },
+        connections: [],
+      };
+
+      const result = solveFlowRates(
+        graph,
+        recipes,
+        testMachines,
+        testGatherers
+      );
+
+      // Source should default to its capacity (1.0/s * 30 yield)
+      expect(result.blocks["src"].output["iron-ore"]).toBe(30);
+    });
+  });
 });

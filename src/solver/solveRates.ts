@@ -34,7 +34,7 @@ export function solveFlowRates(
   machines?: Record<string, Machine>,
   gatherers?: Record<string, Gatherer>
 ): FactoryLayout {
-  if (graph.connections.length === 0) return graph;
+  if (Object.keys(graph.blocks).length === 0) return graph;
 
   initializeGraph(graph);
   const index = buildAdjacencyIndex(graph);
@@ -107,8 +107,6 @@ function finalizeResults(
     const capacities: Record<string, number> = {};
     const nodeIndex = index.get(node.id);
 
-    // Compute what actually flowed out (sum of edge rates after solver converged)
-    // This is the REAL output, constrained by both production AND downstream acceptance
     const actualFlowOut: Record<string, number> = {};
     if (nodeIndex) {
       for (const [itemId, edges] of nodeIndex.outgoing) {
@@ -121,7 +119,6 @@ function finalizeResults(
       const recipe = block.recipeId ? recipes[block.recipeId] : null;
 
       if (recipe) {
-        // Add recipe items to itemIds so flows always has entries for them
         for (const inp of recipe.inputs) itemIds.add(inp.itemId);
         for (const out of recipe.outputs) itemIds.add(out.itemId);
 
@@ -132,8 +129,7 @@ function finalizeResults(
           false
         );
         Object.assign(capacities, blockCapacities);
-      } else {
-        // Stationary Node (Sink/Storage)
+      } else if (node.demand) {
         for (const id of Object.keys(node.demand)) {
           capacities[id] = node.demand[id];
         }
@@ -148,16 +144,14 @@ function finalizeResults(
         capacities[gatherer.outputItemId] = cap;
       }
     } else if (node.type === "logistics") {
-      for (const id of Object.keys(node.demand)) {
-        capacities[id] = node.demand[id];
+      if (node.demand) {
+        for (const id of Object.keys(node.demand)) {
+          capacities[id] = node.demand[id];
+        }
       }
     }
 
-    // For inputs: demand = delivered (available), actual = consumed
-    // For outputs: demand = factory max (requested), actual = produced, sent = gated by downstream
-    const delivered =
-      (node as unknown as Record<string, Record<string, number>>)._delivered ||
-      {};
+    const delivered = (node as any)._delivered || {};
 
     for (const id of itemIds) {
       const isOutput =
@@ -167,7 +161,7 @@ function finalizeResults(
       const actualValue = isOutput
         ? node.output?.[id] || 0
         : node.supply?.[id] || 0;
-      // sent = what actually flowed out (from edge rates), not what we produced
+
       const sentValue = isOutput
         ? actualFlowOut[id] ?? actualValue
         : actualValue;
@@ -188,8 +182,6 @@ function finalizeResults(
     };
   }
 }
-
-// ── Adjacency Index ─────────────────────────────────────────────────
 
 function buildAdjacencyIndex(graph: FactoryLayout): Map<string, NodeIndex> {
   const index = new Map<string, NodeIndex>();
@@ -220,8 +212,6 @@ function buildAdjacencyIndex(graph: FactoryLayout): Map<string, NodeIndex> {
   return index;
 }
 
-// ── Topological Sort ────────────────────────────────────────────────
-
 function computeProcessingOrder(
   graph: FactoryLayout,
   index: Map<string, NodeIndex>
@@ -232,7 +222,7 @@ function computeProcessingOrder(
 
   function visit(nodeId: string): void {
     if (visited.has(nodeId)) return;
-    if (visiting.has(nodeId)) return; // back-edge (cycle) — skip
+    if (visiting.has(nodeId)) return;
     visiting.add(nodeId);
 
     const idx = index.get(nodeId);
@@ -247,7 +237,6 @@ function computeProcessingOrder(
     order.push(nodeId);
   }
 
-  // Start from real sources (no incoming edges), then sweep remaining
   for (const id of Object.keys(graph.blocks)) {
     const idx = index.get(id);
     if (idx && idx.incomingAll.length === 0) visit(id);
@@ -256,12 +245,9 @@ function computeProcessingOrder(
     visit(id);
   }
 
-  // order is in reverse-topological (post-order). Reverse for forward pass.
   order.reverse();
   return order;
 }
-
-// ── Backward Pass ───────────────────────────────────────────────────
 
 function backwardPass(
   graph: FactoryLayout,
@@ -271,7 +257,6 @@ function backwardPass(
   index: Map<string, NodeIndex>,
   order: string[]
 ): void {
-  // Process sinks → sources (reverse topological)
   for (let i = order.length - 1; i >= 0; i--) {
     const node = graph.blocks[order[i]];
     if (!node) continue;
@@ -283,8 +268,6 @@ function backwardPass(
 
       if (recipe) {
         const isSourceNode = recipe.inputs.length === 0;
-
-        // 1. Calculate goals for each recipe output
         const outputGoals: Record<string, number> = {};
         const activeMachineId = block.machineId || recipe.machineId;
         const effectiveTime = getEffectiveTime(
@@ -298,22 +281,33 @@ function backwardPass(
           const edgesForItem = idx.outgoingAll.filter(
             (e) => e.itemId === itemId
           );
-
           const downstreamGoal = edgesForItem.reduce(
             (sum, e) => sum + e.demand,
             0
           );
-          const manualGoal = (node as any)._manualRequested?.[itemId] || 0;
 
-          outputGoals[itemId] = Math.max(downstreamGoal, manualGoal);
+          // SINK DEPENDENCY: If there is any downstream demand, it is the ONLY demand.
+          // Otherwise, if the block is terminal (unconnected), we use the manual request.
+          let goal = downstreamGoal;
+          const hasOutgoingConnections = downstreamGoal > EPSILON;
+
+          if (!hasOutgoingConnections) {
+            goal = (node as any)._manualRequested?.[itemId] || 0;
+          }
+
+          // Fallback for Source Nodes (miners/magic sources) to show capacity if disconnected.
+          if (isSourceNode && goal < EPSILON) {
+            const count = block.machineCount ?? 1.0;
+            goal = (out.amount / effectiveTime) * count;
+          }
+
+          outputGoals[itemId] = goal;
         }
 
         node.requested = outputGoals;
         if (!Number.isFinite(effectiveTime) || effectiveTime <= EPSILON) {
           block.demand = {};
-          for (const inp of recipe.inputs) {
-            block.demand[inp.itemId] = 0;
-          }
+          for (const inp of recipe.inputs) block.demand[inp.itemId] = 0;
           continue;
         }
 
@@ -328,13 +322,24 @@ function backwardPass(
             }
           }
         } else {
-          // Special Sink (e.g. Science Lab): Pull based on the manual goal set in requested
-          // We look for the 'virtual' item goal or any goal set on the block results
-          const manualGoal = Object.values(block.requested || {}).reduce(
-            (a, b) => Math.max(a, b as number),
-            0
-          );
-          maxScale = manualGoal; // In the case of Labs, 'requested' is usually the throughput factor
+          let highestInputScale = 0;
+          for (const inp of recipe.inputs) {
+            const targetRate =
+              (node as any)._manualRequested?.[inp.itemId] || 0;
+            const ratePerMachine = inp.amount / effectiveTime;
+            if (ratePerMachine > EPSILON) {
+              highestInputScale = Math.max(
+                highestInputScale,
+                targetRate / ratePerMachine
+              );
+            }
+          }
+          if (highestInputScale === 0) {
+            highestInputScale = (
+              Object.values((node as any)._manualRequested || {}) as number[]
+            ).reduce((a, b) => Math.max(a, b), 0);
+          }
+          maxScale = highestInputScale;
         }
 
         block.demand = {};
@@ -342,18 +347,22 @@ function backwardPass(
           const ratePerUnit = inp.amount / effectiveTime;
           block.demand[inp.itemId] = maxScale * ratePerUnit;
         }
+        (block as any)._demandScale = maxScale;
+      } else if (block.recipeId) {
+        // Production block with a missing or invalid recipeId.
+        // It produces nothing and demands nothing.
+        node.requested = {};
+        node.demand = {};
       } else {
-        // Stationary Node (Sink/Storage)
-        // Combine downstream requirements with manual demand settings
-        const downstreamGoals = aggregateEdges(idx.outgoingAll, "demand");
-        const finalGoals: Record<string, number> = { ...downstreamGoals };
-
-        for (const [id, val] of Object.entries(block.demand)) {
-          finalGoals[id] = Math.max(finalGoals[id] || 0, val);
+        // Stationary Node (Sink/Storage) - no recipeId.
+        const outgoingDemand = aggregateEdges(idx.outgoingAll, "demand");
+        const manualDemand = (node as any)._manualDemand || {}; // Use snapshot of user intent
+        const finalDemand: Record<string, number> = { ...outgoingDemand };
+        for (const [id, val] of Object.entries(manualDemand)) {
+          finalDemand[id] = Math.max(finalDemand[id] || 0, val as number);
         }
-
-        node.requested = finalGoals;
-        node.demand = finalGoals;
+        node.requested = finalDemand;
+        node.demand = finalDemand;
       }
     } else if (node.type === "gatherer") {
       const block = node as GathererBlock;
@@ -362,17 +371,16 @@ function backwardPass(
       if (gatherer) {
         const itemId = gatherer.outputItemId;
         const edgesForItem = idx.outgoingAll.filter((e) => e.itemId === itemId);
-
         let outputGoal: number;
         if (edgesForItem.length > 0) {
-          outputGoal = edgesForItem.reduce((sum, e) => sum + e.demand, 0);
+          outputGoal = edgesForItem.reduce(
+            (sum: number, e: Connection) => sum + e.demand,
+            0
+          );
         } else {
-          // UNCONNECTED OUTPUT: Use full capacity
           outputGoal = getGathererCapacity(block, gatherer, machines);
         }
-
         node.requested = { [itemId]: outputGoal };
-        // Gatherers have no inputs (they extract from the ground)
         block.demand = {};
       } else {
         node.requested = { ...node.demand };
@@ -381,16 +389,13 @@ function backwardPass(
       const outgoingGoal = aggregateEdges(idx.outgoingAll, "demand");
       const manualGoal = (node as any)._manualDemand || {};
       const finalGoal: Record<string, number> = { ...outgoingGoal };
-
       for (const [id, val] of Object.entries(manualGoal)) {
         finalGoal[id] = Math.max(finalGoal[id] || 0, val as number);
       }
-
       node.requested = finalGoal;
       node.demand = finalGoal;
     }
 
-    // Distribute this node's demand to its incoming edges
     for (const [itemId, edges] of idx.incoming) {
       const totalDemand = node.demand[itemId] || 0;
       distributeDemand(edges, totalDemand);
@@ -405,7 +410,6 @@ function distributeDemand(edges: Connection[], totalDemand: number): void {
     return;
   }
 
-  // Weight by prior-iteration rates for proportional splitting.
   const weights = edges.map((e) => Math.max(e.rate, 0));
   const totalWeight = weights.reduce((s, w) => s + w, 0);
 
@@ -415,13 +419,9 @@ function distributeDemand(edges: Connection[], totalDemand: number): void {
     }
   } else {
     const share = totalDemand / edges.length;
-    for (const edge of edges) {
-      edge.demand = share;
-    }
+    for (const edge of edges) edge.demand = share;
   }
 }
-
-// ── Forward Pass ────────────────────────────────────────────────────
 
 function forwardPass(
   graph: FactoryLayout,
@@ -431,7 +431,6 @@ function forwardPass(
   index: Map<string, NodeIndex>,
   order: string[]
 ): void {
-  // Process sources → sinks (forward topological)
   for (const nodeId of order) {
     const node = graph.blocks[nodeId];
     if (!node) continue;
@@ -441,15 +440,13 @@ function forwardPass(
 
     if (node.type === "production") {
       const block = node as ProductionBlock;
-
-      // 1. Resolve Recipe and Input State
       const recipe = block.recipeId ? recipes[block.recipeId] : null;
-      const isSource = recipe
-        ? recipe.inputs.length === 0
-        : idx.incomingAll.length === 0;
 
-      // 2. CASE A: Stationary Source Block (Storage/Legacy)
-      if (isSource && !recipe && block.sourceYield !== undefined) {
+      if (
+        !recipe &&
+        block.sourceYield !== undefined &&
+        idx.incomingAll.length === 0
+      ) {
         block.satisfaction = 1.0;
         const outgoingDemand = aggregateEdges(idx.outgoingAll, "demand");
         for (const itemId of Object.keys(outgoingDemand)) {
@@ -459,9 +456,7 @@ function forwardPass(
           );
         }
         supplyToGive = block.output;
-      }
-      // 3. CASE B: Production Machines (Assemblers, Smelters, etc.)
-      else if (recipe) {
+      } else if (recipe) {
         const activeMachineId = block.machineId || recipe.machineId;
         const effectiveTime = getEffectiveTime(
           recipe,
@@ -483,23 +478,18 @@ function forwardPass(
         );
         const delivered = aggregateEdges(idx.incomingAll, "rate");
 
-        if (isSource) {
-          // Source production nodes (no inputs) are always satisfied
+        if (recipe.inputs.length === 0) {
           block.satisfaction = 1.0;
           block.supply = {};
         } else {
-          // Consumers: Cap consumed supply by input capacity
           const consumed: Record<string, number> = {};
           for (const inp of recipe.inputs) {
             const cap = blockCapacities[inp.itemId] ?? Infinity;
             consumed[inp.itemId] = Math.min(delivered[inp.itemId] || 0, cap);
           }
           block.supply = consumed;
-          (
-            block as unknown as Record<string, Record<string, number>>
-          )._delivered = delivered;
+          (block as any)._delivered = delivered;
 
-          // Update incoming edge rates to reflect actual consumption
           for (const [itemId, edges] of idx.incoming) {
             const totalDelivered = edges.reduce((sum, e) => sum + e.rate, 0);
             const totalConsumed = consumed[itemId] || 0;
@@ -509,72 +499,89 @@ function forwardPass(
             }
           }
 
-          // Satisfaction = minimum input fulfillment ratio
-          let minSat = 1.0;
+          // Satisfaction is determined by input availability
+          let inputSat = 1.0;
           for (const inp of recipe.inputs) {
             const req = block.demand[inp.itemId] || 0;
             if (req > EPSILON) {
               const sat = (consumed[inp.itemId] || 0) / req;
-              if (sat < minSat) minSat = sat;
+              if (sat < inputSat) inputSat = sat;
             }
           }
-          block.satisfaction = minSat;
+          block.satisfaction = inputSat;
         }
 
-        // OUTPUT: (Requested * Satisfaction) CLAMPED by Physical Machine Capacity
-        for (const itemId of Object.keys(node.requested || {})) {
-          const requestedValue = node.requested![itemId] || 0;
-          const goal = requestedValue * block.satisfaction;
-          const cap = blockCapacities[itemId] ?? Infinity;
-          block.output[itemId] = Math.min(goal, cap);
+        // 3. Output Generation (Unified Scale Approach)
+        const demandScale = (block as any)._demandScale || 0;
+        const potentialScale = demandScale * block.satisfaction;
+        const capacityScale = block.machineCount ?? 1.0;
+        const actualScale = Math.min(potentialScale, capacityScale);
+
+        // UPDATE SATISFACTION: Reflect final output fulfillment (accounts for capacity caps)
+        if (demandScale > EPSILON) {
+          block.satisfaction = actualScale / demandScale;
+        } else {
+          block.satisfaction = 1.0;
         }
+
+        block.output = {};
+        for (const out of recipe.outputs) {
+          const unitRate = out.amount / effectiveTime;
+          block.output[out.itemId] = actualScale * unitRate;
+        }
+
         supplyToGive = block.output;
       } else {
-        // Stationary Node (Sink/Storage)
+        // Production block with NO recipe (Sink or Broken block)
         block.supply = aggregateEdges(idx.incomingAll, "rate");
-        block.output = { ...block.supply };
+
+        if (!block.recipeId) {
+          // Stationary Node (Sink/Storage) - acts as a pass-through
+          block.output = { ...block.supply };
+        } else {
+          // Broken Production Block - produces nothing
+          block.output = {};
+        }
+
         supplyToGive = block.output;
 
-        // Satisfaction = Fulfillment ratio
+        // Satisfaction = Fulfillment ratio vs its demand record
         let minSat = 1.0;
+        let hasDemand = false;
         for (const itemId of Object.keys(block.demand)) {
+          hasDemand = true;
           const req = block.demand[itemId] || 0;
-          if (req > EPSILON) {
-            const sat = (block.supply[itemId] || 0) / req;
-            if (sat < minSat) minSat = sat;
-          }
+          const sat = req > EPSILON ? (block.supply[itemId] || 0) / req : 1.0;
+          if (sat < minSat) minSat = sat;
         }
+
+        // If it was supposed to produce something but has no recipe,
+        // it can't fulfill output goals.
+        if (!hasDemand && Object.keys(node.requested || {}).length > 0) {
+          minSat = 0;
+        }
+
         block.satisfaction = minSat;
       }
     } else if (node.type === "gatherer") {
       const block = node as GathererBlock;
       const gatherer = block.gathererId ? gatherers?.[block.gathererId] : null;
-
       if (gatherer) {
-        // Gatherers are always satisfied (they extract from infinite ground)
         block.satisfaction = 1.0;
-        block.supply = {};
-
         const itemId = gatherer.outputItemId;
         const cap = getGathererCapacity(block, gatherer, machines);
-        const requestedValue = node.requested?.[itemId] || 0;
-        const goal = requestedValue * block.satisfaction;
-        block.output[itemId] = Math.min(goal, cap);
+        block.output[itemId] = Math.min(node.requested?.[itemId] || 0, cap);
         supplyToGive = block.output;
       } else {
-        // Gatherer without gatherer data - treat as sink
         block.supply = aggregateEdges(idx.incomingAll, "rate");
         block.output = { ...block.supply };
         supplyToGive = block.output;
         block.satisfaction = 1.0;
       }
     } else if (node.type === "logistics") {
-      // Logistics nodes provide what their inputs supplied
       node.supply = aggregateEdges(idx.incomingAll, "rate");
       node.output = { ...node.supply };
       supplyToGive = node.output;
-
-      // Satisfaction = Fulfillment ratio
       let totalReq = 0;
       let totalOut = 0;
       for (const itemId of Object.keys(node.requested || {})) {
@@ -584,7 +591,6 @@ function forwardPass(
       node.satisfaction = totalReq > EPSILON ? totalOut / totalReq : 1.0;
     }
 
-    // Distribute supply to outgoing edges: Standard Splitter Logic (Even Split)
     for (const [itemId, edges] of idx.outgoing.entries()) {
       let available = supplyToGive[itemId] || 0;
       if (available <= EPSILON) {
@@ -592,15 +598,9 @@ function forwardPass(
         continue;
       }
 
-      // Calculate the maximum each edge wants/can take.
-      // We respect edge.demand if it exists, otherwise assume infinite room (overflow).
-      const edgeLimits = edges.map((edge) => {
-        return edge.demand > EPSILON ? edge.demand : Infinity;
-      });
-
-      // Iterative distribution to handle caps (water-filling algorithm)
-      // We want to give everyone an equal share of the 'remaining' supply,
-      // but capped by their individual limit.
+      const edgeLimits = edges.map((e) =>
+        e.demand > EPSILON ? e.demand : Infinity
+      );
       let remainingEdges = edges.map((_, i) => i);
       let distribution = new Array(edges.length).fill(0);
 
@@ -608,41 +608,23 @@ function forwardPass(
         const share = available / remainingEdges.length;
         let nextRemaining: number[] = [];
         let gaveSomething = false;
-
         for (const i of remainingEdges) {
-          const alreadyGiven = distribution[i];
           const cap = edgeLimits[i];
-          const canTake = cap - alreadyGiven;
-
-          if (canTake <= EPSILON) {
-            // This edge is full
-            continue;
-          }
-
+          const canTake = cap - distribution[i];
+          if (canTake <= EPSILON) continue;
           const give = Math.min(share, canTake);
           distribution[i] += give;
           available -= give;
-
-          if (distribution[i] < cap - EPSILON) {
-            // Still has room, keep in pool
-            nextRemaining.push(i);
-          }
+          if (distribution[i] < cap - EPSILON) nextRemaining.push(i);
           gaveSomething = true;
         }
-
-        if (!gaveSomething) break; // Everyone full or no supply left
+        if (!gaveSomething) break;
         remainingEdges = nextRemaining;
       }
-
-      // Assign final rates
-      for (let i = 0; i < edges.length; i++) {
-        edges[i].rate = distribution[i];
-      }
+      for (let i = 0; i < edges.length; i++) edges[i].rate = distribution[i];
     }
   }
 }
-
-// ── Convergence Check ───────────────────────────────────────────────
 
 function isConverged(
   edges: Connection[],
@@ -650,31 +632,28 @@ function isConverged(
   prevRate: Map<string, number>
 ): boolean {
   for (const edge of edges) {
-    const pd = prevDemand.get(edge.id) || 0;
-    const pr = prevRate.get(edge.id) || 0;
-
-    if (relDiff(edge.demand, pd) > CONVERGENCE_TOLERANCE) return false;
-    if (relDiff(edge.rate, pr) > CONVERGENCE_TOLERANCE) return false;
+    if (
+      relDiff(edge.demand, prevDemand.get(edge.id) || 0) > CONVERGENCE_TOLERANCE
+    )
+      return false;
+    if (relDiff(edge.rate, prevRate.get(edge.id) || 0) > CONVERGENCE_TOLERANCE)
+      return false;
   }
   return true;
 }
 
 function relDiff(a: number, b: number): number {
   const max = Math.max(Math.abs(a), Math.abs(b));
-  if (max < EPSILON) return 0;
-  return Math.abs(a - b) / max;
+  return max < EPSILON ? 0 : Math.abs(a - b) / max;
 }
-
-// ── Helpers ─────────────────────────────────────────────────────────
 
 function aggregateEdges(
   edges: Connection[],
   field: "demand" | "rate"
 ): Record<string, number> {
   const result: Record<string, number> = {};
-  for (const edge of edges) {
+  for (const edge of edges)
     result[edge.itemId] = (result[edge.itemId] || 0) + edge[field];
-  }
   return result;
 }
 
@@ -684,8 +663,7 @@ function getEffectiveTime(
   machineId: string
 ): number {
   const speed = machines?.[machineId]?.speed ?? 1.0;
-  if (!Number.isFinite(speed) || speed <= 0) return NaN;
-  return recipe.craftingTime / speed;
+  return speed > 0 ? recipe.craftingTime / speed : NaN;
 }
 
 function getBlockCapacities(
@@ -699,15 +677,11 @@ function getBlockCapacities(
   const effectiveTime = getEffectiveTime(recipe, machines, activeMachineId);
   if (!Number.isFinite(effectiveTime) || effectiveTime <= EPSILON)
     return capacities;
-
   const count = block.machineCount ?? 1;
-
-  for (const inp of recipe.inputs) {
+  for (const inp of recipe.inputs)
     capacities[inp.itemId] = (inp.amount / effectiveTime) * count;
-  }
-  for (const out of recipe.outputs) {
+  for (const out of recipe.outputs)
     capacities[out.itemId] = (out.amount / effectiveTime) * count;
-  }
   return capacities;
 }
 
@@ -716,10 +690,8 @@ function getGathererCapacity(
   gatherer: Gatherer,
   machines: Record<string, Machine> | undefined
 ): number {
-  // Gatherer capacity = extractionRate * sourceYield * machineSpeed
   const machine = machines?.[gatherer.machineId];
   const speed = machine?.speed ?? 1.0;
   const yieldMult = block.sourceYield ?? 1.0;
-
   return gatherer.extractionRate * yieldMult * speed;
 }
