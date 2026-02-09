@@ -151,7 +151,8 @@ export function useCanvasTransform() {
   }, [updateDOM]);
 
   return {
-    transform: transformState, // React-synced version
+    transform: transformState, // React-synced version (throttled)
+    transformRef: transform, // Direct Ref for high-speed access without re-renders
     containerRef,
     contentRef,
     clientToWorld,

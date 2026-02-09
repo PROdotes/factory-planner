@@ -4,9 +4,8 @@
  * RELATION: The primary interaction point for "Flow Mode".
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { useFactoryStore } from "../../factory/factoryStore";
-import { BlockBase } from "../../factory/core/BlockBase";
 import { BlockCard } from "../blocks/BlockCard";
 import { ConnectionLines } from "../blocks/ConnectionLines";
 import { useCanvasTransform } from "../hooks/useCanvasTransform";
@@ -14,12 +13,21 @@ import { useDragToSpawn } from "../hooks/useDragToSpawn";
 import { useUIStore } from "../uiStore";
 
 export function PlannerCanvas() {
-  const { factory, selectBlock, version } = useFactoryStore();
-  const { toggleFocus } = useUIStore();
-  const { transform, containerRef, contentRef, clientToWorld, handlers } =
-    useCanvasTransform();
+  const factory = useFactoryStore((s) => s.factory);
+  const selectBlock = useFactoryStore((s) => s.selectBlock);
+  const version = useFactoryStore((s) => s.version);
 
-  // 1. [Interaction State] - Track mouse for click vs pan distinction
+  const { toggleFocus } = useUIStore();
+  const {
+    transform,
+    transformRef,
+    containerRef,
+    contentRef,
+    clientToWorld,
+    handlers,
+  } = useCanvasTransform();
+
+  // 1. [Interaction State] - Track mouse for click vs pan detection
   const mouseDownPos = useRef<{ x: number; y: number } | null>(null);
 
   // 2. [Keyboard Logic] - ESC to clear Deep Focus
@@ -36,8 +44,13 @@ export function PlannerCanvas() {
   // Initialize drag-to-spawn listener
   useDragToSpawn(clientToWorld);
 
-  // Force re-render when 'factory' changes
-  const blocks: BlockBase[] = Array.from(factory.blocks.values());
+  // Force re-render only when 'factory' or 'version' changes
+  const blocks = useMemo(
+    () => Array.from(factory.blocks.values()),
+    [factory, version]
+  );
+
+  const isZoomedIn = transform.scale >= 0.9;
 
   return (
     <div className="canvas-wrapper">
@@ -80,7 +93,7 @@ export function PlannerCanvas() {
             width: "100%",
             height: "100%",
             position: "relative",
-            pointerEvents: "none", // Allow clicks to pass through to grid background if needed, but cards have pointerEvents: auto
+            pointerEvents: "none",
           }}
         >
           {/* 2. [Render Phase] */}
@@ -90,7 +103,8 @@ export function PlannerCanvas() {
               <BlockCard
                 key={block.id}
                 block={block}
-                scale={transform.scale}
+                isZoomedIn={isZoomedIn}
+                transformRef={transformRef}
                 version={version}
               />
             ))}

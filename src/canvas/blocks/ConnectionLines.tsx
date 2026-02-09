@@ -15,6 +15,7 @@ import { useGhostEdgeDrag } from "../hooks/useGhostEdgeDrag";
 import { bezier, portXY } from "../utils/connectionGeometry";
 import { ItemIcon } from "./ItemIcon";
 import { identifySwimlanes } from "../../factory/autoLayout";
+import itemColors from "../../gamedata/itemColors.json";
 import {
   getConnectionStatus,
   getConnectionLabelData,
@@ -86,6 +87,11 @@ const ConnectionPath = memo(
     const labelRef = useRef<SVGGElement>(null);
 
     const flowDuration = rate > 0 ? Math.max(0.1, 2 / rate) : 0;
+    const itemColor =
+      (itemColors as Record<string, string>)[itemId] || "var(--flow-success)";
+    const itemGlow = itemColor.startsWith("#")
+      ? `${itemColor}80`
+      : "var(--flow-success-glow)";
 
     // Ref for port offsets to escape closure staleness in transient events
     const portsRef = useRef({ sourcePortY, targetPortY });
@@ -264,11 +270,11 @@ const ConnectionPath = memo(
               ? "var(--flow-error)"
               : isShortfall && !isStarved
               ? "var(--flow-warning)"
-              : "var(--flow-success)"
+              : itemColor
           }
-          strokeWidth="6"
+          strokeWidth="8"
           strokeOpacity={
-            isDimmed ? "0.1" : isStarved ? "1.0" : isShortfall ? "0.4" : "0.6"
+            isDimmed ? "0.1" : isStarved ? "1.0" : isShortfall ? "0.4" : "0.85"
           }
           fill="none"
           style={
@@ -281,7 +287,7 @@ const ConnectionPath = memo(
                 ? "none"
                 : isSelected
                 ? "drop-shadow(0 0 10px var(--accent))"
-                : "drop-shadow(0 0 5px var(--flow-success-glow))",
+                : `drop-shadow(0 0 5px ${itemGlow})`,
               "--flow-duration": `${flowDuration}s`,
             } as any
           }
@@ -311,6 +317,8 @@ const ConnectionPath = memo(
                     ? "var(--flow-error)"
                     : isShortfall
                     ? "var(--flow-warning)"
+                    : itemColor.startsWith("#")
+                    ? `${itemColor}60`
                     : "rgba(255,255,255,0.15)"
                 }`,
                 borderRadius: 12,
@@ -404,15 +412,13 @@ export const ConnectionLines = memo(
   }: {
     clientToWorld: (x: number, y: number) => { x: number; y: number };
   }) => {
-    const {
-      factory,
-      version,
-      connect,
-      runSolver,
-      selectedConnectionId,
-      selectConnection,
-      removeConnection,
-    } = useFactoryStore();
+    const factory = useFactoryStore((s) => s.factory);
+    const version = useFactoryStore((s) => s.version);
+    const connect = useFactoryStore((s) => s.connect);
+    const runSolver = useFactoryStore((s) => s.runSolver);
+    const selectedConnectionId = useFactoryStore((s) => s.selectedConnectionId);
+    const selectConnection = useFactoryStore((s) => s.selectConnection);
+    const removeConnection = useFactoryStore((s) => s.removeConnection);
     const { items } = useGameDataStore();
     const highlightSet = useHighlightSet();
     const { rateUnit } = useUIStore();

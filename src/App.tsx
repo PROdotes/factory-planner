@@ -34,28 +34,28 @@ import { IconMapper } from "./canvas/shell/IconMapper";
 import PowerSummary from "./canvas/PowerSummary";
 
 export function App() {
-  const { loadData, isLoaded, error } = useGameDataStore();
-  const {
-    runSolver,
-    loadFromLocalStorage,
-    exportToJSON,
-    importFromJSON,
-    undo,
-    redo,
-    saveToLocalStorage,
-    autoLayout,
-    clearFactory,
-  } = useFactoryStore();
-  const {
-    leftSidebarOpen,
-    toggleLeftSidebar,
-    rightSidebarOpen,
-    toggleRightSidebar,
-    focusedNodeId,
-    toggleFocus,
-    iconMapperOpen,
-    setIconMapperOpen,
-  } = useUIStore();
+  const loadData = useGameDataStore((s) => s.loadData);
+  const isLoaded = useGameDataStore((s) => s.isLoaded);
+  const error = useGameDataStore((s) => s.error);
+
+  const runSolver = useFactoryStore((s) => s.runSolver);
+  const loadFromLocalStorage = useFactoryStore((s) => s.loadFromLocalStorage);
+  const exportToJSON = useFactoryStore((s) => s.exportToJSON);
+  const importFromJSON = useFactoryStore((s) => s.importFromJSON);
+  const undo = useFactoryStore((s) => s.undo);
+  const redo = useFactoryStore((s) => s.redo);
+  const saveToLocalStorage = useFactoryStore((s) => s.saveToLocalStorage);
+  const autoLayout = useFactoryStore((s) => s.autoLayout);
+  const clearFactory = useFactoryStore((s) => s.clearFactory);
+
+  const leftSidebarOpen = useUIStore((s) => s.leftSidebarOpen);
+  const toggleLeftSidebar = useUIStore((s) => s.toggleLeftSidebar);
+  const rightSidebarOpen = useUIStore((s) => s.rightSidebarOpen);
+  const toggleRightSidebar = useUIStore((s) => s.toggleRightSidebar);
+  const focusedNodeId = useUIStore((s) => s.focusedNodeId);
+  const toggleFocus = useUIStore((s) => s.toggleFocus);
+  const iconMapperOpen = useUIStore((s) => s.iconMapperOpen);
+  const setIconMapperOpen = useUIStore((s) => s.setIconMapperOpen);
 
   useEffect(() => {
     loadData();

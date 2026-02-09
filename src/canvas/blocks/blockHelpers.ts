@@ -16,14 +16,14 @@ export function formatRate(
 }
 
 export function getStatusClass(satisfaction: number): string {
-  if (satisfaction >= 0.999) return "status-ok";
-  if (satisfaction > 0.001) return "status-warn";
+  if (satisfaction >= 0.995) return "status-ok";
+  if (satisfaction > 0.005) return "status-warn";
   return "status-error";
 }
 
 export function getBarColor(satisfaction: number): string {
-  if (satisfaction >= 0.999) return "var(--flow-success)";
-  if (satisfaction > 0.001) return "var(--flow-warning)";
+  if (satisfaction >= 0.995) return "var(--flow-success)";
+  if (satisfaction > 0.005) return "var(--flow-warning)";
   return "var(--flow-error)";
 }
 
