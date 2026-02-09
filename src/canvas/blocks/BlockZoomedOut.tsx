@@ -38,7 +38,13 @@ export const BlockZoomedOut = memo(
           )}
         </div>
         {displayValue > 0 && (
-          <div className="machine-badge">{`×${Math.ceil(displayValue)}`}</div>
+          <div className="machine-badge">
+            {`×${
+              displayValue % 1 === 0
+                ? displayValue
+                : displayValue.toFixed(2).replace(/\.?0+$/, "")
+            }`}
+          </div>
         )}
       </div>
     );

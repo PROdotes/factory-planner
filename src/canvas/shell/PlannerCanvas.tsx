@@ -15,6 +15,7 @@ import { useUIStore } from "../uiStore";
 export function PlannerCanvas() {
   const factory = useFactoryStore((s) => s.factory);
   const selectBlock = useFactoryStore((s) => s.selectBlock);
+  const selectConnection = useFactoryStore((s) => s.selectConnection);
   const version = useFactoryStore((s) => s.version);
 
   const { toggleFocus } = useUIStore();
@@ -30,16 +31,18 @@ export function PlannerCanvas() {
   // 1. [Interaction State] - Track mouse for click vs pan detection
   const mouseDownPos = useRef<{ x: number; y: number } | null>(null);
 
-  // 2. [Keyboard Logic] - ESC to clear Deep Focus
+  // 2. [Keyboard Logic] - ESC to clear Deep Focus & Selection
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         toggleFocus(null);
+        selectBlock(null);
+        selectConnection(null);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleFocus]);
+  }, [toggleFocus, selectBlock, selectConnection]);
 
   // Initialize drag-to-spawn listener
   useDragToSpawn(clientToWorld);
@@ -66,12 +69,18 @@ export function PlannerCanvas() {
         }}
         onMouseUp={(e) => {
           // Only deselect if it was a "clean" click (minimal movement)
-          if (e.target === containerRef.current && mouseDownPos.current) {
+          const target = e.target as HTMLElement;
+          if (
+            (target === containerRef.current ||
+              target.classList.contains("canvas-content")) &&
+            mouseDownPos.current
+          ) {
             const dx = Math.abs(e.clientX - mouseDownPos.current.x);
             const dy = Math.abs(e.clientY - mouseDownPos.current.y);
 
             if (dx < 5 && dy < 5) {
               selectBlock(null);
+              selectConnection(null);
             }
           }
           mouseDownPos.current = null;

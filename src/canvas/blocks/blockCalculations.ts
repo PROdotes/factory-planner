@@ -74,7 +74,8 @@ export function calculatePowerMW(
   machineCount: number
 ): number {
   if (!machine || machineCount <= 0) return 0;
-  return (machine.consumption * machineCount) / 1000000;
+  // Use Physical Count (Ceil) for power consumption calculation
+  return (machine.consumption * Math.ceil(machineCount)) / 1000000;
 }
 
 /**

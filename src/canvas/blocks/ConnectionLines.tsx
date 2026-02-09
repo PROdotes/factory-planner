@@ -51,6 +51,10 @@ interface ConnectionPathProps {
   laneOffset: number;
   sourceOffset: number;
   exitOffset: number;
+  isLabelLeader?: boolean;
+  groupBeltCount?: number;
+  staggerIndex?: number;
+  anySelected?: boolean;
 }
 
 const ConnectionPath = memo(
@@ -80,6 +84,10 @@ const ConnectionPath = memo(
     laneOffset,
     sourceOffset,
     exitOffset,
+    isLabelLeader = true,
+    groupBeltCount,
+    staggerIndex = 0,
+    anySelected = false,
   }: ConnectionPathProps) => {
     const [isHovered, setIsHovered] = useState(false);
     const pathRef = useRef<SVGPathElement>(null);
@@ -144,8 +152,8 @@ const ConnectionPath = memo(
       pathRef.current.setAttribute("d", d);
       hitRef.current.setAttribute("d", d);
 
-      // Label anchored at start of belt (p1)
-      const labelX = p1.x;
+      // Label anchored at start of belt (p1) with horizontal stagger
+      const labelX = p1.x + staggerIndex * 40;
       const labelY = p1.y;
 
       labelRef.current.setAttribute(
@@ -218,8 +226,8 @@ const ConnectionPath = memo(
     ]);
 
     const { p1, p2 } = getPoints(pos.current);
-    // Label anchored at start of belt (p1)
-    const labelX = p1.x;
+    // Label anchored at start of belt (p1) with stagger
+    const labelX = p1.x + staggerIndex * 40;
     const labelY = p1.y;
 
     const d = bezier(
@@ -264,7 +272,9 @@ const ConnectionPath = memo(
             isStarved ? "starved" : ""
           } ${isShortfall && !isStarved ? "shortfall" : ""} ${
             rate > 0 ? "animating" : ""
-          } ${isSelected ? "selected" : ""} ${isDone ? "is-done" : ""}`}
+          } ${isSelected || anySelected ? "selected" : ""} ${
+            isDone ? "is-done" : ""
+          }`}
           stroke={
             isStarved
               ? "var(--flow-error)"
@@ -296,10 +306,14 @@ const ConnectionPath = memo(
         <g
           ref={labelRef}
           transform={`translate(${labelX}, ${labelY})`}
-          style={{ opacity: isDimmed || isDone ? 0 : 1, pointerEvents: "auto" }}
+          style={{
+            opacity: !isLabelLeader || isDimmed || isDone ? 0 : 1,
+            pointerEvents:
+              !isLabelLeader || isDimmed || isDone ? "none" : "auto",
+          }}
         >
           <foreignObject
-            x="20"
+            x={FLOW_CONFIG.PORT_RADIUS + 10}
             y="-120"
             width="500"
             height="160"
@@ -351,9 +365,33 @@ const ConnectionPath = memo(
                 }}
               >
                 <ItemIcon itemId={itemId} size={40} />
-                <span>
-                  {labelData.beltCount}× {labelData.beltTier}
-                </span>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <span style={{ fontSize: "1.6rem", fontWeight: 700 }}>
+                    {groupBeltCount ?? labelData.beltCount}×{" "}
+                    {labelData.beltTier}
+                  </span>
+                  <div
+                    style={{
+                      fontSize: "0.9rem",
+                      textTransform: "uppercase",
+                      opacity: 0.6,
+                      background: labelData.beltTier.includes("3")
+                        ? "var(--flow-success)"
+                        : labelData.beltTier.includes("2")
+                        ? "var(--accent)"
+                        : "rgba(255,255,255,0.1)",
+                      color: labelData.beltTier.includes("1")
+                        ? "white"
+                        : "black",
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      width: "fit-content",
+                      fontWeight: 900,
+                    }}
+                  >
+                    {labelData.beltTier} BUS
+                  </div>
+                </div>
               </div>
 
               <div
@@ -431,13 +469,121 @@ export const ConnectionLines = memo(
     const laneInfo = useMemo(() => {
       const info = new Map<
         string,
-        { laneOffset: number; sourceOffset: number; exitOffset: number }
+        {
+          laneOffset: number;
+          sourceOffset: number;
+          exitOffset: number;
+          labelLeaderId: string;
+          groupRate: number;
+          groupPlan: number;
+          groupMachine: number;
+          groupBeltCount: number;
+          groupBeltId: string;
+          staggerIndex: number;
+          anySelected: boolean;
+        }
       >();
       const groups = new Map<number, any[]>();
-
       const swimlaneMap = identifySwimlanes(factory);
 
-      // 1. Group by "Target Column" (Input Bus)
+      // 1. GLOBAL Port Aggregation (Key: SourceBlock + Item + Physical PortY)
+      // This ensures that ALL connections leaving the same PORT share one label.
+      const portAggregates = new Map<
+        string,
+        {
+          leaderId: string;
+          totalRate: number;
+          totalPlan: number;
+          totalMachine: number;
+          totalBeltCount: number;
+          maxBeltId: string;
+          maxBeltSpeed: number;
+          staggerIndex: number;
+          anySelected: boolean;
+        }
+      >();
+
+      // Track how many unique items are leaving each block for staggering
+      const blockItemStagger = new Map<string, string[]>();
+
+      // Port metadata derived from connection Status Helpers
+      const BELT_SPEEDS: Record<string, number> = {
+        "conveyor-belt-mk-i": 6,
+        "conveyor-belt-mk-ii": 12,
+        "conveyor-belt-mk-iii": 30,
+      };
+
+      // Pre-calculate physical port Y and group aggregates
+      factory.connections.forEach((c) => {
+        const source = factory.blocks.get(c.sourceBlockId);
+        if (!source) return;
+
+        const outputOrder = source.outputOrder || [];
+        const pIdx = outputOrder.indexOf(c.itemId);
+        const portHStart =
+          FLOW_CONFIG.HEADER_HEIGHT +
+          FLOW_CONFIG.BORDER_WIDTH +
+          FLOW_CONFIG.CONTROLS_HEIGHT;
+        const portY =
+          source.type === "logistics"
+            ? FLOW_CONFIG.JUNCTION_SIZE / 2
+            : pIdx >= 0
+            ? portHStart +
+              pIdx * FLOW_CONFIG.PORT_VERTICAL_SPACING +
+              FLOW_CONFIG.PORT_VERTICAL_SPACING / 2
+            : portHStart;
+
+        const portKey = `${c.sourceBlockId}-${c.itemId}-${portY}`;
+
+        // Aggregation logic
+        const target = factory.blocks.get(c.targetBlockId);
+        const targetFlow = target?.results?.flows?.[c.itemId];
+        const machineReq = targetFlow?.capacity ?? 0;
+
+        const beltSpeed = BELT_SPEEDS[c.beltId || ""] || 6;
+
+        if (!portAggregates.has(portKey)) {
+          // Determine stagger index
+          if (!blockItemStagger.has(c.sourceBlockId))
+            blockItemStagger.set(c.sourceBlockId, []);
+          const items = blockItemStagger.get(c.sourceBlockId)!;
+          if (!items.includes(c.itemId)) items.push(c.itemId);
+
+          portAggregates.set(portKey, {
+            leaderId: c.id,
+            totalRate: 0,
+            totalPlan: 0,
+            totalMachine: 0,
+            totalBeltCount: 0,
+            maxBeltId: c.beltId || "conveyor-belt-mk-i",
+            maxBeltSpeed: 6,
+            staggerIndex: items.indexOf(c.itemId),
+            anySelected: false,
+          });
+        }
+
+        const agg = portAggregates.get(portKey)!;
+        agg.totalRate += c.rate;
+        agg.totalPlan += c.demand;
+        agg.totalMachine += machineReq;
+        if (beltSpeed > agg.maxBeltSpeed) {
+          agg.maxBeltSpeed = beltSpeed;
+          agg.maxBeltId = c.beltId || "conveyor-belt-mk-i";
+        }
+        if (c.id === selectedConnectionId) agg.anySelected = true;
+      });
+
+      // Finalize the Physical Trunk requirement for each port
+      portAggregates.forEach((agg) => {
+        const peakFlow = Math.max(
+          agg.totalRate,
+          agg.totalPlan,
+          agg.totalMachine
+        );
+        agg.totalBeltCount = Math.ceil(peakFlow / agg.maxBeltSpeed - 0.0001);
+      });
+
+      // 2. Identify Swimlanes & target groups (for routing)
       factory.connections.forEach((conn) => {
         const target = factory.blocks.get(conn.targetBlockId);
         if (!target) return;
@@ -446,13 +592,11 @@ export const ConnectionLines = memo(
         groups.get(key)!.push(conn);
       });
 
-      // 2. Pre-calculate "Manifold Transit Y" for each ITEM per target column
-      // This ensures all connections of the same item merge into ONE horizontal crossing line.
+      // 3. Pre-calculate "Manifold Transit Y" for vertical crossing
       const manifoldYByGroup = new Map<number, Map<string, number>>();
       groups.forEach((conns, key) => {
         const itemTotalY = new Map<string, number>();
         const itemCount = new Map<string, number>();
-
         conns.forEach((c) => {
           const source = factory.blocks.get(c.sourceBlockId);
           if (!source) return;
@@ -469,14 +613,12 @@ export const ConnectionLines = memo(
                 pIdx * FLOW_CONFIG.PORT_VERTICAL_SPACING +
                 FLOW_CONFIG.PORT_VERTICAL_SPACING / 2
               : portHStart;
-
           itemTotalY.set(
             c.itemId,
             (itemTotalY.get(c.itemId) || 0) + source.position.y + portY
           );
           itemCount.set(c.itemId, (itemCount.get(c.itemId) || 0) + 1);
         });
-
         const itemAvg = new Map<string, number>();
         itemTotalY.forEach((sum, itemId) => {
           itemAvg.set(itemId, sum / itemCount.get(itemId)!);
@@ -484,11 +626,9 @@ export const ConnectionLines = memo(
         manifoldYByGroup.set(key, itemAvg);
       });
 
-      // 3. Assign Lanes within groups
+      // 4. Assign vertical bus offsets
       const columnItemOffsets = new Map<string, number>();
       const sourceGroups = new Map<number, any[]>();
-
-      // Group by Source Column X
       factory.connections.forEach((conn) => {
         const source = factory.blocks.get(conn.sourceBlockId);
         if (source) {
@@ -497,35 +637,27 @@ export const ConnectionLines = memo(
           sourceGroups.get(key)!.push(conn);
         }
       });
-
-      // Assign One Offset PER ITEM Type per Column
-      // This ensures different items don't overlap (vertical separation)
-      // But same items SHARE the same line (Manifolding)
       sourceGroups.forEach((conns, colX) => {
-        // Find all unique items in this column
         const itemMinY = new Map<string, number>();
-
         conns.forEach((c) => {
           const s = factory.blocks.get(c.sourceBlockId);
           if (!s) return;
           const currentMin = itemMinY.get(c.itemId) ?? Infinity;
           if (s.position.y < currentMin) itemMinY.set(c.itemId, s.position.y);
         });
-
-        // Sort items by their first appearance (Top -> Bottom)
-        // Top-most item type gets the Inner Lane (0)
-        // Lower item types get Outer Lanes (+20, +40...)
-        const sortedItems = Array.from(itemMinY.keys()).sort((a, b) => {
-          return (itemMinY.get(a) || 0) - (itemMinY.get(b) || 0);
-        });
-
+        const sortedItems = Array.from(itemMinY.keys()).sort(
+          (a, b) => (itemMinY.get(a) || 0) - (itemMinY.get(b) || 0)
+        );
         sortedItems.forEach((itemId, index) => {
-          const key = `${colX}-${itemId}`;
-          columnItemOffsets.set(key, index * FLOW_CONFIG.PORT_VERTICAL_SPACING);
+          columnItemOffsets.set(
+            `${colX}-${itemId}`,
+            index * FLOW_CONFIG.PORT_VERTICAL_SPACING
+          );
         });
       });
 
-      groups.forEach((conns, key) => {
+      // 5. Final assignment
+      groups.forEach((conns, targetCol) => {
         const itemPriorityScore = new Map<string, number>();
         conns.forEach((c) => {
           const target = factory.blocks.get(c.targetBlockId);
@@ -538,15 +670,12 @@ export const ConnectionLines = memo(
         });
 
         const sortedItems = Array.from(itemPriorityScore.keys()).sort(
-          (a, b) => {
-            return itemPriorityScore.get(a)! - itemPriorityScore.get(b)!;
-          }
+          (a, b) => itemPriorityScore.get(a)! - itemPriorityScore.get(b)!
         );
-
         const itemToLane = new Map<string, number>();
         sortedItems.forEach((itemId, idx) => itemToLane.set(itemId, idx));
 
-        const itemAvgY = manifoldYByGroup.get(key)!;
+        const itemAvgY = manifoldYByGroup.get(targetCol)!;
 
         conns.forEach((c) => {
           const laneIndex = itemToLane.get(c.itemId) ?? 0;
@@ -554,8 +683,6 @@ export const ConnectionLines = memo(
           if (!source) return;
 
           const laneOffset = -(laneIndex * FLOW_CONFIG.PORT_VERTICAL_SPACING);
-
-          // Current Abs Path Source Y
           const pIdx = (source.outputOrder || []).indexOf(c.itemId);
           const portHStart =
             FLOW_CONFIG.HEADER_HEIGHT +
@@ -571,16 +698,12 @@ export const ConnectionLines = memo(
               : portHStart;
 
           const sourceAbsY = source.position.y + portY;
-
-          // CROSSING LOGIC: Find the physics-reserved gap for this belt branch
           const rS = Math.round(source.position.x / 100);
           const slId = swimlaneMap.get(source.id) || "misc";
           const groupKey = `${c.itemId}-${slId}`;
           const beltKey = `belt-${rS + 1}-${groupKey}`;
-
           const physical = factory.layoutMetadata?.beltYPositions.get(beltKey);
 
-          // Use pre-computed safe corridor if available (avoids building collisions)
           const safeCorridorY = factory.layoutMetadata?.safeCorridors?.get(
             c.id
           );
@@ -591,19 +714,37 @@ export const ConnectionLines = memo(
               ? physical.y + physical.h / 2
               : itemAvgY.get(c.itemId) ?? sourceAbsY;
 
-          // MANIFOLD Logic: Move to the physical transit corridor immediately.
           const sourceOffset =
             source.type === "logistics" ? 0 : transitY - sourceAbsY;
-
-          // Re-Align vertical bus lanes based on item priority (0 = innermost)
           const colX = Math.round(source.position.x);
           const exitOffset = columnItemOffsets.get(`${colX}-${c.itemId}`) ?? 0;
 
-          info.set(c.id, { laneOffset, sourceOffset, exitOffset });
+          const portKey = `${c.sourceBlockId}-${c.itemId}-${portY}`;
+          const aggValue = portAggregates.get(portKey)!;
+
+          info.set(c.id, {
+            laneOffset,
+            sourceOffset,
+            exitOffset,
+            labelLeaderId: aggValue.leaderId,
+            groupRate: aggValue.totalRate,
+            groupPlan: aggValue.totalPlan,
+            groupMachine: aggValue.totalMachine,
+            groupBeltCount: aggValue.totalBeltCount,
+            groupBeltId: aggValue.maxBeltId,
+            staggerIndex: aggValue.staggerIndex,
+            anySelected: aggValue.anySelected,
+          });
         });
       });
       return info;
-    }, [factory.connections, factory.blocks, factory.layoutMetadata, version]);
+    }, [
+      factory.connections,
+      factory.blocks,
+      factory.layoutMetadata,
+      version,
+      isPerMin,
+    ]);
 
     return (
       <svg
@@ -646,6 +787,14 @@ export const ConnectionLines = memo(
               laneOffset={laneInfo.get(conn.id)?.laneOffset ?? 0}
               sourceOffset={laneInfo.get(conn.id)?.sourceOffset ?? 0}
               exitOffset={laneInfo.get(conn.id)?.exitOffset ?? 0}
+              labelLeaderId={laneInfo.get(conn.id)?.labelLeaderId}
+              groupRate={laneInfo.get(conn.id)?.groupRate}
+              groupPlan={laneInfo.get(conn.id)?.groupPlan}
+              groupMachine={laneInfo.get(conn.id)?.groupMachine}
+              groupBeltCount={laneInfo.get(conn.id)?.groupBeltCount}
+              groupBeltId={laneInfo.get(conn.id)?.groupBeltId}
+              staggerIndex={laneInfo.get(conn.id)?.staggerIndex ?? 0}
+              anySelected={laneInfo.get(conn.id)?.anySelected ?? false}
             />
           );
         })}
@@ -680,6 +829,14 @@ const ConnectionPathWithPorts = memo(
     laneOffset,
     sourceOffset,
     exitOffset,
+    labelLeaderId,
+    groupRate,
+    groupPlan,
+    groupMachine,
+    groupBeltCount,
+    groupBeltId,
+    staggerIndex,
+    anySelected,
   }: {
     conn: any;
     source: any;
@@ -695,6 +852,14 @@ const ConnectionPathWithPorts = memo(
     laneOffset: number;
     sourceOffset: number;
     exitOffset: number;
+    labelLeaderId?: string;
+    groupRate?: number;
+    groupPlan?: number;
+    groupMachine?: number;
+    groupBeltCount?: number;
+    groupBeltId?: string;
+    staggerIndex: number;
+    anySelected: boolean;
   }) => {
     const { recipes, gatherers } = useGameDataStore();
     const { setBelt } = useFactoryStore();
@@ -704,24 +869,24 @@ const ConnectionPathWithPorts = memo(
     const sourcePortY = getPortOffset(sourcePorts, "right", conn.itemId);
     const targetPortY = getPortOffset(targetPorts, "left", conn.itemId);
 
-    const targetFlow = target.results?.flows?.[conn.itemId];
-    const machineRequired = targetFlow?.capacity ?? 0;
-    const planRequired = conn.demand;
+    // Use aggregated metrics if available for the label
+    const labelData = getConnectionLabelData(
+      {
+        ...conn,
+        rate: groupRate ?? conn.rate,
+        beltId: groupBeltId ?? conn.beltId,
+      },
+      isPerMin,
+      groupPlan ?? conn.demand,
+      groupMachine ?? 0
+    );
 
-    // Use extracted helpers for status and label
     const { isStarved, isShortfall } = getConnectionStatus(
       source,
       target,
       conn,
       recipes,
       gatherers
-    );
-
-    const labelData = getConnectionLabelData(
-      conn,
-      isPerMin,
-      planRequired,
-      machineRequired
     );
 
     return (
@@ -751,6 +916,10 @@ const ConnectionPathWithPorts = memo(
         laneOffset={laneOffset}
         sourceOffset={sourceOffset}
         exitOffset={exitOffset}
+        isLabelLeader={labelLeaderId === conn.id}
+        groupBeltCount={groupBeltCount}
+        staggerIndex={staggerIndex}
+        anySelected={anySelected}
       />
     );
   }

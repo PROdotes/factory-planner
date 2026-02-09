@@ -134,7 +134,7 @@ export function runAutoScale(
         }
       });
 
-      (block as any).machineCount = Math.ceil(maxScale - 0.001);
+      (block as any).machineCount = maxScale;
     } else if (block.type === "gatherer") {
       const b = block as any;
       if (!b.gathererId || !gatherers) return;

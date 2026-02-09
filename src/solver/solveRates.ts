@@ -62,9 +62,12 @@ export function solveFlowRates(
 
 function initializeGraph(graph: FactoryLayout): void {
   for (const node of Object.values(graph.blocks)) {
+    // Snapshot manual intent before clearing derivation fields
+    (node as any)._manualDemand = { ...(node.demand || {}) };
+    (node as any)._manualRequested = { ...(node.requested || {}) };
+
     node.supply = {};
     node.output = {};
-    // node.requested = {}; // DO NOT CLEAR: Stores user-defined manual goals
     node.satisfaction = 1.0;
 
     // Clear hidden delivery metadata
@@ -72,10 +75,10 @@ function initializeGraph(graph: FactoryLayout): void {
 
     node.results = { flows: {}, satisfaction: 1.0 };
 
-    // DERIVED DEMAND: Reset for blocks that pull based on connections.
-    // Production blocks keep their node.demand (user goal) which machine logic will overwrite if needed.
+    // DERIVED DEMAND: We preserve user-defined 'demand' values on Sinks.
+    // They will be combined with downstream goals in the backward pass.
     if (node.type === "logistics") {
-      node.demand = {};
+      // No clearing here
     }
   }
   for (const edge of graph.connections) {
@@ -296,21 +299,13 @@ function backwardPass(
             (e) => e.itemId === itemId
           );
 
-          if (edgesForItem.length > 0) {
-            outputGoals[itemId] = edgesForItem.reduce(
-              (sum, e) => sum + e.demand,
-              0
-            );
-          } else {
-            // UNCONNECTED OUTPUT
-            if (isSourceNode) {
-              const count = block.machineCount ?? 1.0;
-              outputGoals[itemId] = (out.amount / effectiveTime) * count;
-            } else {
-              outputGoals[itemId] =
-                block.requested?.[itemId] || block.demand[itemId] || 0;
-            }
-          }
+          const downstreamGoal = edgesForItem.reduce(
+            (sum, e) => sum + e.demand,
+            0
+          );
+          const manualGoal = (node as any)._manualRequested?.[itemId] || 0;
+
+          outputGoals[itemId] = Math.max(downstreamGoal, manualGoal);
         }
 
         node.requested = outputGoals;
@@ -323,13 +318,23 @@ function backwardPass(
         }
 
         let maxScale = 0;
-        for (const out of recipe.outputs) {
-          const goal = outputGoals[out.itemId] || 0;
-          const ratePerMachine = out.amount / effectiveTime;
-          if (ratePerMachine > EPSILON) {
-            const scale = goal / ratePerMachine;
-            if (scale > maxScale) maxScale = scale;
+        if (recipe.outputs.length > 0) {
+          for (const out of recipe.outputs) {
+            const goal = outputGoals[out.itemId] || 0;
+            const ratePerMachine = out.amount / effectiveTime;
+            if (ratePerMachine > EPSILON) {
+              const scale = goal / ratePerMachine;
+              if (scale > maxScale) maxScale = scale;
+            }
           }
+        } else {
+          // Special Sink (e.g. Science Lab): Pull based on the manual goal set in requested
+          // We look for the 'virtual' item goal or any goal set on the block results
+          const manualGoal = Object.values(block.requested || {}).reduce(
+            (a, b) => Math.max(a, b as number),
+            0
+          );
+          maxScale = manualGoal; // In the case of Labs, 'requested' is usually the throughput factor
         }
 
         block.demand = {};
@@ -339,7 +344,16 @@ function backwardPass(
         }
       } else {
         // Stationary Node (Sink/Storage)
-        node.requested = { ...node.demand };
+        // Combine downstream requirements with manual demand settings
+        const downstreamGoals = aggregateEdges(idx.outgoingAll, "demand");
+        const finalGoals: Record<string, number> = { ...downstreamGoals };
+
+        for (const [id, val] of Object.entries(block.demand)) {
+          finalGoals[id] = Math.max(finalGoals[id] || 0, val);
+        }
+
+        node.requested = finalGoals;
+        node.demand = finalGoals;
       }
     } else if (node.type === "gatherer") {
       const block = node as GathererBlock;
@@ -364,9 +378,16 @@ function backwardPass(
         node.requested = { ...node.demand };
       }
     } else if (node.type === "logistics") {
-      const goals = aggregateEdges(idx.outgoingAll, "demand");
-      node.requested = { ...goals };
-      node.demand = { ...goals };
+      const outgoingGoal = aggregateEdges(idx.outgoingAll, "demand");
+      const manualGoal = (node as any)._manualDemand || {};
+      const finalGoal: Record<string, number> = { ...outgoingGoal };
+
+      for (const [id, val] of Object.entries(manualGoal)) {
+        finalGoal[id] = Math.max(finalGoal[id] || 0, val as number);
+      }
+
+      node.requested = finalGoal;
+      node.demand = finalGoal;
     }
 
     // Distribute this node's demand to its incoming edges

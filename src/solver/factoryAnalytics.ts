@@ -46,26 +46,24 @@ export function computeFactoryAnalytics(
       const machineCount = node.machineCount || 0;
       if (machineCount === 0) return;
 
-      // 3. Accumulate Stats
+      // 3. Accumulate Stats: Use Physical Building Count (Ceil)
+      const physicalCount = Math.ceil(machineCount);
       analytics.buildingCounts[machine.id] =
-        (analytics.buildingCounts[machine.id] || 0) + machineCount;
+        (analytics.buildingCounts[machine.id] || 0) + physicalCount;
 
       if (machine.generation && machine.generation > 0) {
         // GENERATOR
-        // Generators contribute negative power (Supply)
         let generation = machine.generation;
         if (machine.id === "wind-turbine") {
           generation *= windEfficiency;
         }
-
-        analytics.totalActivePower -= machineCount * generation;
+        analytics.totalActivePower -= physicalCount * generation;
       } else {
-        // CONSUMER
-        // We calculate MAX Potential Consumption to prevent brownouts.
-        // A player needs to know: "If everything turns on, will I die?"
-        analytics.totalActivePower += machineCount * (machine.consumption || 0);
+        // CONSUMER: We use Physical Count for MAX Potential Consumption.
+        analytics.totalActivePower +=
+          physicalCount * (machine.consumption || 0);
         analytics.totalIdlePower +=
-          machineCount * (machine.idleConsumption || 0);
+          physicalCount * (machine.idleConsumption || 0);
       }
     }
   });

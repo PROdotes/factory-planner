@@ -695,12 +695,10 @@ body {
 /* Side Ports */
 .port {
     position: absolute;
-    width: 20px;
-    height: 20px;
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(100, 100, 100, 0.5);
     /* Frosted glass */
     backdrop-filter: blur(4px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -1280,8 +1278,7 @@ body {
     min-height: 600px;
     border-radius: 12px;
     background-color: #050608;
-    background-image:
-        linear-gradient(var(--border) 1px, transparent 1px),
+    background-image: linear-gradient(var(--border) 1px, transparent 1px),
         linear-gradient(90deg, var(--border) 1px, transparent 1px);
     background-size: calc(100px * var(--scale)) calc(100px * var(--scale));
     background-position: var(--pan-x) var(--pan-y);

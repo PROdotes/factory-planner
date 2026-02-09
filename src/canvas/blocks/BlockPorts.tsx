@@ -37,6 +37,8 @@ export const BlockPorts = memo(
               }`}
               style={{
                 top: `${port.y}px`,
+                width: `${FLOW_CONFIG.PORT_RADIUS * 2}px`,
+                height: `${FLOW_CONFIG.PORT_RADIUS * 2}px`,
                 left:
                   port.side === "left"
                     ? `-${FLOW_CONFIG.PORT_RADIUS}px`
@@ -75,7 +77,7 @@ export const BlockPorts = memo(
             >
               <ItemIcon
                 itemId={port.itemId}
-                size={FLOW_CONFIG.PORT_RADIUS * 1.4}
+                size={FLOW_CONFIG.PORT_RADIUS * 1.6}
               />
             </div>
           );
